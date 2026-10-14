@@ -57,6 +57,8 @@ pub struct Layout {
     icon_w: u16,
     name_w: u16,
     desc_w: u16,
+    /// Text lines of the bottom description frame (0: none).
+    frame_lines: u16,
 }
 
 impl Layout {
@@ -69,10 +71,74 @@ impl Layout {
         2 * (self.b() + self.style.pad_v)
     }
 
+    /// Rows of the bottom description frame, borders included.
+    fn frame_h(&self) -> u16 {
+        frame_height(self.frame_lines, self.b())
+    }
+
     /// Rows available for suggestions.
     pub fn visible(&self) -> usize {
-        (self.rect.height - self.chrome_h()) as usize
+        (self.rect.height - self.chrome_h() - self.frame_h()) as usize
     }
+}
+
+fn frame_height(lines: u16, b: u16) -> u16 {
+    if lines == 0 { 0 } else { lines + if b == 1 { 2 } else { 1 } }
+}
+
+/// Word-wrap to lines of at most `w` columns.
+fn wrap(text: &str, w: usize) -> Vec<String> {
+    let mut lines: Vec<String> = vec![];
+    let mut cur = String::new();
+    for word in text.split_whitespace() {
+        let mut word = word.to_string();
+        // Hard-split words longer than a line.
+        while word.width() > w && w > 0 {
+            if !cur.is_empty() {
+                lines.push(std::mem::take(&mut cur));
+            }
+            let mut head = String::new();
+            let mut rest = String::new();
+            for c in word.chars() {
+                if rest.is_empty() && head.width() + c.width().unwrap_or(0) <= w {
+                    head.push(c);
+                } else {
+                    rest.push(c);
+                }
+            }
+            lines.push(head);
+            word = rest;
+        }
+        let extra = if cur.is_empty() { 0 } else { 1 };
+        if cur.width() + extra + word.width() > w && !cur.is_empty() {
+            lines.push(std::mem::take(&mut cur));
+        }
+        if !cur.is_empty() {
+            cur.push(' ');
+        }
+        cur.push_str(&word);
+    }
+    if !cur.is_empty() {
+        lines.push(cur);
+    }
+    lines
+}
+
+/// The selected item's description as exactly `n` lines of width `w`.
+fn frame_text(desc: &str, w: usize, n: usize) -> Vec<String> {
+    let mut lines = wrap(desc, w);
+    if lines.len() > n {
+        lines.truncate(n);
+        if let Some(last) = lines.last_mut() {
+            // Mark the cut.
+            *last = fit(&format!("{last} …"), w).trim_end().to_string();
+            if !last.ends_with('…') {
+                *last = fit(&format!("{last}…"), w).trim_end().to_string();
+            }
+        }
+    }
+    lines.resize(n, String::new());
+    lines
 }
 
 /// Truncate to `w` columns (adding `…` when cut) and pad to exactly `w`.
@@ -101,6 +167,8 @@ fn fit(s: &str, w: usize) -> String {
 /// Rows below the cursor (besides the border) that are enough to keep the
 /// popup there.
 const MIN_BELOW: u16 = 4;
+/// Preferred text width of the bottom description frame.
+const BOTTOM_DESC_W: u16 = 56;
 /// A description column narrower than this isn't worth showing.
 const MIN_DESC: u16 = 8;
 
@@ -122,17 +190,19 @@ pub fn layout(
     let bar = 1 - b;
     let chrome_w = 2 * b + style.pad_l + style.pad_r + icon_w + bar;
     let name_need = (items.iter().map(|s| s.label.width()).max().unwrap_or(1) as u16).clamp(4, 44);
-    let desc_need = if ui.descriptions {
-        (items.iter().map(|s| s.description.width()).max().unwrap_or(0) as u16).min(style.desc_max)
-    } else {
-        0
-    };
+    let bottom = ui.descriptions && ui.description_position == "bottom";
+    let longest_desc = items.iter().map(|s| s.description.width()).max().unwrap_or(0) as u16;
+    let desc_need = if ui.descriptions && !bottom { longest_desc.min(style.desc_max) } else { 0 };
 
     // Width: fixed (`width = 60` / `"50%"`) or fit to the content within
     // `min_width..=max_width`.
     let smallest = (chrome_w + 4).min(cols);
     let max_w = ui.max_width.resolve(cols).unwrap_or(cols).clamp(smallest, cols);
-    let content_w = chrome_w + name_need + if desc_need > 0 { style.gap + desc_need } else { 0 };
+    let mut content_w = chrome_w + name_need + if desc_need > 0 { style.gap + desc_need } else { 0 };
+    if bottom {
+        // Room for the description frame to be readable.
+        content_w = content_w.max(2 * b + style.pad_l + style.pad_r + longest_desc.min(BOTTOM_DESC_W));
+    }
     let width = match ui.width.resolve(cols) {
         Some(w) => w,
         None => content_w.clamp(ui.min_width.min(max_w), max_w),
@@ -158,7 +228,14 @@ pub fn layout(
         None => 8,
     }
     .max(1);
-    let want = (items.len() as u16).min(max_items).max(ui.min_height.min(max_items)) + chrome_h;
+    let mut frame_lines = 0;
+    if bottom {
+        let text_w = width.saturating_sub(2 * b + style.pad_l + style.pad_r).max(1) as usize;
+        let needed = items.iter().map(|s| wrap(&s.description, text_w).len()).max().unwrap_or(0) as u16;
+        frame_lines = needed.min(ui.description_lines);
+    }
+    let frame_h = frame_height(frame_lines, b);
+    let want = (items.len() as u16).min(max_items).max(ui.min_height.min(max_items)) + chrome_h + frame_h;
     let below = rows.saturating_sub(crow + 1);
     let above = crow;
     // Prefer below the cursor, shrinking (the list scrolls); only flip above
@@ -169,13 +246,17 @@ pub fn layout(
         let h = want.min(above);
         (crow - h, h)
     };
+    // Not even one suggestion row next to the frame: drop the frame.
+    if height <= chrome_h + frame_h {
+        frame_lines = 0;
+    }
     if height <= chrome_h {
         return None;
     }
     // Align the suggestion text with the start of the token being completed.
     let anchor = ccol.saturating_sub(token_width).saturating_sub(b + style.pad_l + icon_w);
     let col = anchor.min(cols.saturating_sub(width));
-    Some(Layout { rect: Rect { row, col, height, width }, style, icon_w, name_w, desc_w })
+    Some(Layout { rect: Rect { row, col, height, width }, style, icon_w, name_w, desc_w, frame_lines })
 }
 
 /// The popup as lines of text with SGR codes, each exactly `rect.width` wide.
@@ -279,7 +360,46 @@ pub fn render(ui: &Ui, l: &Layout, items: &[Suggestion], selected: usize, scroll
         let tail = if counter.is_empty() { String::new() } else { format!("\x1b[{}m{counter}{edge}{}", t.info_fg, bd[4]) };
         lines.push(format!("{edge}{}{}{tail}{}\x1b[0m", bd[2], bd[4].repeat(fill), bd[3]));
     }
+    if l.frame_lines > 0 {
+        lines.extend(render_frame(&t, l, items.get(selected)));
+    }
     lines
+}
+
+/// The bottom frame with the selected item's description.
+fn render_frame(t: &Theme, l: &Layout, item: Option<&Suggestion>) -> Vec<String> {
+    let st = l.style;
+    let w = l.rect.width as usize;
+    let edge = format!("\x1b[0;{};{}m", t.border_bg, t.border_fg);
+    let text_w = w - 2 * l.b() as usize - (st.pad_l + st.pad_r) as usize;
+    let desc = item.map_or("", |s| s.description.as_str());
+    let (text, style) = if desc.is_empty() {
+        (frame_text("no description", text_w, l.frame_lines as usize), format!("3;{}", t.info_fg))
+    } else {
+        (frame_text(desc, text_w, l.frame_lines as usize), t.desc_fg.clone())
+    };
+    let mut out = vec![];
+    match st.border {
+        Some(bd) => out.push(format!("{edge}{}{}{}\x1b[0m", bd[0], bd[4].repeat(w - 2), bd[1])),
+        None => out.push(format!("\x1b[0;{};{}m{}\x1b[0m", t.bg, t.border_fg, "─".repeat(w))),
+    }
+    for line in text {
+        let body = format!(
+            "\x1b[0;{};{style}m{}{}{}",
+            t.bg,
+            " ".repeat(st.pad_l as usize),
+            fit(&line, text_w),
+            " ".repeat(st.pad_r as usize)
+        );
+        match st.border {
+            Some(bd) => out.push(format!("{edge}{}{body}{edge}{}\x1b[0m", bd[5], bd[5])),
+            None => out.push(format!("{body}\x1b[0m")),
+        }
+    }
+    if let Some(bd) = st.border {
+        out.push(format!("{edge}{}{}{}\x1b[0m", bd[2], bd[4].repeat(w - 2), bd[3]));
+    }
+    out
 }
 
 /// `lig preview`: a sample popup under a fake prompt, as text.
@@ -447,6 +567,40 @@ mod tests {
         let l = layout(&ui, &few, (40, 100), (2, 10), 0).unwrap();
         assert_eq!(l.visible(), 6);
         assert_eq!(render(&ui, &l, &few, 0, 0).len(), 8);
+    }
+
+    #[test]
+    fn description_frame_at_the_bottom() {
+        let mut it = items(5);
+        it[1].description = "Apply the changes introduced by some existing commits to the current branch, \
+            creating a new commit for each one"
+            .into();
+        let ui = Ui { icons: "none".into(), description_position: "bottom".into(), ..Ui::default() };
+        let l = layout(&ui, &it, (24, 100), (2, 10), 0).unwrap();
+        assert_eq!(l.desc_w, 0);
+        assert_eq!(l.frame_lines, 2);
+        assert_eq!(l.visible(), 5);
+        let lines: Vec<String> = render(&ui, &l, &it, 1, 0).iter().map(|s| strip(s)).collect();
+        assert_eq!(lines.len(), l.rect.height as usize);
+        for line in &lines {
+            assert_eq!(line.width(), l.rect.width as usize, "{line:?}");
+        }
+        // List box, then the description box with the selected item's text.
+        assert!(lines[1].contains("item0") && !lines[1].contains("description"));
+        assert!(lines[7].starts_with('╭') && lines[8].contains("Apply the changes"));
+        assert!(lines.last().unwrap().starts_with('╰'));
+        // Borderless: a separator line instead of a box.
+        let ui = Ui { border: "none".into(), ..ui };
+        let l = layout(&ui, &it, (24, 100), (2, 10), 0).unwrap();
+        let lines: Vec<String> = render(&ui, &l, &it, 0, 0).iter().map(|s| strip(s)).collect();
+        assert!(lines[5].starts_with('─') && lines[6].contains("description 0"));
+    }
+
+    #[test]
+    fn wrapping() {
+        assert_eq!(wrap("one two three four", 9), ["one two", "three", "four"]);
+        assert_eq!(wrap("abcdefghij", 4), ["abcd", "efgh", "ij"]);
+        assert_eq!(frame_text("one two three four", 9, 2), ["one two", "three …"]);
     }
 
     #[test]

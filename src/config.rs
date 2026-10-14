@@ -37,8 +37,13 @@ pub struct Ui {
     pub height: Size,
     /// Keep at least this many rows (padded), so the popup's size is steadier.
     pub min_height: u16,
-    /// Show descriptions next to suggestions.
+    /// Show descriptions.
     pub descriptions: bool,
+    /// `"right"`: a column next to each name; `"bottom"`: the selected
+    /// item's full description in a frame under the list.
+    pub description_position: String,
+    /// Lines of the bottom description frame (at most).
+    pub description_lines: u16,
     /// `"auto"` (Nerd Font glyphs when the terminal/fonts have them),
     /// `"nerd"`, `"unicode"` or `"none"`.
     pub icons: String,
@@ -167,6 +172,8 @@ impl Default for Ui {
             height: Size::Cells(8),
             min_height: 0,
             descriptions: true,
+            description_position: "right".into(),
+            description_lines: 3,
             icons: "auto".into(),
             border: "rounded".into(),
             density: "normal".into(),

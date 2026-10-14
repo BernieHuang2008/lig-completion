@@ -153,6 +153,10 @@ Change it in `[ui]`:
   number of columns (`60`) or a share of the terminal (`"50%"`). With a fixed width the
   description column takes the extra space. When space is short the description
   shrinks first and is dropped before the name gets cut.
+* `description_position`: `"right"` shows a description column next to each name.
+  `"bottom"` lists only the names and shows the **selected** item's full description,
+  wrapped, in a separate frame under the list. The frame is up to `description_lines`
+  tall and keeps its size while you move through the list.
 * `height`: the most suggestions listed at once (`8`), or a share of the terminal
   height (`"30%"`). The list scrolls beyond that. `min_height` keeps the popup at least
   that tall even with fewer suggestions.
@@ -165,6 +169,7 @@ lig preview --theme nord --density compact --border square
 lig preview --all                    # every theme
 lig preview --densities              # compact / normal / relaxed side by side
 lig preview --width 60 --height 5    # try sizes ("50%" works too)
+lig preview --description bottom     # description frame under the list
 ```
 
 ## Icons
@@ -222,6 +227,8 @@ max_width = 100          #   (columns or "80%")
 height = 8               # suggestion rows at most, or "30%" of the terminal height
 min_height = 0           # keep at least this many rows (padded) for a steadier popup
 descriptions = true
+description_position = "right"   # or "bottom": the selected item's description in a frame below
+description_lines = 3            # height of that frame (at most)
 icons = "auto"           # "nerd", "unicode" or "none"
 border = "rounded"       # "square" or "none"
 density = "normal"       # "compact", "normal" or "relaxed"

@@ -92,6 +92,9 @@ enum Cmd {
         /// rows (8) or percent ("30%")
         #[arg(long)]
         height: Option<String>,
+        /// right or bottom
+        #[arg(long)]
+        description: Option<String>,
         /// Show every theme
         #[arg(long)]
         all: bool,
@@ -321,7 +324,7 @@ fn main() -> Result<()> {
                 println!("  \x1b[{c}m{g}\x1b[0m  {what}{alt}");
             }
         }
-        Cmd::Preview { theme, border, density, icons: icon_style, width, height, all, densities: density_all } => {
+        Cmd::Preview { theme, border, density, icons: icon_style, width, height, description, all, densities: density_all } => {
             icons::detect();
             let mut ui = config::Config::load().ui;
             ui.theme = theme.unwrap_or(ui.theme);
@@ -333,6 +336,9 @@ fn main() -> Result<()> {
             }
             if let Some(h) = height {
                 ui.height = config::Size::Text(h);
+            }
+            if let Some(d) = description {
+                ui.description_position = d;
             }
             let cols = unsafe {
                 let mut ws: libc::winsize = std::mem::zeroed();
