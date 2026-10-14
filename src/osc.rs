@@ -1,0 +1,124 @@
+//! Extracts lig's private OSC 6973 messages from the shell's output stream.
+//!
+//! The zsh integration writes `ESC ] 6973 ; <kind> [; payload] BEL`:
+//!   `B;<cursor>;<buffer>`  edit buffer changed
+//!   `H`                    hide (isearch, vi command mode, …)
+//!   `F`                    line finished (command about to run)
+//!   `P;<PATH>`             the shell's PATH
+//!   `C;<cwd>`              the shell's working directory
+
+const PREFIX: &[u8] = b"\x1b]6973;";
+const MAX_PENDING: usize = 1 << 20;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Msg {
+    Buffer { cursor: usize, text: String },
+    Hide,
+    Finish,
+    Path(String),
+    Cwd(String),
+}
+
+#[derive(Default)]
+pub struct OscFilter {
+    pending: Vec<u8>,
+}
+
+impl OscFilter {
+    /// Bytes held back waiting for the rest of a possible message.
+    pub fn take_pending(&mut self) -> Vec<u8> {
+        std::mem::take(&mut self.pending)
+    }
+
+    /// Append the bytes meant for the terminal to `out`, and our messages to `msgs`.
+    pub fn feed(&mut self, data: &[u8], out: &mut Vec<u8>, msgs: &mut Vec<Msg>) {
+        let mut buf = std::mem::take(&mut self.pending);
+        buf.extend_from_slice(data);
+        let mut i = 0;
+        while i < buf.len() {
+            let Some(off) = buf[i..].iter().position(|&b| b == 0x1b) else {
+                out.extend_from_slice(&buf[i..]);
+                break;
+            };
+            let j = i + off;
+            out.extend_from_slice(&buf[i..j]);
+            let rest = &buf[j..];
+            if rest.len() < PREFIX.len() && PREFIX.starts_with(rest) {
+                self.pending = rest.to_vec();
+                return;
+            }
+            if !rest.starts_with(PREFIX) {
+                out.push(0x1b);
+                i = j + 1;
+                continue;
+            }
+            let body = &rest[PREFIX.len()..];
+            match body.iter().position(|&b| b == 0x07 || b == 0x1b) {
+                None if rest.len() < MAX_PENDING => {
+                    self.pending = rest.to_vec();
+                    return;
+                }
+                None => break,
+                Some(k) => {
+                    if let Some(m) = parse(&body[..k]) {
+                        msgs.push(m);
+                    }
+                    // A stray ESC ends the sequence but stays in the stream.
+                    i = j + PREFIX.len() + k + usize::from(body[k] == 0x07);
+                }
+            }
+        }
+    }
+}
+
+fn parse(payload: &[u8]) -> Option<Msg> {
+    let s = String::from_utf8_lossy(payload);
+    let (kind, rest) = s.split_once(';').unwrap_or((&s, ""));
+    match kind {
+        "B" => {
+            let (cursor, text) = rest.split_once(';')?;
+            Some(Msg::Buffer { cursor: cursor.parse().ok()?, text: text.to_string() })
+        }
+        "H" => Some(Msg::Hide),
+        "F" => Some(Msg::Finish),
+        "P" => Some(Msg::Path(rest.to_string())),
+        "C" => Some(Msg::Cwd(rest.to_string())),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extracts_and_passes_through() {
+        let mut f = OscFilter::default();
+        let (mut out, mut msgs) = (vec![], vec![]);
+        f.feed(b"a\x1b[1mb\x1b]6973;B;3;git st\x07c\x1b]0;title\x07", &mut out, &mut msgs);
+        assert_eq!(out, b"a\x1b[1mbc\x1b]0;title\x07");
+        assert_eq!(msgs, vec![Msg::Buffer { cursor: 3, text: "git st".into() }]);
+    }
+
+    #[test]
+    fn split_across_chunks() {
+        let mut f = OscFilter::default();
+        let (mut out, mut msgs) = (vec![], vec![]);
+        let data = b"x\x1b]6973;B;1;a;b\x07y\x1b]6973;F\x07";
+        for b in data {
+            f.feed(std::slice::from_ref(b), &mut out, &mut msgs);
+        }
+        assert_eq!(out, b"xy");
+        assert_eq!(msgs, vec![Msg::Buffer { cursor: 1, text: "a;b".into() }, Msg::Finish]);
+    }
+
+    #[test]
+    fn lone_escape_at_end_is_held() {
+        let mut f = OscFilter::default();
+        let (mut out, mut msgs) = (vec![], vec![]);
+        f.feed(b"q\x1b", &mut out, &mut msgs);
+        assert_eq!(out, b"q");
+        f.feed(b"[A", &mut out, &mut msgs);
+        assert_eq!(out, b"q\x1b[A");
+    }
+}
