@@ -56,8 +56,9 @@ pub struct Keys {
 pub struct Behavior {
     /// Also match suggestions by subsequence (`gco` → `git-checkout`).
     pub fuzzy: bool,
-    /// Pressing Enter while the popup is open accepts instead of running.
-    pub enter_accepts: bool,
+    /// Enter (when bound to accept) right after a space, with the selection
+    /// untouched, runs the line instead of accepting.
+    pub enter_runs_on_empty_word: bool,
     /// List files before options and subcommands.
     pub files_first: bool,
     /// Show suggestions right after a space (empty current token).
@@ -100,9 +101,9 @@ impl Default for Keys {
     fn default() -> Self {
         let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect();
         Keys {
-            accept: v(&["tab"]),
-            next: v(&["down", "ctrl-n"]),
-            prev: v(&["up", "ctrl-p", "shift-tab"]),
+            accept: v(&["enter"]),
+            next: v(&["tab", "down", "ctrl-n"]),
+            prev: v(&["shift-tab", "up", "ctrl-p"]),
             dismiss: v(&["esc"]),
         }
     }
@@ -112,7 +113,7 @@ impl Default for Behavior {
     fn default() -> Self {
         Behavior {
             fuzzy: true,
-            enter_accepts: false,
+            enter_runs_on_empty_word: true,
             files_first: false,
             show_on_empty_token: true,
             complete_commands: true,

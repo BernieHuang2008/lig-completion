@@ -442,9 +442,20 @@ impl Session {
                 fwd.extend_from_slice(raw);
                 continue;
             }
-            let action = self.bindings.action(&key).or_else(|| {
-                (key == Key::Enter && self.cfg.behavior.enter_accepts).then_some(Action::Accept)
-            });
+            let mut action = self.bindings.action(&key);
+            // Next with a single suggestion: nothing to cycle through, take it.
+            if action == Some(Action::Next) && self.items.len() == 1 {
+                action = Some(Action::Accept);
+            }
+            // `ls ` + Enter runs `ls` unless a suggestion was picked.
+            if action == Some(Action::Accept)
+                && key == Key::Enter
+                && self.cfg.behavior.enter_runs_on_empty_word
+                && !self.navigated
+                && self.items[self.selected].delete == 0
+            {
+                action = None;
+            }
             match action {
                 Some(Action::Next) => {
                     self.navigated = true;

@@ -119,11 +119,14 @@ LIG_DISABLE=1 zsh
 
 | Key | Action |
 | --- | --- |
-| `↓` / `Ctrl-N` | next |
-| `↑` / `Ctrl-P` / `Shift-Tab` | previous |
-| `Tab` | accept |
+| `Tab` / `↓` / `Ctrl-N` | next suggestion (with a single suggestion, `Tab` accepts it) |
+| `Shift-Tab` / `↑` / `Ctrl-P` | previous suggestion |
+| `Enter` | accept the selected suggestion |
 | `Esc` | dismiss (until the line changes) |
-| `Enter` | run the line as usual (set `enter_accepts = true` to accept instead) |
+
+Right after a space (nothing typed for the current word), `Enter` still runs the line
+unless you moved the selection, so `ls ` + `Enter` runs `ls`. Set
+`enter_runs_on_empty_word = false` to always accept.
 
 When the popup isn't showing, every key goes straight to zsh, so normal Tab completion still works.
 
@@ -146,14 +149,14 @@ match_fg = "117"
 scrollbar_fg = "240"
 
 [keys]
-accept = ["tab"]
-next = ["down", "ctrl-n"]
-prev = ["up", "ctrl-p", "shift-tab"]
+accept = ["enter"]
+next = ["tab", "down", "ctrl-n"]
+prev = ["shift-tab", "up", "ctrl-p"]
 dismiss = ["esc"]
 
 [behavior]
 fuzzy = true                 # subsequence matching when nothing matches by prefix
-enter_accepts = false
+enter_runs_on_empty_word = true   # `ls ` + Enter runs instead of accepting
 files_first = false          # list files before options/subcommands
 show_on_empty_token = true   # suggest right after a space
 complete_commands = true     # suggest command names for the first word

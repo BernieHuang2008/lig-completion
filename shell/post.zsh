@@ -45,7 +45,14 @@ if [[ -o interactive && -z "$LIG_DISABLE" && -n "$LIG_TTY" && "$LIG_TTY" == "$TT
     LBUFFER+=$text
     (( back > 0 )) && (( CURSOR -= back ))
     _lig_last=
+    # zsh-autosuggestions: drop the stale suggestion and fetch one for the new buffer.
+    unset POSTDISPLAY
+    (( ${+functions[_zsh_autosuggest_fetch]} )) && _zsh_autosuggest_fetch
   }
+  # …and keep zsh-autosuggestions from wrapping the widget (its wrapper
+  # restores the old suggestion while the insert payload is being read).
+  typeset -ga ZSH_AUTOSUGGEST_IGNORE_WIDGETS
+  ZSH_AUTOSUGGEST_IGNORE_WIDGETS+=(_lig_insert)
 
   # Generators run in the shell's directory with the shell's PATH. Aliases
   # and function names are sent when they change (records split by \x1e).
