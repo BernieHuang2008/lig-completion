@@ -98,7 +98,7 @@ pub fn cargo() -> Subcommand {
                     opt("-p, --package", "Package to modify").arg(arg("spec").generator(gens::cargo_packages())),
                     opt("--dry-run", "Don't actually write the manifest"),
                 ])
-                .arg(arg("crate").variadic()),
+                .arg(arg("crate").variadic().generator(gens::crates_io())),
             cmd("remove, rm", "Remove dependencies from a Cargo.toml manifest file")
                 .opts([opt("--dev", "Remove from dev-dependencies"), opt("--build", "Remove from build-dependencies"), opt("-p, --package", "Package to modify").arg(arg("spec").generator(gens::cargo_packages()))])
                 .arg(arg("dependency").variadic().generator(crate::spec::gen_fn("cargo:deps", |cx| {
@@ -123,7 +123,7 @@ pub fn cargo() -> Subcommand {
                     opt("--list", "List all installed packages"),
                     opt("-F, --features", "Features").arg(arg("features")),
                 ])
-                .arg(arg("crate").optional().variadic()),
+                .arg(arg("crate").optional().variadic().generator(gens::crates_io())),
             cmd("uninstall", "Remove a Rust binary").arg(arg("spec").variadic().generator(gens::cargo_installed())),
             cmd("update", "Update dependencies listed in Cargo.lock")
                 .opts([opt("-p, --package", "Package to update").arg(arg("spec")), opt("--dry-run", "Don't write the lockfile"), opt("--precise", "Update to exactly this version").arg(arg("version"))])

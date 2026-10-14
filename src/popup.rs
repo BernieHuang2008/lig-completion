@@ -55,6 +55,7 @@ fn icon(kind: Kind, style: &str) -> (&'static str, &'static str) {
         Kind::File => "38;5;250",
         Kind::Folder => "38;5;75",
         Kind::Shortcut => "38;5;209",
+        Kind::Info => "38;5;244",
     };
     let glyph = match style {
         "none" => "",
@@ -66,6 +67,7 @@ fn icon(kind: Kind, style: &str) -> (&'static str, &'static str) {
             Kind::File => "\u{f15b}",
             Kind::Folder => "\u{f07b}",
             Kind::Shortcut => "\u{f0e7}",
+            Kind::Info => "\u{f110}",
         },
         _ => match kind {
             Kind::Command => "❯",
@@ -74,6 +76,7 @@ fn icon(kind: Kind, style: &str) -> (&'static str, &'static str) {
             Kind::Arg => "•",
             Kind::File => "▫",
             Kind::Folder => "▪",
+            Kind::Info => "…",
             Kind::Shortcut => "★",
         },
     };
@@ -173,6 +176,9 @@ pub fn draw(out: &mut Vec<u8>, ui: &Ui, l: &Layout, items: &[Suggestion], select
         }
         // Label, with the typed prefix highlighted.
         let label = fit(&s.label, l.name_w as usize);
+        if s.kind == Kind::Info {
+            let _ = write!(out, "\x1b[3;{}m", t.desc_fg);
+        }
         let hl = if !s.query.is_empty() && s.label.to_lowercase().starts_with(&s.query.to_lowercase()) {
             s.query.chars().count().min(label.chars().count())
         } else {

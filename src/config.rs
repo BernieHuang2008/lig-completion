@@ -69,6 +69,10 @@ pub struct Behavior {
     /// default so short commands can be typed and run with one Enter; the
     /// toggle key (Ctrl+Space) always shows them.
     pub complete_commands: bool,
+    /// Search package registries while you type (npm, crates.io, Docker Hub,
+    /// PyPI versions, Snap Store). What you type for the package name is sent
+    /// to them.
+    pub online: bool,
     /// Kill generator commands after this many milliseconds.
     pub generator_timeout_ms: u64,
     /// Cache generator results for this long when the spec doesn't say.
@@ -122,7 +126,8 @@ impl Default for Behavior {
             files_first: false,
             show_on_empty_token: true,
             complete_commands: false,
-            generator_timeout_ms: 3000,
+            online: true,
+            generator_timeout_ms: 5000,
             generator_cache_ms: 5000,
             disabled_commands: vec![],
             help_parsing: true,

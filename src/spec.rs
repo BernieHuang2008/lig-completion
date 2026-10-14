@@ -26,6 +26,8 @@ pub enum Kind {
     File,
     Folder,
     Shortcut,
+    /// Not a suggestion: a status message ("Searching npm…").
+    Info,
 }
 
 #[derive(Debug, Clone, Default)]

@@ -705,3 +705,324 @@ pub fn zoxide_dirs() -> Generator {
     .unfiltered()
     .ttl(10_000)
 }
+
+// ---------------------------------------------------------------- online registries
+//
+// Like Fig's, these search the package registry as you type (via `curl`),
+// with ids starting with `online:` so `behavior.online = false` turns them off.
+
+fn urlencode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
+fn http_json(cx: &GenCtx, url: &str, accept: Option<&str>) -> Option<serde_json::Value> {
+    let mut argv = vec!["curl", "-fsSL", "--max-time", "4", "-A", "lig (https://github.com/lig autocomplete)"];
+    let header;
+    if let Some(a) = accept {
+        header = format!("Accept: {a}");
+        argv.extend(["-H", header.as_str()]);
+    }
+    argv.push(url);
+    serde_json::from_str(&cx.run(&argv)?).ok()
+}
+
+/// Split `name@version` (`@scope/name@1.2` keeps its leading `@`).
+fn split_at_version(token: &str) -> Option<(&str, &str)> {
+    let start = usize::from(token.starts_with('@'));
+    token[start..].find('@').map(|i| (&token[..start + i], &token[start + i + 1..]))
+}
+
+/// Newest first, stable releases before pre-releases (`1.2.0` > `1.2.0-rc.1`).
+fn sort_versions(list: &mut [(String, String)]) {
+    fn key(v: &str) -> (bool, Vec<u64>) {
+        let pre = v.contains(|c: char| c.is_ascii_alphabetic());
+        let nums = v.split(|c: char| !c.is_ascii_digit()).filter(|p| !p.is_empty()).filter_map(|p| p.parse().ok()).collect();
+        (pre, nums)
+    }
+    list.sort_by(|a, b| {
+        let (ka, kb) = (key(&a.0), key(&b.0));
+        ka.0.cmp(&kb.0).then(kb.1.cmp(&ka.1))
+    });
+}
+
+/// Exact name, then names starting with the query, then the rest; stable otherwise.
+fn rank_by_prefix(q: &str, mut v: Vec<SuggestionDef>) -> Vec<SuggestionDef> {
+    let q = q.to_lowercase();
+    v.sort_by_key(|s| {
+        let n = s.meta.names[0].to_lowercase();
+        if n == q { 0 } else if n.starts_with(&q) { 1 } else { 2 }
+    });
+    v
+}
+
+fn version_suggestions(name: &str, sep: &str, typed: &str, versions: impl IntoIterator<Item = (String, String)>) -> Vec<SuggestionDef> {
+    versions
+        .into_iter()
+        .filter(|(v, _)| v.starts_with(typed))
+        .take(100)
+        .map(|(v, d)| {
+            let mut s = sug(format!("{name}{sep}{v}")).desc(d);
+            s.meta.display_name = Some(v);
+            s
+        })
+        .collect()
+}
+
+/// npm registry: package search, or versions/dist-tags after `name@`.
+pub fn npm_registry() -> Generator {
+    gen_fn("online:npm", |cx| {
+        let q = cx.current();
+        if q.is_empty() {
+            return vec![];
+        }
+        if let Some((name, typed)) = split_at_version(q) {
+            let url = format!("https://registry.npmjs.org/{}", name.replace('/', "%2F"));
+            let Some(v) = http_json(cx, &url, Some("application/vnd.npm.install-v1+json")) else { return vec![] };
+            let mut list: Vec<(String, String)> = v["dist-tags"]
+                .as_object()
+                .map(|o| o.iter().map(|(t, ver)| (t.clone(), format!("→ {}", ver.as_str().unwrap_or("")))).collect())
+                .unwrap_or_default();
+            let mut versions: Vec<(String, String)> =
+                v["versions"].as_object().map(|o| o.keys().map(|k| (k.clone(), String::new())).collect()).unwrap_or_default();
+            sort_versions(&mut versions);
+            list.extend(versions);
+            return version_suggestions(name, "@", typed, list);
+        }
+        // npms.io completes prefixes by popularity (`reac` → react) but its
+        // version numbers are stale, so only names and descriptions are used.
+        let url = format!("https://api.npms.io/v2/search/suggestions?q={}&size=25", urlencode(q));
+        if let Some(serde_json::Value::Array(list)) = http_json(cx, &url, None)
+            && !list.is_empty() {
+                let v = list.iter().filter_map(|o| {
+                    let p = &o["package"];
+                    Some(sug(p["name"].as_str()?).desc(p["description"].as_str().unwrap_or("")))
+                });
+                return rank_by_prefix(q, v.collect());
+            }
+        // Fallback: the registry's own search (matches whole words only).
+        let url = format!("https://registry.npmjs.org/-/v1/search?text={}&size=25", urlencode(q));
+        let Some(v) = http_json(cx, &url, None) else { return vec![] };
+        let list = v["objects"].as_array().into_iter().flatten().filter_map(|o| {
+            let p = &o["package"];
+            let desc = format!("{} · {}", p["version"].as_str().unwrap_or(""), p["description"].as_str().unwrap_or(""));
+            Some(sug(p["name"].as_str()?).desc(desc))
+        });
+        rank_by_prefix(q, list.collect())
+    })
+    .trigger(Trigger::Change)
+    .unfiltered()
+    .ttl(30 * 60_000)
+}
+
+/// crates.io: crate search, or versions after `name@`.
+pub fn crates_io() -> Generator {
+    gen_fn("online:crates", |cx| {
+        let q = cx.current();
+        if q.is_empty() {
+            return vec![];
+        }
+        if let Some((name, typed)) = q.split_once('@') {
+            let url = format!("https://crates.io/api/v1/crates/{}/versions", urlencode(name));
+            let Some(v) = http_json(cx, &url, None) else { return vec![] };
+            let mut list: Vec<(String, String)> = v["versions"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|x| x["yanked"] != true)
+                .filter_map(|x| Some((x["num"].as_str()?.to_string(), x["created_at"].as_str().unwrap_or("").chars().take(10).collect())))
+                .collect();
+            sort_versions(&mut list);
+            return version_suggestions(name, "@", typed, list);
+        }
+        // Relevance finds the exact name; downloads finds the popular ones
+        // (`ser` → serde, serde_json).
+        let mut out: Vec<(u64, SuggestionDef)> = vec![];
+        for sort in ["relevance", "downloads"] {
+            let url = format!("https://crates.io/api/v1/crates?q={}&per_page=25&sort={sort}", urlencode(q));
+            let Some(v) = http_json(cx, &url, None) else { continue };
+            for c in v["crates"].as_array().into_iter().flatten() {
+                let Some(name) = c["name"].as_str() else { continue };
+                if out.iter().any(|(_, s)| s.meta.names[0] == name) {
+                    continue;
+                }
+                let ver = c["max_stable_version"].as_str().or(c["max_version"].as_str()).unwrap_or("");
+                let s = sug(name).desc(format!("{ver} · {}", c["description"].as_str().unwrap_or("").trim()));
+                out.push((c["recent_downloads"].as_u64().or(c["downloads"].as_u64()).unwrap_or(0), s));
+            }
+        }
+        // Most downloaded first, then exact/prefix matches ahead (stable sort).
+        out.sort_by_key(|x| std::cmp::Reverse(x.0));
+        rank_by_prefix(q, out.into_iter().map(|(_, s)| s).collect())
+    })
+    .trigger(Trigger::Change)
+    .unfiltered()
+    .ttl(30 * 60_000)
+}
+
+/// Docker Hub: repository search, or tags after `image:`.
+pub fn docker_hub() -> Generator {
+    gen_fn("online:dockerhub", |cx| {
+        let q = cx.current();
+        if q.is_empty() {
+            return vec![];
+        }
+        if let Some((image, typed)) = q.split_once(':') {
+            let repo = if image.contains('/') { image.to_string() } else { format!("library/{image}") };
+            let url = format!("https://hub.docker.com/v2/repositories/{repo}/tags?page_size=50&ordering=last_updated&name={}", urlencode(typed));
+            let Some(v) = http_json(cx, &url, None) else { return vec![] };
+            let list = v["results"].as_array().into_iter().flatten().filter_map(|t| {
+                Some((t["name"].as_str()?.to_string(), t["last_updated"].as_str().unwrap_or("").chars().take(10).collect()))
+            });
+            return version_suggestions(image, ":", typed, list.collect::<Vec<_>>());
+        }
+        let url = format!("https://hub.docker.com/v2/search/repositories/?query={}&page_size=25", urlencode(q));
+        let Some(v) = http_json(cx, &url, None) else { return vec![] };
+        let mut repos: Vec<&serde_json::Value> = v["results"].as_array().into_iter().flatten().collect();
+        // Official images first, then by stars.
+        repos.sort_by_key(|r| (r["is_official"] != true, std::cmp::Reverse(r["star_count"].as_u64().unwrap_or(0))));
+        let list = repos.into_iter().filter_map(|r| {
+            let official = if r["is_official"] == true { "official · " } else { "" };
+            let desc = format!("{official}★{} · {}", r["star_count"], r["short_description"].as_str().unwrap_or(""));
+            Some(sug(r["repo_name"].as_str()?).desc(desc).priority(40.0))
+        });
+        rank_by_prefix(q, list.collect())
+    })
+    .trigger(Trigger::Change)
+    .unfiltered()
+    .ttl(30 * 60_000)
+}
+
+/// Download `url` into `~/.cache/lig/<file>`, reusing it for `max_age`
+/// (and, when offline, however old it is).
+fn cached_download(cx: &GenCtx, url: &str, file: &str, max_age: std::time::Duration) -> Option<String> {
+    let path = dirs::cache_dir()?.join("lig").join(file);
+    let fresh = std::fs::metadata(&path).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|age| age < max_age);
+    if !fresh {
+        let tmp = path.with_extension("part");
+        let _ = std::fs::create_dir_all(path.parent()?);
+        let tmp_s = tmp.to_string_lossy().into_owned();
+        if cx.run(&["curl", "-fsSL", "--max-time", "8", "-o", &tmp_s, url]).is_some() {
+            let _ = std::fs::rename(&tmp, &path);
+        }
+    }
+    std::fs::read_to_string(path).ok()
+}
+
+fn human_count(n: u64) -> String {
+    match n {
+        1_000_000_000.. => format!("{:.1}B", n as f64 / 1e9),
+        1_000_000.. => format!("{:.1}M", n as f64 / 1e6),
+        1_000.. => format!("{:.0}K", n as f64 / 1e3),
+        _ => n.to_string(),
+    }
+}
+
+/// The 15,000 most downloaded PyPI packages (hugovk/top-pypi-packages,
+/// refreshed weekly), since PyPI itself can't be searched.
+pub fn pypi_top() -> Generator {
+    gen_fn("online:pypi-top", |cx| {
+        if cx.current().contains("==") {
+            return vec![];
+        }
+        let url = "https://hugovk.github.io/top-pypi-packages/top-pypi-packages.min.json";
+        let Some(text) = cached_download(cx, url, "top-pypi-packages.json", std::time::Duration::from_secs(7 * 86400)) else {
+            return vec![];
+        };
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
+        v["rows"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|r| {
+                let downloads = r["download_count"].as_u64().unwrap_or(0);
+                Some(sug(r["project"].as_str()?).desc(format!("{} downloads/month", human_count(downloads))).priority(51.0))
+            })
+            .collect()
+    })
+    .ttl(24 * 3_600_000)
+}
+
+/// PyPI has no search API; this offers versions after `name==`.
+pub fn pypi_versions() -> Generator {
+    gen_fn("online:pypi", |cx| {
+        let Some((name, typed)) = cx.current().split_once("==") else { return vec![] };
+        let url = format!("https://pypi.org/pypi/{}/json", urlencode(name));
+        let Some(v) = http_json(cx, &url, None) else { return vec![] };
+        let mut list: Vec<(String, String)> = v["releases"]
+            .as_object()
+            .map(|o| {
+                o.iter()
+                    .filter(|(_, files)| files.as_array().is_some_and(|f| !f.is_empty()))
+                    .map(|(ver, files)| (ver.clone(), files[0]["upload_time"].as_str().unwrap_or("").chars().take(10).collect()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        sort_versions(&mut list);
+        version_suggestions(name, "==", typed, list)
+    })
+    .trigger(Trigger::Change)
+    .ttl(30 * 60_000)
+}
+
+/// `snap find`: the Snap Store, searched as you type.
+pub fn snap_store() -> Generator {
+    gen_fn("online:snap", |cx| {
+        let q = cx.current();
+        if q.chars().count() < 2 {
+            return vec![];
+        }
+        cx.lines(&["snap", "find", q])
+            .iter()
+            .skip(1)
+            .filter_map(|l| {
+                // Name  Version  Publisher  Notes  Summary
+                let cols: Vec<&str> = l.split_whitespace().collect();
+                let summary = cols.get(4..).map(|c| c.join(" ")).unwrap_or_default();
+                Some(sug(*cols.first()?).desc(format!("{} · {summary}", cols.get(1).unwrap_or(&""))))
+            })
+            .collect()
+    })
+    .trigger(Trigger::Change)
+    .unfiltered()
+    .ttl(30 * 60_000)
+}
+
+pub fn snaps_installed() -> Generator {
+    gen_fn("snap:installed", |cx| {
+        cx.lines(&["snap", "list"])
+            .iter()
+            .skip(1)
+            .filter_map(|l| {
+                let c: Vec<&str> = l.split_whitespace().collect();
+                Some(sug(*c.first()?).desc(format!("{} · {}", c.get(1).unwrap_or(&""), c.get(3).unwrap_or(&""))))
+            })
+            .collect()
+    })
+    .ttl(30_000)
+}
+
+#[cfg(test)]
+mod online_tests {
+    use super::*;
+
+    #[test]
+    fn helpers() {
+        assert_eq!(urlencode("@types/no de"), "%40types%2Fno%20de");
+        assert_eq!(split_at_version("react@18"), Some(("react", "18")));
+        assert_eq!(split_at_version("@types/node@2"), Some(("@types/node", "2")));
+        assert_eq!(split_at_version("@types/node"), None);
+        let v = version_suggestions("react", "@", "18", vec![("18.2.0".into(), String::new()), ("17.0.0".into(), String::new())]);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].meta.names[0], "react@18.2.0");
+        assert_eq!(v[0].meta.display_name.as_deref(), Some("18.2.0"));
+        let mut l: Vec<(String, String)> =
+            ["1.9.0", "1.10.0-rc.1", "1.10.0", "0.9.9"].iter().map(|v| (v.to_string(), String::new())).collect();
+        sort_versions(&mut l);
+        assert_eq!(l.iter().map(|x| x.0.as_str()).collect::<Vec<_>>(), ["1.10.0", "1.9.0", "0.9.9", "1.10.0-rc.1"]);
+    }
+}

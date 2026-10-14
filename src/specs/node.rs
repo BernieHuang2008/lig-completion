@@ -23,7 +23,7 @@ pub fn npm() -> Subcommand {
                 opt("--force", "Force fetching remote resources"),
                 ws(),
             ])
-            .arg(arg("package").optional().variadic().folders()),
+            .arg(arg("package").optional().variadic().folders().generator(gens::npm_registry())),
         cmd("ci, clean-install", "Clean install from the lockfile").opt(opt("--omit", "Omit dependency types").arg(arg("type").suggest(&["dev", "optional", "peer"]))),
         cmd("uninstall, remove, rm, un", "Remove a package").opts([opt("-D, --save-dev", "From devDependencies"), ws()]).arg(dep()),
         cmd("update, up, upgrade", "Update packages").arg(dep().optional()),
@@ -68,13 +68,15 @@ pub fn pm(name: &str) -> Subcommand {
     cmd(name, "Node package manager")
         .opts([opt("-v, --version", "Print version"), opt("-C, --dir, --cwd", "Run in this directory").persistent().arg(arg("dir").folders())])
         .subs([
-            cmd("add", "Add packages").opts([dev, opt("-E, --exact", "Install exact versions"), opt("-g, --global", "Install globally"), opt("-O, --optional", "Add as optional dependency")]).arg(arg("package").variadic()),
-            cmd("install, i", "Install all dependencies").opts([opt("--frozen-lockfile", "Don't update the lockfile"), opt("--prod, --production", "Only production dependencies")]),
+            cmd("add", "Add packages").opts([dev, opt("-E, --exact", "Install exact versions"), opt("-g, --global", "Install globally"), opt("-O, --optional", "Add as optional dependency")]).arg(arg("package").variadic().generator(gens::npm_registry())),
+            cmd("install, i", "Install all dependencies (or add packages)")
+                .opts([opt("--frozen-lockfile", "Don't update the lockfile"), opt("--prod, --production", "Only production dependencies")])
+                .arg(arg("package").optional().variadic().generator(gens::npm_registry())),
             cmd("remove, rm, uninstall", "Remove packages").opt(opt("-g, --global", "Remove globally")).arg(dep()),
             cmd("update, up, upgrade", "Update packages").opts([opt("-L, --latest", "Ignore version ranges"), opt("-i, --interactive", "Interactive")]).arg(dep().optional()),
             cmd("run", "Run a package.json script").arg(script()).arg(arg("args").optional().variadic()),
             cmd("exec", "Run a command in the project context").arg(arg("command").command()),
-            cmd("dlx, x", "Run a package without installing it").arg(arg("package")),
+            cmd("dlx, x", "Run a package without installing it").arg(arg("package").generator(gens::npm_registry())),
             cmd("create", "Create a project from a starter kit").arg(arg("template")),
             cmd("init", "Create a package.json file"),
             cmd("test, t", "Run the test script"),
@@ -116,12 +118,12 @@ pub fn pip(name: &str) -> Subcommand {
                     opt("-t, --target", "Install into this directory").arg(arg("dir").folders()),
                     opt("-i, --index-url", "Base URL of the package index").arg(arg("url")),
                 ])
-                .arg(arg("package").optional().variadic().files()),
+                .arg(arg("package").optional().variadic().files().generator(gens::pypi_top()).generator(gens::pypi_versions())),
             cmd("uninstall", "Uninstall packages").opts([opt("-y, --yes", "Don't ask for confirmation"), opt("-r, --requirement", "Uninstall from a requirements file").arg(arg("file").files())]).arg(installed()),
             cmd("list", "List installed packages").opts([opt("-o, --outdated", "List outdated packages"), opt("-u, --uptodate", "List up-to-date packages"), opt("--user", "User site only"), opt("--format", "Output format").arg(arg("fmt").suggest(&["columns", "freeze", "json"]))]),
             cmd("show", "Show information about installed packages").opt(opt("-f, --files", "Show installed files")).arg(installed()),
             cmd("freeze", "Output installed packages in requirements format").opt(opt("--all", "Include pip, setuptools, wheel")),
-            cmd("download", "Download packages").opt(opt("-d, --dest", "Directory").arg(arg("dir").folders())).arg(arg("package").variadic()),
+            cmd("download", "Download packages").opt(opt("-d, --dest", "Directory").arg(arg("dir").folders())).arg(arg("package").variadic().generator(gens::pypi_top()).generator(gens::pypi_versions())),
             cmd("wheel", "Build wheels").opt(opt("-w, --wheel-dir", "Directory").arg(arg("dir").folders())).arg(arg("package").variadic().files()),
             cmd("check", "Verify installed packages have compatible dependencies"),
             cmd("cache", "Inspect and manage pip's cache").subs([cmd("dir", "Show the cache directory"), cmd("info", "Show cache information"), cmd("list", "List cached wheels"), cmd("purge", "Remove all items")]),

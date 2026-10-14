@@ -23,7 +23,7 @@ pub const NAMES: &[&str] = &[
     "git", "docker", "cargo", "rustup", "npm", "npx", "pnpm", "yarn", "bun", "pip", "pip3", "systemctl", "journalctl",
     "apt", "apt-get", "kill", "killall", "pkill", "pgrep", "ssh", "scp", "make", "tmux", "kubectl", "sudo", "doas",
     "cd", "pushd", "time", "nohup", "exec", "command", "builtin", "nice", "ionice", "timeout", "watch", "xargs", "env",
-    "strace", "flatpak-spawn", "which", "whereis", "type", "man", "tldr", "z", "zi", "source", ".",
+    "strace", "flatpak-spawn", "which", "whereis", "type", "man", "tldr", "z", "zi", "source", ".", "snap",
 ];
 
 pub fn builtin(name: &str) -> Option<Subcommand> {
@@ -49,6 +49,7 @@ pub fn builtin(name: &str) -> Option<Subcommand> {
         "sudo" | "doas" => system::sudo(name),
         "cd" | "pushd" => system::cd(name),
         "z" | "zi" => system::z(name),
+        "snap" => system::snap(),
         _ => return system::wrappers().into_iter().find(|s| s.meta.names[0] == name),
     })
 }
@@ -72,6 +73,12 @@ pub fn merge(base: &Subcommand, extra: &Subcommand) -> Subcommand {
     }
     if out.args.is_empty() {
         out.args = extra.args.clone();
+    } else {
+        // Same position: keep ours, add their values (e.g. Fig's list of
+        // popular pip packages next to our PyPI generator).
+        for (i, ea) in extra.args.iter().enumerate().take(out.args.len()) {
+            out.args[i] = std::sync::Arc::new(merge_arg(&out.args[i], ea));
+        }
     }
     if out.additional_suggestions.is_empty() {
         out.additional_suggestions = extra.additional_suggestions.clone();
@@ -82,8 +89,43 @@ pub fn merge(base: &Subcommand, extra: &Subcommand) -> Subcommand {
     out
 }
 
+fn merge_arg(base: &crate::spec::Arg, extra: &crate::spec::Arg) -> crate::spec::Arg {
+    let mut out = base.clone();
+    for s in &extra.suggestions {
+        if !out.suggestions.iter().any(|b| b.meta.names == s.meta.names) {
+            out.suggestions.push(s.clone());
+        }
+    }
+    for t in &extra.template {
+        if !out.template.contains(t) {
+            out.template.push(*t);
+        }
+    }
+    for g in &extra.generators {
+        if !out.generators.iter().any(|b| b.id == g.id) {
+            out.generators.push(g.clone());
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn merge_combines_args() {
+        use crate::spec::{arg, cmd};
+        let ours = cmd("pip", "").sub(cmd("install", "").arg(arg("package").files()));
+        let fig = cmd("pip", "")
+            .sub(cmd("install", "Install packages").arg(arg("package").suggest(&["requests", "numpy"])))
+            .sub(cmd("freeze", ""));
+        let m = super::merge(&ours, &fig);
+        let install = m.find_subcommand("install").unwrap();
+        assert_eq!(install.args[0].suggestions.len(), 2);
+        assert_eq!(install.args[0].template.len(), 1);
+        assert_eq!(install.meta.description.as_deref(), Some("Install packages"));
+        assert!(m.find_subcommand("freeze").is_some());
+    }
+
     #[test]
     fn every_name_builds() {
         for n in super::NAMES {

@@ -35,6 +35,8 @@ pub struct Completion {
     pub items: Vec<Suggestion>,
     /// Some generators were skipped and still need to run.
     pub incomplete: bool,
+    /// What is still being fetched, for a "loading" message.
+    pub loading: Option<String>,
 }
 
 /// What the shell told us about its environment.
@@ -69,9 +71,16 @@ struct Cx<'a> {
     cands: Vec<Cand>,
     run_generators: bool,
     incomplete: bool,
+    loading: Option<String>,
 }
 
 impl Cx<'_> {
+    /// Something needs to run before the suggestions are complete.
+    fn wait(&mut self, what: String) {
+        self.incomplete = true;
+        self.loading.get_or_insert(what);
+    }
+
     fn default_query(&self) -> (String, usize) {
         (self.cl.current.value.clone(), self.cl.current.raw.chars().count())
     }
@@ -111,6 +120,7 @@ pub struct Engine {
     help: HelpLoader,
     specs: HashMap<String, Option<Arc<Subcommand>>>,
     gen_cache: HashMap<String, (Instant, Vec<SuggestionDef>)>,
+    last_results: HashMap<String, Vec<SuggestionDef>>,
     path_cmds: Option<(Instant, String, Arc<BTreeSet<String>>)>,
     spec_cmds: Option<Arc<HashSet<String>>>,
 }
@@ -128,6 +138,7 @@ impl Engine {
             help,
             specs: HashMap::new(),
             gen_cache: HashMap::new(),
+            last_results: HashMap::new(),
             path_cmds: None,
             spec_cmds: None,
         }
@@ -144,7 +155,8 @@ impl Engine {
     pub fn complete(&mut self, line: &str, env: &ShellEnv, run_generators: bool, manual: bool) -> Completion {
         let mut cl = parser::parse(line);
         expand_aliases(&mut cl, env);
-        let mut cx = Cx { tokens: cl.values(), cl: &cl, env, cands: vec![], run_generators, incomplete: false };
+        let mut cx =
+            Cx { tokens: cl.values(), cl: &cl, env, cands: vec![], run_generators, incomplete: false, loading: None };
 
         if cl.current.redirect {
             self.files(&mut cx, false);
@@ -166,8 +178,8 @@ impl Engine {
                 self.walk(root, &mut cx);
             }
         }
-        let incomplete = cx.incomplete;
-        Completion { items: self.finish(cx), incomplete }
+        let (incomplete, loading) = (cx.incomplete, cx.loading.take());
+        Completion { items: self.finish(cx), incomplete, loading }
     }
 
     // ------------------------------------------------------------ walking
@@ -350,7 +362,7 @@ impl Engine {
         match self.help.lookup(argv, &cx.env.cwd, &exec_vars(cx.env), cx.run_generators) {
             Lookup::Found(s) => s,
             Lookup::NeedsRun => {
-                cx.incomplete = true;
+                cx.wait(format!("Reading `{} --help`…", argv.join(" ")));
                 None
             }
         }
@@ -394,6 +406,9 @@ impl Engine {
     }
 
     fn generator(&mut self, g: &Arc<Generator>, cx: &mut Cx<'_>, query: &str, delete: usize) {
+        if !self.cfg.online && g.id.starts_with("online:") {
+            return;
+        }
         let cur = &cx.cl.current;
         let (query, delete) = match g.query_term.as_deref().and_then(|chars| cur.value.rfind(|c| chars.contains(c))) {
             Some(i) => {
@@ -414,15 +429,26 @@ impl Engine {
         let key = format!("{}\0{}\0{}\0{}", g.id, cx.env.cwd.display(), before.join("\x1f"), trigger_key);
         let ttl = g.cache_ttl.unwrap_or(Duration::from_millis(self.cfg.generator_cache_ms));
 
+        // Same generator and context, any trigger state: the last results,
+        // shown (filtered) while fresh ones are fetched.
+        let context = format!("{}\0{}\0{}", g.id, cx.env.cwd.display(), before.join("\x1f"));
         let defs = match self.gen_cache.get(&key) {
             Some((t, defs)) if t.elapsed() < ttl => defs.clone(),
             _ if !cx.run_generators => {
-                cx.incomplete = true;
+                cx.wait(loading_label(&g.id));
+                if let Some(stale) = self.last_results.get(&context) {
+                    for d in stale {
+                        cx.push_def(d, Kind::Arg, &query, delete);
+                    }
+                }
                 return;
             }
             _ => {
                 let defs = self.run_generator(g, cx);
                 self.gen_cache.insert(key, (Instant::now(), defs.clone()));
+                if !defs.is_empty() {
+                    self.last_results.insert(context, defs.clone());
+                }
                 defs
             }
         };
@@ -653,6 +679,21 @@ impl Engine {
     }
 }
 
+/// The message shown while a generator runs.
+fn loading_label(id: &str) -> String {
+    match id {
+        "online:npm" => "Searching npm…",
+        "online:crates" => "Searching crates.io…",
+        "online:dockerhub" => "Searching Docker Hub…",
+        "online:pypi" => "Fetching versions from PyPI…",
+        "online:pypi-top" => "Fetching popular PyPI packages…",
+        "online:snap" => "Searching the Snap Store…",
+        "apt:available" => "Searching apt packages…",
+        _ => "Loading suggestions…",
+    }
+    .to_string()
+}
+
 /// Replace a leading alias (`gco` → `git checkout`), as zsh would.
 fn expand_aliases(cl: &mut CommandLine, env: &ShellEnv) {
     let mut seen = HashSet::new();
@@ -873,6 +914,7 @@ mod tests {
         let (mut e, env) = engine();
         let c = e.complete("tool build ", &env, false, false);
         assert!(c.incomplete && c.items.is_empty());
+        assert_eq!(c.loading.as_deref(), Some("Loading suggestions…"));
         assert_eq!(e.complete("tool build ", &env, true, false).items.len(), 2);
         let c = e.complete("tool build a", &env, false, false);
         assert!(!c.incomplete);

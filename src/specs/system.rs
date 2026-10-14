@@ -347,6 +347,40 @@ pub fn cd(name: &str) -> Subcommand {
     cmd(name, "Change the working directory").arg(arg("dir").optional().folders().suggest_desc(&[("-", "Previous directory")]))
 }
 
+pub fn snap() -> Subcommand {
+    let installed = || arg("snap").variadic().generator(gens::snaps_installed());
+    cmd("snap", "Manage snap packages").subs([
+        cmd("install", "Install snaps")
+            .opts([
+                opt("--classic", "Put the snap in classic mode and disable security confinement"),
+                opt("--channel", "Use this channel").eq().arg(arg("channel").suggest(&["stable", "candidate", "beta", "edge"])),
+                opt("--edge", "Install from the edge channel"),
+                opt("--beta", "Install from the beta channel"),
+                opt("--candidate", "Install from the candidate channel"),
+                opt("--devmode", "Put the snap in development mode"),
+                opt("--dangerous", "Install the given snap file even if there are no pre-acknowledged signatures"),
+            ])
+            .arg(arg("snap").variadic().files().generator(gens::snap_store())),
+        cmd("remove", "Remove snaps").opt(opt("--purge", "Don't save a snapshot")).arg(installed()),
+        cmd("refresh", "Refresh snaps").opts([opt("--list", "Show available refreshes"), opt("--channel", "Channel").eq().arg(arg("channel"))]).arg(installed().optional()),
+        cmd("revert", "Revert a snap to its previous revision").arg(installed()),
+        cmd("list", "List installed snaps").opt(opt("--all", "Show all revisions")),
+        cmd("find, search", "Find packages to install").arg(arg("query").optional().generator(gens::snap_store())),
+        cmd("info", "Show detailed information about snaps").arg(arg("snap").variadic().generator(gens::snaps_installed()).generator(gens::snap_store())),
+        cmd("run", "Run the given snap command").arg(arg("app").generator(gens::snaps_installed())).arg(arg("args").optional().variadic()),
+        cmd("enable", "Enable a snap").arg(installed()),
+        cmd("disable", "Disable a snap").arg(installed()),
+        cmd("connections", "List interface connections").arg(installed().optional()),
+        cmd("services", "Query the status of services").arg(installed().optional()),
+        cmd("start", "Start services").arg(installed()),
+        cmd("stop", "Stop services").arg(installed()),
+        cmd("restart", "Restart services").arg(installed()),
+        cmd("logs", "Retrieve logs for services").opts([opt("-f", "Follow"), opt("-n", "Lines").arg(arg("n"))]).arg(installed()),
+        cmd("changes", "List system changes"),
+        cmd("version", "Show version details"),
+    ])
+}
+
 /// zoxide's `z` / `zi` (shell functions), also rupa/z.
 pub fn z(name: &str) -> Subcommand {
     let desc = if name == "zi" { "Pick a frecent directory interactively" } else { "Jump to a frecent directory" };

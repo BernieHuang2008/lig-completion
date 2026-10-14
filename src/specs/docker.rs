@@ -13,6 +13,11 @@ fn image() -> Arg {
     arg("image").generator(gens::docker_images())
 }
 
+/// Local images first, then Docker Hub.
+fn remote_image() -> Arg {
+    image().generator(gens::docker_hub())
+}
+
 fn run_opts() -> Vec<Opt> {
     vec![
         opt("-d, --detach", "Run in the background"),
@@ -100,7 +105,7 @@ pub fn spec() -> Subcommand {
             opt("-v, --version", "Print version"),
         ])
         .subs([
-            cmd("run", "Create and run a new container from an image").opts(run_opts()).arg(image()).arg(arg("command").optional().command()),
+            cmd("run", "Create and run a new container from an image").opts(run_opts()).arg(remote_image()).arg(arg("command").optional().command()),
             cmd("exec", "Execute a command in a running container")
                 .opts([
                     opt("-i, --interactive", "Keep STDIN open"),
@@ -135,7 +140,7 @@ pub fn spec() -> Subcommand {
                     opt("-q, --quiet", "Suppress output"),
                 ])
                 .arg(arg("context").folders()),
-            cmd("pull", "Download an image from a registry").opts([opt("-a, --all-tags", "Download all tags"), opt("--platform", "Platform").arg(arg("platform"))]).arg(image()),
+            cmd("pull", "Download an image from a registry").opts([opt("-a, --all-tags", "Download all tags"), opt("--platform", "Platform").arg(arg("platform"))]).arg(remote_image()),
             cmd("push", "Upload an image to a registry").arg(image()),
             cmd("logs", "Fetch the logs of a container")
                 .opts([

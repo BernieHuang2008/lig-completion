@@ -13,7 +13,7 @@ use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::Config;
-use crate::engine::{Engine, ShellEnv, Suggestion};
+use crate::engine::{Engine, Kind, ShellEnv, Suggestion};
 use crate::keys::{self, Action, Bindings, Key};
 use crate::osc::{Msg, OscFilter};
 use crate::popup::{self, Rect};
@@ -23,6 +23,8 @@ use crate::store::Store;
 const DEBOUNCE: Duration = Duration::from_millis(4);
 /// …but never longer than this.
 const MAX_DELAY: Duration = Duration::from_millis(40);
+/// Show "Searching…" only when results take longer than this.
+const LOADING_DELAY: Duration = Duration::from_millis(150);
 /// Key sequence bound to the `_lig_insert` ZLE widget.
 const INSERT_KEY: &str = "\x1b[9147~";
 
@@ -31,7 +33,7 @@ enum Event {
     Output(Vec<u8>),
     Exit,
     Resize,
-    Done { line: String, items: Vec<Suggestion> },
+    Done { line: String, items: Vec<Suggestion>, loading: Option<String> },
 }
 
 struct Request {
@@ -192,6 +194,7 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
         selected: 0,
         navigated: false,
         manual: false,
+        loading: None,
         scroll: 0,
         dismissed: None,
         drawn: None,
@@ -215,10 +218,10 @@ fn worker(rx: Receiver<Request>, tx: Sender<Event>, behavior: crate::config::Beh
             req = newer;
         }
         let c = engine.complete(&req.line, &req.env, false, req.manual);
-        let _ = tx.send(Event::Done { line: req.line.clone(), items: c.items });
+        let _ = tx.send(Event::Done { line: req.line.clone(), items: c.items, loading: c.loading });
         if c.incomplete && rx.is_empty() {
             let c = engine.complete(&req.line, &req.env, true, req.manual);
-            let _ = tx.send(Event::Done { line: req.line, items: c.items });
+            let _ = tx.send(Event::Done { line: req.line, items: c.items, loading: None });
         }
     }
 }
@@ -250,6 +253,8 @@ struct Session {
     navigated: bool,
     /// The popup was asked for with the toggle key (until the line is run).
     manual: bool,
+    /// (line, message, since) while slower suggestions are being fetched.
+    loading: Option<(String, String, Instant)>,
     scroll: usize,
     dismissed: Option<String>,
     drawn: Option<Rect>,
@@ -262,8 +267,11 @@ struct Session {
 impl Session {
     fn event_loop(&mut self, rx: &Receiver<Event>) {
         loop {
-            let ev = if self.dirty {
-                let due = (self.last_output + DEBOUNCE).min(self.dirty_since + MAX_DELAY);
+            let mut deadline = self.dirty.then(|| (self.last_output + DEBOUNCE).min(self.dirty_since + MAX_DELAY));
+            if let Some(w) = self.loading_wake() {
+                deadline = Some(deadline.map_or(w, |d| d.min(w)));
+            }
+            let ev = if let Some(due) = deadline {
                 match rx.recv_deadline(due) {
                     Ok(ev) => ev,
                     Err(RecvTimeoutError::Timeout) => {
@@ -281,7 +289,7 @@ impl Session {
             match ev {
                 Event::Output(data) => self.on_output(&data),
                 Event::Input(data) => self.on_input(&data),
-                Event::Done { line, items } => self.on_done(line, items),
+                Event::Done { line, items, loading } => self.on_done(line, items, loading),
                 Event::Resize => self.on_resize(),
                 Event::Exit => return,
             }
@@ -391,6 +399,7 @@ impl Session {
             Msg::Finish => {
                 self.editing = false;
                 self.manual = false;
+                self.loading = None;
                 self.items.clear();
                 self.items_line.clear();
                 self.line.clear();
@@ -405,6 +414,26 @@ impl Session {
         self.mark_dirty();
     }
 
+    /// The "Searching npm…" message, once loading has taken a moment.
+    fn loading_message(&self) -> Option<&str> {
+        let (line, label, since) = self.loading.as_ref()?;
+        let show = *line == self.line
+            && since.elapsed() >= LOADING_DELAY
+            && self.editing
+            && !self.hidden
+            && !self.visible()
+            && self.dismissed.as_deref() != Some(self.line.as_str())
+            && !self.parser.screen().alternate_screen();
+        show.then_some(label.as_str())
+    }
+
+    /// When to wake up to show the loading message.
+    fn loading_wake(&self) -> Option<Instant> {
+        let (line, _, since) = self.loading.as_ref()?;
+        let at = *since + LOADING_DELAY;
+        (*line == self.line && Instant::now() < at).then_some(at)
+    }
+
     fn request(&mut self) {
         let mut env = self.env.clone();
         if env.cwd.as_os_str().is_empty() {
@@ -414,6 +443,17 @@ impl Session {
                 .unwrap_or_else(|| self.cwd_fallback.clone());
         }
         let _ = self.req_tx.send(Request { line: self.line.clone(), env, manual: self.manual });
+        // Until the answer arrives this line counts as loading (the worker may
+        // still be busy with an earlier, slower request). The first word only
+        // pops up on demand, so it doesn't get a message.
+        let first_word = !self.line.trim_start().contains(char::is_whitespace);
+        if !first_word || self.manual {
+            if !self.loading.as_ref().is_some_and(|(l, _, _)| *l == self.line) {
+                self.loading = Some((self.line.clone(), "Loading suggestions…".into(), Instant::now()));
+            }
+        } else {
+            self.loading = None;
+        }
     }
 
     /// The word being completed already equals one of the suggestions.
@@ -425,10 +465,16 @@ impl Session {
         })
     }
 
-    fn on_done(&mut self, line: String, items: Vec<Suggestion>) {
+    fn on_done(&mut self, line: String, items: Vec<Suggestion>, loading: Option<String>) {
         if line != self.line {
             return; // stale
         }
+        self.loading = match (loading, self.loading.take()) {
+            // Still loading the same line: keep the original start time.
+            (Some(label), Some((l, _, since))) if l == line => Some((line.clone(), label, since)),
+            (Some(label), _) => Some((line.clone(), label, Instant::now())),
+            (None, _) => None,
+        };
         let same_line = self.items_line == line;
         let keep = self.items.get(self.selected).map(|s| s.label.clone());
         self.items = items;
@@ -545,16 +591,32 @@ impl Session {
             w.extend_from_slice(&stuck);
             self.parser.process(&stuck);
         }
-        let layout = if self.visible() {
+        // Either the suggestions, or a one-line "Searching…" message.
+        let message: Option<Vec<Suggestion>> = self.loading_message().map(|label| {
+            let n = self.line.chars().count();
+            let word = self.line.chars().rev().take_while(|c| !c.is_whitespace()).count();
+            vec![Suggestion {
+                label: label.to_string(),
+                description: String::new(),
+                kind: Kind::Info,
+                insert: String::new(),
+                delete: word.min(n),
+                back: 0,
+                query: String::new(),
+            }]
+        });
+        let is_message = message.is_some();
+        let shown: Vec<Suggestion> = if self.visible() { self.items.clone() } else { message.unwrap_or_default() };
+        let layout = if shown.is_empty() {
+            None
+        } else {
             let screen = self.parser.screen();
-            let delete = self.items[0].delete;
+            let delete = shown[0].delete;
             let tail: String = {
                 let n = self.line.chars().count();
                 self.line.chars().skip(n.saturating_sub(delete)).collect()
             };
-            popup::layout(&self.cfg.ui, &self.items, screen.size(), screen.cursor_position(), tail.width() as u16)
-        } else {
-            None
+            popup::layout(&self.cfg.ui, &shown, screen.size(), screen.cursor_position(), tail.width() as u16)
         };
         match (&layout, self.drawn) {
             (Some(l), Some(old)) if l.rect == old => {}
@@ -569,7 +631,8 @@ impl Session {
             }
             self.scroll = self.scroll.min(self.items.len().saturating_sub(h));
             self.begin_sync(&mut w);
-            popup::draw(&mut w, &self.cfg.ui, &l, &self.items, self.selected, self.scroll);
+            let (selected, scroll) = if is_message { (usize::MAX, 0) } else { (self.selected, self.scroll) };
+            popup::draw(&mut w, &self.cfg.ui, &l, &shown, selected, scroll);
             popup::restore_cursor(&mut w, self.parser.screen());
             self.drawn = Some(l.rect);
         }

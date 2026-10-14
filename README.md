@@ -41,6 +41,26 @@ options if `ls` is aliased to `lsd`. Both appear in the command-name suggestions
 zoxide's `z`/`zi` complete with zoxide's own frecent directory ranking (rupa/z's `~/.z`
 also works).
 
+**Package registries are searched as you type**, the way Fig did it:
+
+| Command | Source |
+| --- | --- |
+| `npm i`, `pnpm add`/`i`, `yarn add`, `bun add`, `pnpm dlx` | npms.io prefix suggestions (fallback: npm registry search); `pkg@` → dist-tags and versions |
+| `cargo add`, `cargo install` | crates.io search; `crate@` → versions |
+| `docker pull`, `docker run` | your local images, then Docker Hub; `image:` → tags |
+| `pip install`, `pip download` | the 15,000 most downloaded PyPI packages ([top-pypi-packages](https://hugovk.github.io/top-pypi-packages/), cached for a week; offline: Fig's built-in list) since PyPI has no search API; `pkg==` → versions from PyPI |
+| `snap install`, `snap find`, `snap info` | the Snap Store (`snap find`) |
+| `apt install` / `apt-get install` | the local apt index (`apt-cache pkgnames`) |
+| `brew install` | Homebrew's own formula and cask lists (`brew formulae` / `brew casks`) |
+
+Requests go through `curl` and are cached for 30 minutes. While a new search runs, the
+previous results stay visible, filtered to what you've typed. If there's nothing to show
+yet, the popup says what it's waiting for (`Searching npm…`, `Searching crates.io…`,
+`Reading foo --help…`). This only appears when results take more than about 150 ms, so
+fast local suggestions never flash it. Turn this off with
+`online = false`. With it on, the package name you're typing is sent to these
+services.
+
 Order in the popup: subcommands and values first (branches, scripts, units…), then
 options, then files. When an argument is just a file path, the options are listed too,
 so `java ` offers `-jar`, `-cp`… before files. Type a letter and only matching files
@@ -167,7 +187,8 @@ enter_runs_on_empty_word = true   # `ls ` + Enter runs instead of accepting
 files_first = false          # list files before options/subcommands
 show_on_empty_token = true   # suggest right after a space
 complete_commands = false    # pop up for the first word too (Ctrl+Space always does)
-generator_timeout_ms = 3000
+online = true                # search package registries (npm, crates.io, Docker Hub, …)
+generator_timeout_ms = 5000
 generator_cache_ms = 5000
 disabled_commands = []
 help_parsing = true          # specs from --help / man for other commands
