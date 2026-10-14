@@ -49,6 +49,8 @@ pub struct Keys {
     pub next: Vec<String>,
     pub prev: Vec<String>,
     pub dismiss: Vec<String>,
+    /// Show the popup now / hide it.
+    pub toggle: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,7 +65,9 @@ pub struct Behavior {
     pub files_first: bool,
     /// Show suggestions right after a space (empty current token).
     pub show_on_empty_token: bool,
-    /// Suggest command names for the first word.
+    /// Pop up automatically for the first word (command names). Off by
+    /// default so short commands can be typed and run with one Enter; the
+    /// toggle key (Ctrl+Space) always shows them.
     pub complete_commands: bool,
     /// Kill generator commands after this many milliseconds.
     pub generator_timeout_ms: u64,
@@ -105,6 +109,7 @@ impl Default for Keys {
             next: v(&["tab", "down", "ctrl-n"]),
             prev: v(&["shift-tab", "up", "ctrl-p"]),
             dismiss: v(&["esc"]),
+            toggle: v(&["ctrl-space"]),
         }
     }
 }
@@ -116,7 +121,7 @@ impl Default for Behavior {
             enter_runs_on_empty_word: true,
             files_first: false,
             show_on_empty_token: true,
-            complete_commands: true,
+            complete_commands: false,
             generator_timeout_ms: 3000,
             generator_cache_ms: 5000,
             disabled_commands: vec![],

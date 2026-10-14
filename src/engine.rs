@@ -137,7 +137,11 @@ impl Engine {
     /// `run_generators == false` nothing is executed (only cached generator
     /// and `--help` results are used) and `incomplete` tells whether running
     /// them could add more.
-    pub fn complete(&mut self, line: &str, env: &ShellEnv, run_generators: bool) -> Completion {
+    ///
+    /// `manual` is set when the popup was asked for (Ctrl+Space): command
+    /// names and empty words are completed even when the config says not to
+    /// pop up for them automatically.
+    pub fn complete(&mut self, line: &str, env: &ShellEnv, run_generators: bool, manual: bool) -> Completion {
         let mut cl = parser::parse(line);
         expand_aliases(&mut cl, env);
         let mut cx = Cx { tokens: cl.values(), cl: &cl, env, cands: vec![], run_generators, incomplete: false };
@@ -146,14 +150,14 @@ impl Engine {
             self.files(&mut cx, false);
         } else if cl.tokens.is_empty() {
             let v = &cl.current.value;
-            if self.cfg.complete_commands && !v.is_empty() {
+            if (self.cfg.complete_commands && !v.is_empty()) || manual {
                 if v.contains('/') {
                     self.files(&mut cx, false);
                 } else {
                     self.commands(&mut cx);
                 }
             }
-        } else if self.cfg.show_on_empty_token || !cl.current.raw.is_empty() {
+        } else if self.cfg.show_on_empty_token || manual || !cl.current.raw.is_empty() {
             let cmd = basename(&cl.tokens[0].value).to_string();
             if !self.cfg.disabled_commands.contains(&cmd)
                 && let Some(root) = self.spec(&cmd, &mut cx)
@@ -825,7 +829,7 @@ mod tests {
     }
 
     fn labels(e: &mut Engine, env: &ShellEnv, line: &str) -> Vec<(String, String, usize)> {
-        e.complete(line, env, true).items.into_iter().map(|s| (s.label, s.insert, s.delete)).collect()
+        e.complete(line, env, true, false).items.into_iter().map(|s| (s.label, s.insert, s.delete)).collect()
     }
 
     #[test]
@@ -851,7 +855,7 @@ mod tests {
         let r = labels(&mut e, &env, "tool -v build ");
         assert_eq!(r.iter().map(|x| x.0.as_str()).collect::<Vec<_>>(), ["alpha", "beta"]);
         // insertValue with {cursor}.
-        let c = e.complete("tool commit -", &env, true);
+        let c = e.complete("tool commit -", &env, true, false);
         assert_eq!((c.items[0].insert.as_str(), c.items[0].back), ("-m ''", 1));
     }
 
@@ -867,10 +871,10 @@ mod tests {
     #[test]
     fn generators_are_deferred() {
         let (mut e, env) = engine();
-        let c = e.complete("tool build ", &env, false);
+        let c = e.complete("tool build ", &env, false, false);
         assert!(c.incomplete && c.items.is_empty());
-        assert_eq!(e.complete("tool build ", &env, true).items.len(), 2);
-        let c = e.complete("tool build a", &env, false);
+        assert_eq!(e.complete("tool build ", &env, true, false).items.len(), 2);
+        let c = e.complete("tool build a", &env, false, false);
         assert!(!c.incomplete);
         assert_eq!(c.items[0].label, "alpha");
     }
@@ -918,7 +922,9 @@ mod tests {
         ]));
         env.functions = Arc::new(vec!["toolfn".to_string()]);
         env.builtins = Arc::new(vec!["exit".to_string()]);
-        assert_eq!(labels(&mut e, &env, "exi")[0].0, "exit");
+        // Command names only when asked for (Ctrl+Space).
+        assert!(labels(&mut e, &env, "exi").is_empty());
+        assert_eq!(e.complete("exi", &env, true, true).items[0].label, "exit");
         // An alias expands to its command (and its flags count as used).
         let r = labels(&mut e, &env, "t b");
         assert_eq!(r[0].0, "build");
@@ -926,8 +932,8 @@ mod tests {
         // Self-referencing aliases don't loop.
         assert!(labels(&mut e, &env, "loop ").is_empty());
         // Aliases and functions are command names.
-        let r = labels(&mut e, &env, "t");
-        assert!(r.iter().any(|x| x.0 == "t") && r.iter().any(|x| x.0 == "toolfn"));
+        let r: Vec<String> = e.complete("t", &env, true, true).items.into_iter().map(|s| s.label).collect();
+        assert!(r.iter().any(|x| x == "t") && r.iter().any(|x| x == "toolfn"));
         // Options come before files for a plain file argument.
         let r = labels(&mut e, &env, "mytool hello ");
         assert_eq!(r[0].0, "world");

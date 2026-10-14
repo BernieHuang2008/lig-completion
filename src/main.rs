@@ -209,9 +209,9 @@ fn doctor() -> Result<()> {
     }
     let mut e = engine::Engine::new(store::Store::default(), config::Config::load().behavior);
     let env = engine::ShellEnv { cwd: std::env::current_dir()?, path: std::env::var("PATH").ok(), ..Default::default() };
-    let n = e.complete("git ", &env, false).items.len();
+    let n = e.complete("git ", &env, false, false).items.len();
     println!("[{}] engine: `git ` → {n} suggestions", ok(n > 0));
-    let n = e.complete("ls --", &env, true).items.len();
+    let n = e.complete("ls --", &env, true, false).items.len();
     println!("[{}] --help parsing: `ls --` → {n} suggestions", ok(n > 0));
     Ok(())
 }
@@ -224,7 +224,7 @@ fn complete(line: &str, cwd: Option<PathBuf>, aliases: Vec<String>) -> Result<()
     let mut e = engine::Engine::new(store::Store::default(), config::Config::load().behavior);
     let env = engine::ShellEnv { cwd, path: std::env::var("PATH").ok(), aliases: std::sync::Arc::new(aliases.into_iter().filter_map(|a| a.split_once('=').map(|(k, v)| (k.to_string(), v.to_string()))).collect()), ..Default::default() };
     let t = std::time::Instant::now();
-    let c = e.complete(line, &env, true);
+    let c = e.complete(line, &env, true, true);
     let elapsed = t.elapsed();
     for s in &c.items {
         println!("{:<11} {:<32} {:<28} {}", format!("{:?}", s.kind), s.label, format!("{:?}-{}", s.insert, s.delete), s.description);

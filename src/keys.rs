@@ -11,6 +11,7 @@ pub enum Key {
     Enter,
     Esc,
     Ctrl(char),
+    CtrlSpace,
     Other,
 }
 
@@ -26,6 +27,7 @@ impl Key {
             "shift-tab" | "backtab" => Key::ShiftTab,
             "enter" | "return" => Key::Enter,
             "esc" | "escape" => Key::Esc,
+            "ctrl-space" | "ctrl-@" => Key::CtrlSpace,
             _ => {
                 let c = n.strip_prefix("ctrl-")?;
                 let mut it = c.chars();
@@ -95,6 +97,7 @@ fn one(s: &[u8]) -> (usize, Key) {
                 _ => (1 + utf8_len(&s[1..]), Key::Other),
             }
         }
+        0x00 => (1, Key::CtrlSpace),
         b'\t' => (1, Key::Tab),
         b'\r' | b'\n' => (1, Key::Enter),
         c @ 0x01..=0x1a => (1, Key::Ctrl((b'a' + c - 1) as char)),
@@ -121,6 +124,7 @@ pub enum Action {
     Next,
     Prev,
     Dismiss,
+    Toggle,
 }
 
 pub struct Bindings(Vec<(Key, Action)>);
@@ -128,8 +132,13 @@ pub struct Bindings(Vec<(Key, Action)>);
 impl Bindings {
     pub fn new(k: &crate::config::Keys) -> Self {
         let mut v = vec![];
-        for (names, action) in
-            [(&k.accept, Action::Accept), (&k.next, Action::Next), (&k.prev, Action::Prev), (&k.dismiss, Action::Dismiss)]
+        for (names, action) in [
+            (&k.accept, Action::Accept),
+            (&k.next, Action::Next),
+            (&k.prev, Action::Prev),
+            (&k.dismiss, Action::Dismiss),
+            (&k.toggle, Action::Toggle),
+        ]
         {
             for n in names {
                 match Key::parse_name(n) {
@@ -155,8 +164,8 @@ mod tests {
 
     #[test]
     fn splits() {
-        let keys: Vec<Key> = split(b"a\x1b[A\x1bOB\t\x1b[Z\x1b").into_iter().map(|(_, k)| k).collect();
-        assert_eq!(keys, vec![Key::Other, Key::Up, Key::Down, Key::Tab, Key::ShiftTab, Key::Esc]);
+        let keys: Vec<Key> = split(b"a\x1b[A\x1bOB\t\x1b[Z\x00\x1b").into_iter().map(|(_, k)| k).collect();
+        assert_eq!(keys, vec![Key::Other, Key::Up, Key::Down, Key::Tab, Key::ShiftTab, Key::CtrlSpace, Key::Esc]);
         let parts = split("é\x1bx\x0e".as_bytes());
         assert_eq!(parts.len(), 3);
         assert_eq!(parts[2].1, Key::Ctrl('n'));

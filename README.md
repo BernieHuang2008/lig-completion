@@ -115,20 +115,26 @@ shape and titles keep working.
 LIG_DISABLE=1 zsh
 ```
 
-## Keys (while the popup is visible)
+## Keys
 
 | Key | Action |
 | --- | --- |
+| `Ctrl+Space` | show the popup now / hide it |
 | `Tab` / `↓` / `Ctrl-N` | next suggestion (with a single suggestion, `Tab` accepts it) |
 | `Shift-Tab` / `↑` / `Ctrl-P` | previous suggestion |
 | `Enter` | accept the selected suggestion |
 | `Esc` | dismiss (until the line changes) |
 
-Right after a space (nothing typed for the current word), `Enter` still runs the line
-unless you moved the selection, so `ls ` + `Enter` runs `ls`. Set
-`enter_runs_on_empty_word = false` to always accept.
+The popup doesn't open by itself for the first word, so `ls`, `htop` or `exit` can be
+typed and run with one `Enter`. Press `Ctrl+Space` to see command names, aliases,
+functions and builtins. (Set `complete_commands = true` to get them automatically.)
 
-When the popup isn't showing, every key goes straight to zsh, so normal Tab completion still works.
+`Enter` still runs the line, unless you moved the selection, when nothing is typed for
+the current word (`ls ` + `Enter`) or when the word is already complete (`git log` +
+`Enter`). Set `enter_runs_on_empty_word = false` to always accept.
+
+When the popup isn't showing, keys go straight to zsh, so normal Tab completion still
+works. `Ctrl+Space` is taken from zsh's `set-mark-command` while you edit a command line.
 
 ## Configuration
 
@@ -153,13 +159,14 @@ accept = ["enter"]
 next = ["tab", "down", "ctrl-n"]
 prev = ["shift-tab", "up", "ctrl-p"]
 dismiss = ["esc"]
+toggle = ["ctrl-space"]
 
 [behavior]
 fuzzy = true                 # subsequence matching when nothing matches by prefix
 enter_runs_on_empty_word = true   # `ls ` + Enter runs instead of accepting
 files_first = false          # list files before options/subcommands
 show_on_empty_token = true   # suggest right after a space
-complete_commands = true     # suggest command names for the first word
+complete_commands = false    # pop up for the first word too (Ctrl+Space always does)
 generator_timeout_ms = 3000
 generator_cache_ms = 5000
 disabled_commands = []

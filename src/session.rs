@@ -37,6 +37,8 @@ enum Event {
 struct Request {
     line: String,
     env: ShellEnv,
+    /// Asked for with the toggle key.
+    manual: bool,
 }
 
 fn winsize(fd: i32) -> Option<(u16, u16)> {
@@ -189,6 +191,7 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
         items_line: String::new(),
         selected: 0,
         navigated: false,
+        manual: false,
         scroll: 0,
         dismissed: None,
         drawn: None,
@@ -211,10 +214,10 @@ fn worker(rx: Receiver<Request>, tx: Sender<Event>, behavior: crate::config::Beh
         while let Ok(newer) = rx.try_recv() {
             req = newer;
         }
-        let c = engine.complete(&req.line, &req.env, false);
+        let c = engine.complete(&req.line, &req.env, false, req.manual);
         let _ = tx.send(Event::Done { line: req.line.clone(), items: c.items });
         if c.incomplete && rx.is_empty() {
-            let c = engine.complete(&req.line, &req.env, true);
+            let c = engine.complete(&req.line, &req.env, true, req.manual);
             let _ = tx.send(Event::Done { line: req.line, items: c.items });
         }
     }
@@ -245,6 +248,8 @@ struct Session {
     selected: usize,
     /// The user moved the selection on the current line.
     navigated: bool,
+    /// The popup was asked for with the toggle key (until the line is run).
+    manual: bool,
     scroll: usize,
     dismissed: Option<String>,
     drawn: Option<Rect>,
@@ -378,20 +383,14 @@ impl Session {
                     if self.dismissed.as_deref() != Some(line.as_str()) {
                         self.dismissed = None;
                     }
-                    self.line = line.clone();
-                    let mut env = self.env.clone();
-                    if env.cwd.as_os_str().is_empty() {
-                        env.cwd = self
-                            .shell_pid
-                            .and_then(|p| std::fs::read_link(format!("/proc/{p}/cwd")).ok())
-                            .unwrap_or_else(|| self.cwd_fallback.clone());
-                    }
-                    let _ = self.req_tx.send(Request { line, env });
+                    self.line = line;
+                    self.request();
                 }
             }
             Msg::Hide => self.hidden = true,
             Msg::Finish => {
                 self.editing = false;
+                self.manual = false;
                 self.items.clear();
                 self.items_line.clear();
                 self.line.clear();
@@ -404,6 +403,26 @@ impl Session {
             Msg::Builtins(b) => self.env.builtins = std::sync::Arc::new(b),
         }
         self.mark_dirty();
+    }
+
+    fn request(&mut self) {
+        let mut env = self.env.clone();
+        if env.cwd.as_os_str().is_empty() {
+            env.cwd = self
+                .shell_pid
+                .and_then(|p| std::fs::read_link(format!("/proc/{p}/cwd")).ok())
+                .unwrap_or_else(|| self.cwd_fallback.clone());
+        }
+        let _ = self.req_tx.send(Request { line: self.line.clone(), env, manual: self.manual });
+    }
+
+    /// The word being completed already equals one of the suggestions.
+    fn typed_exact_match(&self) -> bool {
+        let chars: Vec<char> = self.line.chars().collect();
+        self.items.iter().any(|s| {
+            let typed: String = chars[chars.len().saturating_sub(s.delete)..].iter().collect();
+            !typed.is_empty() && s.insert.trim_end().trim_end_matches('/') == typed.trim_end_matches('/')
+        })
     }
 
     fn on_done(&mut self, line: String, items: Vec<Suggestion>) {
@@ -431,13 +450,24 @@ impl Session {
     }
 
     fn on_input(&mut self, data: &[u8]) {
-        if !self.visible() {
-            self.write_pty(data);
-            return;
-        }
         let mut fwd: Vec<u8> = vec![];
         let mut redraw = false;
         for (raw, key) in keys::split(data) {
+            let toggle = self.bindings.action(&key) == Some(Action::Toggle);
+            if toggle && self.editing && !self.hidden && !self.parser.screen().alternate_screen() {
+                if self.visible() {
+                    self.dismissed = Some(self.line.clone());
+                    self.manual = false;
+                } else {
+                    self.manual = true;
+                    self.dismissed = None;
+                    self.navigated = false;
+                    self.items_line.clear();
+                    self.request();
+                }
+                redraw = true;
+                continue;
+            }
             if !self.visible() {
                 fwd.extend_from_slice(raw);
                 continue;
@@ -447,12 +477,13 @@ impl Session {
             if action == Some(Action::Next) && self.items.len() == 1 {
                 action = Some(Action::Accept);
             }
-            // `ls ` + Enter runs `ls` unless a suggestion was picked.
+            // Enter runs the line unless a suggestion was picked, when nothing
+            // is typed for the word (`ls `) or it's already complete (`git log`).
             if action == Some(Action::Accept)
                 && key == Key::Enter
                 && self.cfg.behavior.enter_runs_on_empty_word
                 && !self.navigated
-                && self.items[self.selected].delete == 0
+                && (self.items[self.selected].delete == 0 || self.typed_exact_match())
             {
                 action = None;
             }
@@ -467,8 +498,9 @@ impl Session {
                     self.selected = (self.selected + self.items.len() - 1) % self.items.len();
                     redraw = true;
                 }
-                Some(Action::Dismiss) => {
+                Some(Action::Dismiss) | Some(Action::Toggle) => {
                     self.dismissed = Some(self.line.clone());
+                    self.manual = false;
                     redraw = true;
                 }
                 Some(Action::Accept) => {
