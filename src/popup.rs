@@ -103,6 +103,9 @@ fn fit(s: &str, w: usize) -> String {
     out
 }
 
+/// Rows below the cursor that are enough to keep the popup there.
+const MIN_BELOW: u16 = 4;
+
 /// Where the popup goes for this screen/cursor, or `None` if it can't fit.
 pub fn layout(
     ui: &Ui,
@@ -127,14 +130,13 @@ pub fn layout(
     let want = (items.len() as u16).min(ui.max_rows.max(1));
     let below = rows.saturating_sub(crow + 1);
     let above = crow;
-    let (row, height) = if below >= want {
-        (crow + 1, want)
-    } else if above >= want {
-        (crow - want, want)
-    } else if below >= above {
-        (crow + 1, below)
+    // Prefer below the cursor, shrinking (the list scrolls); only flip above
+    // when there's hardly any room below.
+    let (row, height) = if below >= want || below >= want.min(MIN_BELOW) || below >= above {
+        (crow + 1, want.min(below))
     } else {
-        (crow - above, above)
+        let h = want.min(above);
+        (crow - h, h)
     };
     if height == 0 {
         return None;
@@ -213,6 +215,39 @@ pub fn erase(out: &mut Vec<u8>, screen: &vt100::Screen, rect: Rect) {
 }
 
 /// Put the cursor and SGR state back where the shell left them.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn items(n: usize) -> Vec<Suggestion> {
+        (0..n)
+            .map(|i| Suggestion {
+                label: format!("item{i}"),
+                description: String::new(),
+                kind: Kind::Arg,
+                insert: String::new(),
+                delete: 0,
+                back: 0,
+                query: String::new(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn placement() {
+        let ui = Ui::default();
+        let at = |crow| layout(&ui, &items(20), (24, 80), (crow, 4), 0).unwrap().rect;
+        // Plenty of room: below, 8 rows.
+        assert_eq!((at(2).row, at(2).height), (3, 8));
+        // Mid-screen with 5 rows left: stays below, shrinks.
+        assert_eq!((at(18).row, at(18).height), (19, 5));
+        // Last line: above.
+        assert_eq!((at(23).row, at(23).height), (15, 8));
+        // Two rows left: above.
+        assert_eq!((at(21).row, at(21).height), (13, 8));
+    }
+}
+
 pub fn restore_cursor(out: &mut Vec<u8>, screen: &vt100::Screen) {
     let (r, c) = screen.cursor_position();
     let _ = write!(out, "\x1b[0m\x1b[{};{}H", r + 1, c + 1);

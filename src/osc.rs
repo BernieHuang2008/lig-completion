@@ -8,6 +8,7 @@
 //!   `C;<cwd>`              the shell's working directory
 //!   `A;<k=v>\x1e<k=v>…`    the shell's aliases
 //!   `N;<name>\x1e<name>…`  the shell's function names
+//!   `K;<name>\x1e<name>…`  the shell's builtins
 
 const PREFIX: &[u8] = b"\x1b]6973;";
 const MAX_PENDING: usize = 1 << 20;
@@ -21,6 +22,7 @@ pub enum Msg {
     Cwd(String),
     Aliases(Vec<(String, String)>),
     Functions(Vec<String>),
+    Builtins(Vec<String>),
 }
 
 #[derive(Default)]
@@ -91,6 +93,7 @@ fn parse(payload: &[u8]) -> Option<Msg> {
             rest.split('\x1e').filter_map(|p| p.split_once('=')).map(|(k, v)| (k.to_string(), v.to_string())).collect(),
         )),
         "N" => Some(Msg::Functions(rest.split('\x1e').filter(|f| !f.is_empty()).map(str::to_string).collect())),
+        "K" => Some(Msg::Builtins(rest.split('\x1e').filter(|f| !f.is_empty()).map(str::to_string).collect())),
         _ => None,
     }
 }

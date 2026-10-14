@@ -188,6 +188,7 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
         items: vec![],
         items_line: String::new(),
         selected: 0,
+        navigated: false,
         scroll: 0,
         dismissed: None,
         drawn: None,
@@ -242,6 +243,8 @@ struct Session {
     items: Vec<Suggestion>,
     items_line: String,
     selected: usize,
+    /// The user moved the selection on the current line.
+    navigated: bool,
     scroll: usize,
     dismissed: Option<String>,
     drawn: Option<Rect>,
@@ -398,6 +401,7 @@ impl Session {
             Msg::Cwd(c) => self.env.cwd = PathBuf::from(c),
             Msg::Aliases(a) => self.env.aliases = std::sync::Arc::new(a.into_iter().collect()),
             Msg::Functions(f) => self.env.functions = std::sync::Arc::new(f),
+            Msg::Builtins(b) => self.env.builtins = std::sync::Arc::new(b),
         }
         self.mark_dirty();
     }
@@ -410,12 +414,17 @@ impl Session {
         let keep = self.items.get(self.selected).map(|s| s.label.clone());
         self.items = items;
         self.items_line = line;
-        self.selected = if same_line {
+        // When slower results arrive for the same line, keep the selection
+        // only if the user moved it; otherwise start from the top again.
+        self.selected = if same_line && self.navigated {
             keep.and_then(|l| self.items.iter().position(|s| s.label == l)).unwrap_or(0)
         } else {
             0
         };
         if !same_line {
+            self.navigated = false;
+        }
+        if self.selected == 0 {
             self.scroll = 0;
         }
         self.mark_dirty();
@@ -438,10 +447,12 @@ impl Session {
             });
             match action {
                 Some(Action::Next) => {
+                    self.navigated = true;
                     self.selected = (self.selected + 1) % self.items.len();
                     redraw = true;
                 }
                 Some(Action::Prev) => {
+                    self.navigated = true;
                     self.selected = (self.selected + self.items.len() - 1) % self.items.len();
                     redraw = true;
                 }

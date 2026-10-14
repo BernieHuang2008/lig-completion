@@ -49,7 +49,7 @@ if [[ -o interactive && -z "$LIG_DISABLE" && -n "$LIG_TTY" && "$LIG_TTY" == "$TT
 
   # Generators run in the shell's directory with the shell's PATH. Aliases
   # and function names are sent when they change (records split by \x1e).
-  typeset -g _lig_aliases= _lig_functions=
+  typeset -g _lig_aliases= _lig_functions= _lig_builtins_sent=
   _lig_precmd() {
     builtin emulate -L zsh
     builtin print -rn -- $'\e]6973;C;'"${PWD//[$'\a\e']/}"$'\a'$'\e]6973;P;'"${PATH//[$'\a\e']/}"$'\a' >$TTY
@@ -61,6 +61,10 @@ if [[ -o interactive && -z "$LIG_DISABLE" && -n "$LIG_TTY" && "$LIG_TTY" == "$TT
     if [[ $a != $_lig_aliases ]]; then
       _lig_aliases=$a
       builtin print -rn -- $'\e]6973;A;'"$a"$'\a' >$TTY
+    fi
+    if [[ -z $_lig_builtins_sent ]]; then
+      _lig_builtins_sent=1
+      builtin print -rn -- $'\e]6973;K;'"${(pj:\x1e:)${(@k)builtins:#[^a-z]*}}"$'\a' >$TTY
     fi
     local f=${(pj:\x1e:)${(k)functions:#[_+.-]*}}
     if [[ $f != $_lig_functions ]]; then

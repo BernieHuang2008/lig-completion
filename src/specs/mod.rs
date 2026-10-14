@@ -23,7 +23,7 @@ pub const NAMES: &[&str] = &[
     "git", "docker", "cargo", "rustup", "npm", "npx", "pnpm", "yarn", "bun", "pip", "pip3", "systemctl", "journalctl",
     "apt", "apt-get", "kill", "killall", "pkill", "pgrep", "ssh", "scp", "make", "tmux", "kubectl", "sudo", "doas",
     "cd", "pushd", "time", "nohup", "exec", "command", "builtin", "nice", "ionice", "timeout", "watch", "xargs", "env",
-    "strace", "flatpak-spawn", "which", "whereis", "type", "man", "tldr", "z", "zi",
+    "strace", "flatpak-spawn", "which", "whereis", "type", "man", "tldr", "z", "zi", "source", ".",
 ];
 
 pub fn builtin(name: &str) -> Option<Subcommand> {

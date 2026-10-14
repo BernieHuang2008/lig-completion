@@ -44,6 +44,7 @@ pub struct ShellEnv {
     pub path: Option<String>,
     pub aliases: Arc<HashMap<String, String>>,
     pub functions: Arc<Vec<String>>,
+    pub builtins: Arc<Vec<String>>,
 }
 
 struct Cand {
@@ -514,11 +515,17 @@ impl Engine {
             c.delete = d;
             cx.cands.push(c);
         }
-        for name in cx.env.functions.iter() {
+        let shell_names = cx
+            .env
+            .functions
+            .iter()
+            .map(|n| (n, "shell function", 54.0))
+            .chain(cx.env.builtins.iter().map(|n| (n, "shell builtin", 53.0)));
+        for (name, what, priority) in shell_names {
             let meta = spec::Meta {
                 names: vec![name.clone()],
-                description: Some("shell function".into()),
-                priority: Some(54.0),
+                description: Some(what.into()),
+                priority: Some(priority),
                 ..Default::default()
             };
             let mut c = cand(&meta, Kind::Command, " ");
@@ -910,6 +917,8 @@ mod tests {
             ("loop".to_string(), "loop x".to_string()),
         ]));
         env.functions = Arc::new(vec!["toolfn".to_string()]);
+        env.builtins = Arc::new(vec!["exit".to_string()]);
+        assert_eq!(labels(&mut e, &env, "exi")[0].0, "exit");
         // An alias expands to its command (and its flags count as used).
         let r = labels(&mut e, &env, "t b");
         assert_eq!(r[0].0, "build");

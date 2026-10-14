@@ -376,6 +376,8 @@ pub fn wrappers() -> Vec<Subcommand> {
         wrapper("env", "Run a program in a modified environment", vec![opt("-i, --ignore-environment", "Start with an empty environment"), opt("-u, --unset", "Remove a variable").arg(arg("name"))]),
         wrapper("strace", "Trace system calls", vec![opt("-f", "Follow forks"), opt("-e", "Filter expression").arg(arg("expr")), opt("-o", "Output file").arg(arg("file").files()), opt("-p", "Attach to PID").arg(arg("pid").generator(gens::processes()))]),
         wrapper("flatpak-spawn", "Run a command on the host", vec![opt("--host", "Run on the host")]),
+        cmd("source", "Read and run commands from a file").arg(arg("file").files()).arg(arg("args").optional().variadic()),
+        cmd(".", "Read and run commands from a file").arg(arg("file").files()).arg(arg("args").optional().variadic()),
         command_lookup("which", "Locate a command"),
         command_lookup("whereis", "Locate the binary, source, and manual page files"),
         command_lookup("type", "Describe how a name would be interpreted"),
