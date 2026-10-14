@@ -1,13 +1,14 @@
 mod config;
 mod engine;
 mod exec;
-mod js;
+mod help;
 mod keys;
 mod osc;
 mod parser;
 mod popup;
 mod session;
 mod spec;
+mod specs;
 mod store;
 
 use std::io::Write;
@@ -45,12 +46,8 @@ enum Cmd {
         #[arg(value_enum, default_value_t = Part::All)]
         part: Part,
     },
-    /// Add lig to ~/.zshrc and download the completion specs
-    Install {
-        /// Don't download specs
-        #[arg(long)]
-        no_specs: bool,
-    },
+    /// Add lig to ~/.zshrc
+    Install,
     /// Remove lig from ~/.zshrc
     Uninstall,
     /// Manage completion specs
@@ -95,16 +92,12 @@ enum ConfigCmd {
 
 #[derive(Subcommand)]
 enum SpecsCmd {
-    /// Download the latest @withfig/autocomplete specs from npm
-    Update {
-        /// A specific package version
-        #[arg(long)]
-        version: Option<String>,
-    },
-    /// List commands that have a spec
+    /// List commands with a built-in or user spec
     List,
-    /// Show where specs are read from
+    /// Show where user specs and the --help cache live
     Path,
+    /// Forget cached --help parsing results
+    ClearCache,
 }
 
 /// Append a line to the debug log when `LIG_LOG` is set.
@@ -164,7 +157,7 @@ fn strip_block(text: &str, begin: &str, end: &str) -> String {
     out
 }
 
-fn install(no_specs: bool) -> Result<()> {
+fn install() -> Result<()> {
     let rc = zshrc();
     let old = std::fs::read_to_string(&rc).unwrap_or_default();
     let backup = rc.with_file_name(".zshrc.lig-backup");
@@ -180,9 +173,6 @@ fn install(no_specs: bool) -> Result<()> {
     );
     std::fs::write(&rc, new).with_context(|| format!("writing {}", rc.display()))?;
     println!("lig: updated {}", rc.display());
-    if !no_specs && store::Store::default().installed_version().is_none() {
-        store::update(None)?;
-    }
     println!("lig: done. Open a new terminal (or run `exec zsh`) to start using it.");
     Ok(())
 }
@@ -192,15 +182,12 @@ fn uninstall() -> Result<()> {
     let old = std::fs::read_to_string(&rc)?;
     let new = strip_block(&strip_block(&old, PRE_BEGIN, PRE_END), POST_BEGIN, POST_END);
     std::fs::write(&rc, format!("{}\n", new.trim_end()))?;
-    println!("lig: removed from {}. Specs remain in {}", rc.display(), store::data_dir().display());
+    println!("lig: removed from {}", rc.display());
     Ok(())
 }
 
 fn doctor() -> Result<()> {
     let ok = |b: bool| if b { "ok  " } else { "FAIL" };
-    let st = store::Store::default();
-    let ver = st.installed_version();
-    println!("[{}] specs: {}", ok(ver.is_some()), ver.as_deref().map_or("not installed — run `lig specs update`".to_string(), |v| format!("{} {v} in {}", store::NPM_PACKAGE, store::data_dir().display())));
     let rc = std::fs::read_to_string(zshrc()).unwrap_or_default();
     let has = rc.contains(PRE_BEGIN) && rc.contains(POST_BEGIN);
     println!("[{}] {} integration", ok(has), zshrc().display());
@@ -217,14 +204,12 @@ fn doctor() -> Result<()> {
     } else {
         println!("[ok  ] config: defaults ({} not present)", cfg.display());
     }
-    match engine::Engine::new(st, config::Config::load().behavior) {
-        Ok(mut e) => {
-            let env = engine::ShellEnv { cwd: std::env::current_dir()?, path: std::env::var("PATH").ok() };
-            let n = e.complete("git ", &env, false).items.len();
-            println!("[{}] engine: `git ` → {n} suggestions", ok(n > 0));
-        }
-        Err(e) => println!("[FAIL] engine: {e}"),
-    }
+    let mut e = engine::Engine::new(store::Store::default(), config::Config::load().behavior);
+    let env = engine::ShellEnv { cwd: std::env::current_dir()?, path: std::env::var("PATH").ok() };
+    let n = e.complete("git ", &env, false).items.len();
+    println!("[{}] engine: `git ` → {n} suggestions", ok(n > 0));
+    let n = e.complete("ls --", &env, true).items.len();
+    println!("[{}] --help parsing: `ls --` → {n} suggestions", ok(n > 0));
     Ok(())
 }
 
@@ -233,7 +218,7 @@ fn complete(line: &str, cwd: Option<PathBuf>) -> Result<()> {
         Some(c) => c,
         None => std::env::current_dir()?,
     };
-    let mut e = engine::Engine::new(store::Store::default(), config::Config::load().behavior)?;
+    let mut e = engine::Engine::new(store::Store::default(), config::Config::load().behavior);
     let env = engine::ShellEnv { cwd, path: std::env::var("PATH").ok() };
     let t = std::time::Instant::now();
     let c = e.complete(line, &env, true);
@@ -257,19 +242,27 @@ fn main() -> Result<()> {
             std::process::exit(code);
         }
         Cmd::Init { shell: ShellKind::Zsh, part } => print!("{}", init_script(part)),
-        Cmd::Install { no_specs } => install(no_specs)?,
+        Cmd::Install => install()?,
         Cmd::Uninstall => uninstall()?,
-        Cmd::Specs { cmd: SpecsCmd::Update { version } } => {
-            store::update(version.as_deref())?;
-        }
         Cmd::Specs { cmd: SpecsCmd::List } => {
-            for c in store::Store::default().commands() {
-                println!("{c}");
+            let user = store::Store::default().commands();
+            for c in specs::NAMES {
+                println!("{c}{}", if user.contains(*c) { "  (overridden by user spec)" } else { "" });
+            }
+            for c in user.iter().filter(|c| !specs::NAMES.contains(&c.as_str())) {
+                println!("{c}  (user)");
             }
         }
         Cmd::Specs { cmd: SpecsCmd::Path } => {
-            println!("{}", store::user_dir().display());
-            println!("{}", store::data_dir().display());
+            println!("user specs: {}", store::user_dir().display());
+            println!("--help cache: {}", help::cache_dir().display());
+        }
+        Cmd::Specs { cmd: SpecsCmd::ClearCache } => {
+            let dir = help::cache_dir();
+            if dir.exists() {
+                std::fs::remove_dir_all(&dir)?;
+            }
+            println!("lig: cleared {}", dir.display());
         }
         Cmd::Complete { cwd, line } => complete(&line, cwd)?,
         Cmd::Doctor => doctor()?,

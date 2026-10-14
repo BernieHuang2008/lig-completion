@@ -205,13 +205,7 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
 }
 
 fn worker(rx: Receiver<Request>, tx: Sender<Event>, behavior: crate::config::Behavior) {
-    let mut engine = match Engine::new(Store::default(), behavior) {
-        Ok(e) => e,
-        Err(e) => {
-            crate::log(&format!("engine init failed: {e}"));
-            return;
-        }
-    };
+    let mut engine = Engine::new(Store::default(), behavior);
     while let Ok(mut req) = rx.recv() {
         while let Ok(newer) = rx.try_recv() {
             req = newer;

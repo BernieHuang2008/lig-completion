@@ -1,9 +1,8 @@
 # lig
 
-IDE-style autocomplete for your Linux terminal, in Rust. It works like Fig / Kiro CLI
-autocomplete and [easy-complete](https://github.com/chen86860/easy-complete), and it
-uses the same 700+ open-source [withfig completion specs](https://github.com/withfig/autocomplete)
-(git, docker, cargo, npm, kubectl, aws, systemctl, apt, …).
+IDE-style autocomplete for your Linux terminal, written entirely in Rust. It works
+like Fig / Kiro CLI autocomplete and [easy-complete](https://github.com/chen86860/easy-complete),
+but runs on Linux, with no JavaScript, no npm and no downloads.
 
 ```
 % git ch█
@@ -13,6 +12,24 @@ uses the same 700+ open-source [withfig completion specs](https://github.com/wit
 
 Everything runs locally. There is no daemon, no account and no telemetry.
 
+## Where suggestions come from
+
+1. **Built-in specs, written in Rust** (`src/specs/`): `git`, `docker` (+ `compose`),
+   `cargo`, `rustup`, `npm`, `npx`, `pnpm`, `yarn`, `bun`, `pip`, `systemctl`,
+   `journalctl`, `apt`, `apt-get`, `kill`, `killall`, `pkill`, `ssh`, `scp`, `make`,
+   `tmux`, `kubectl`, `sudo`, `cd`, `which`, `man`, `time`, `watch`, `xargs`, ….
+   Their dynamic values are Rust functions: git branches, tags, commits, stashes and
+   changed files, docker containers, images and compose services, systemd units, PIDs
+   and signals, ssh hosts, Makefile targets, `package.json` scripts, cargo
+   bins/examples/features, apt packages, kube resources, and more.
+2. **Every other command**: lig parses its `--help` output or man page and caches the
+   result per executable version. This covers GNU/uutils tools, clap, cobra, click and
+   argparse CLIs, and anything with a man page. Subcommands are expanded lazily
+   (`foo bar --help`).
+3. **Your own specs** in `~/.config/lig/specs/` (JSON or TOML) override both.
+
+`lig specs list` shows the built-in and user specs.
+
 ## How it works
 
 Wayland (GNOME) doesn't let an app put a floating window at the terminal cursor, so
@@ -21,7 +38,7 @@ lig draws the popup **inside the terminal**, the way an editor draws a completio
 ```
 Ghostty ⇄ lig shell (PTY proxy + vt100 screen model + popup) ⇄ zsh (+ ZLE hooks)
                          │
-                         └─ worker thread: spec engine + embedded QuickJS
+                         └─ worker thread: completion engine (specs, --help parser, generators)
 ```
 
 * `lig shell` runs zsh in a pseudo-terminal and passes everything through. It keeps a
@@ -32,15 +49,22 @@ Ghostty ⇄ lig shell (PTY proxy + vt100 screen model + popup) ⇄ zsh (+ ZLE ho
   stream before they reach the terminal.
 * When you accept a suggestion, lig sends a private key sequence bound to a ZLE widget.
   The widget edits `$LBUFFER` directly, so the insert is exact in emacs and vi modes.
-* Specs are the compiled JS modules from the `@withfig/autocomplete` npm package. They
-  run in an embedded QuickJS, so dynamic parts work as well: generators (`git branch`,
-  `docker ps`, `kill` PIDs, …), `postProcess`, `custom` async generators,
-  `loadSpec`, `generateSpec` and versioned specs.
-  Generators run in your shell's cwd with your shell's `PATH`, and results are cached.
+* Anything that runs a command (generators, `--help`) is done in a second pass.
+  Static suggestions appear immediately, and the popup updates when those results arrive.
+
+### Is running `--help` safe?
+
+lig only runs `<cmd> --help` automatically when `<cmd>` is an ELF binary or a
+python/node/ruby script. Their argument parsers handle `--help` before doing anything.
+Shell scripts and other files only get their man page read.
+`--help` runs with stdin closed, an invalid `DISPLAY`/`WAYLAND_DISPLAY` (so GUI apps
+can't open windows), and a 2 s timeout. It runs once per executable version.
+To opt a command out, add it to `help_skip`, or turn the feature off with
+`help_parsing = false`.
 
 ## Install
 
-Requirements: Rust (1.85+), a C compiler (QuickJS is compiled by `cc`), zsh ≥ 5.3.
+Requirements: Rust 1.85+ and zsh ≥ 5.3.
 
 ```bash
 cargo install --path .
@@ -50,13 +74,9 @@ cargo install --path .
 lig install
 ```
 
-`lig install`:
-
-* adds a small block at the top and at the bottom of `~/.zshrc`, and saves the original
-  as `~/.zshrc.lig-backup`;
-* downloads the specs from npm into `~/.local/share/lig/specs`.
-
-Then open a new terminal. To check the setup, run `lig doctor`.
+`lig install` adds a small block at the top and at the bottom of `~/.zshrc`, and saves
+the original as `~/.zshrc.lig-backup`. Then open a new terminal. To check the setup,
+run `lig doctor`.
 
 If you'd rather edit `.zshrc` yourself, put the first line at the very top and the second at the very bottom:
 
@@ -121,29 +141,66 @@ complete_commands = true     # suggest command names for the first word
 generator_timeout_ms = 3000
 generator_cache_ms = 5000
 disabled_commands = []
+help_parsing = true          # specs from --help / man for other commands
+help_timeout_ms = 2000
+help_skip = []               # never run `<cmd> --help` for these
 ```
 
-## Specs
+## Writing specs
+
+### As a file (no rebuild)
+
+Put `~/.config/lig/specs/<command>.toml` (or `.json`) there:
+
+```toml
+name = "deploy"
+description = "Deploy the app"
+
+[[options]]
+name = ["-e", "--env"]
+description = "Target environment"
+args = { name = "env", suggestions = ["staging", "production"] }
+
+[[subcommands]]
+name = ["status", "st"]
+description = "Show deployment status"
+
+[[subcommands]]
+name = "logs"
+description = "Tail logs of a service"
+args = { name = "service", generators = { script = ["deploy", "services"] } }
+```
+
+Supported fields: `name` (string or list), `description`, `subcommands`, `options`,
+`args`, `insertValue` (with an optional `{cursor}`), `priority`, `hidden`,
+`isPersistent`, `isRepeatable`, `requiresSeparator`, `exclusiveOn`, `isOptional`,
+`isVariadic`, `isCommand`, `suggestions`, `template` (`"filepaths"` / `"folders"`),
+`generators` (`script` as an argv list or a shell string, plus `splitOn`), and
+`loadSpec`.
+
+### In Rust (built in)
+
+Add a module under `src/specs/` and register it in `src/specs/mod.rs`:
+
+```rust
+use crate::spec::{Subcommand, arg, cmd, gen_fn, opt, sug};
+
+pub fn spec() -> Subcommand {
+    cmd("deploy", "Deploy the app")
+        .opt(opt("-e, --env", "Target environment").arg(arg("env").suggest(&["staging", "production"])))
+        .sub(cmd("logs", "Tail logs").arg(arg("service").generator(gen_fn("deploy:services", |cx| {
+            cx.lines(&["deploy", "services"]).into_iter().map(|s| sug(s).desc("service")).collect()
+        }))))
+}
+```
+
+### Debugging
 
 ```bash
-lig specs update            # latest @withfig/autocomplete from npm
-lig specs update --version 2.692.3
-lig specs list
-lig complete "git checkout "   # see what the engine suggests (debugging)
+lig complete "git checkout "     # what the engine suggests
+lig specs clear-cache            # forget cached --help results
+LIG_LOG=1 zsh                    # log errors to ~/.local/state/lig/lig.log
 ```
-
-Your own specs go in `~/.config/lig/specs/` and take precedence over the downloaded ones.
-Two formats work:
-
-* `name.json`: a static Fig spec, for example
-  `{"name": "deploy", "subcommands": [{"name": "staging"}, {"name": "prod"}]}`
-* `name.js`: a spec compiled to an ES module, as built by `@withfig/autocomplete-tools`.
-  It needs the `export{… as default}` form.
-
-## Debugging
-
-Set `LIG_LOG=1` before starting the shell. Spec and generator errors go to
-`~/.local/state/lig/lig.log`.
 
 ## Limitations
 
@@ -151,7 +208,8 @@ Set `LIG_LOG=1` before starting the shell. Spec and generator errors go to
   their own hook scripts.
 * The popup is drawn into the terminal grid. It hides inside full-screen apps
   (alternate screen) and while a command is running.
-* Generators execute the commands listed in the specs (e.g. `git branch`), as Fig does.
+* Specs parsed from `--help` contain options and subcommands, but they can't know about
+  dynamic values; arguments fall back to file paths.
 
 ## Layout
 
@@ -164,10 +222,11 @@ src/
   keys.rs      input key parsing and bindings
   parser.rs    shell command-line tokenizer
   engine.rs    spec walker, generators, ranking, insertion text
-  spec.rs      Fig spec model
-  js.rs        QuickJS host for compiled specs
-  exec.rs      running generator commands with timeouts
-  store.rs     spec lookup and npm download
+  spec.rs      spec model + builder DSL + JSON/TOML loading
+  specs/       built-in specs (git, docker, cargo, node, system) and generators
+  help.rs      --help / man page parser and cache
+  exec.rs      running commands with timeouts
+  store.rs     user spec files
   config.rs    configuration
 shell/         zsh integration (pre/post)
 ```
