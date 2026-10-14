@@ -1,0 +1,15 @@
+{
+  "name": "z",
+  "description": "Jump to a frecent directory",
+  "args": {
+    "name": "keywords",
+    "isOptional": true,
+    "isVariadic": true,
+    "template": "folders",
+    "generators": [
+      {
+        "builtin": "zoxide:dirs"
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "command",
+  "description": "Run a command bypassing functions",
+  "options": [
+    {
+      "name": "-v",
+      "description": "Print how the command would be resolved"
+    }
+  ],
+  "args": {
+    "name": "command",
+    "isCommand": true
+  }
+}

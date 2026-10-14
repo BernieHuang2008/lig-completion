@@ -1,0 +1,66 @@
+{
+  "name": "scp",
+  "description": "OpenSSH secure file copy",
+  "options": [
+    {
+      "name": "-r",
+      "description": "Copy directories recursively"
+    },
+    {
+      "name": "-P",
+      "description": "Port",
+      "args": {
+        "name": "port"
+      }
+    },
+    {
+      "name": "-i",
+      "description": "Identity file",
+      "args": {
+        "name": "file",
+        "template": "filepaths"
+      }
+    },
+    {
+      "name": "-p",
+      "description": "Preserve times and modes"
+    },
+    {
+      "name": "-C",
+      "description": "Compress"
+    },
+    {
+      "name": "-q",
+      "description": "Quiet"
+    },
+    {
+      "name": "-J",
+      "description": "Jump host",
+      "args": {
+        "name": "destination",
+        "generators": [
+          {
+            "builtin": "ssh:hosts"
+          }
+        ]
+      }
+    },
+    {
+      "name": "-o",
+      "description": "ssh option",
+      "args": {
+        "name": "option"
+      }
+    }
+  ],
+  "args": {
+    "name": "source",
+    "isVariadic": true,
+    "template": "filepaths",
+    "generators": [
+      {
+        "builtin": "ssh:hosts-colon"
+      }
+    ]
+  }
+}

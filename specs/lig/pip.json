@@ -1,0 +1,359 @@
+{
+  "name": "pip",
+  "description": "The Python package installer",
+  "options": [
+    {
+      "name": [
+        "-V",
+        "--version"
+      ],
+      "description": "Show version"
+    },
+    {
+      "name": [
+        "-q",
+        "--quiet"
+      ],
+      "description": "Less output",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-v",
+        "--verbose"
+      ],
+      "description": "More output",
+      "isPersistent": true
+    }
+  ],
+  "subcommands": [
+    {
+      "name": "install",
+      "description": "Install packages",
+      "options": [
+        {
+          "name": [
+            "-r",
+            "--requirement"
+          ],
+          "description": "Install from a requirements file",
+          "args": {
+            "name": "file",
+            "template": "filepaths"
+          },
+          "isRepeatable": true
+        },
+        {
+          "name": [
+            "-e",
+            "--editable"
+          ],
+          "description": "Install in editable mode",
+          "args": {
+            "name": "path",
+            "template": "folders"
+          }
+        },
+        {
+          "name": [
+            "-U",
+            "--upgrade"
+          ],
+          "description": "Upgrade packages"
+        },
+        {
+          "name": "--user",
+          "description": "Install to the user site"
+        },
+        {
+          "name": "--pre",
+          "description": "Include pre-release versions"
+        },
+        {
+          "name": "--no-deps",
+          "description": "Don't install dependencies"
+        },
+        {
+          "name": "--force-reinstall",
+          "description": "Reinstall all packages"
+        },
+        {
+          "name": "--break-system-packages",
+          "description": "Allow modifying an externally-managed environment"
+        },
+        {
+          "name": [
+            "-t",
+            "--target"
+          ],
+          "description": "Install into this directory",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": [
+            "-i",
+            "--index-url"
+          ],
+          "description": "Base URL of the package index",
+          "args": {
+            "name": "url"
+          }
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "template": "filepaths",
+        "generators": [
+          {
+            "builtin": "online:pypi-top"
+          },
+          {
+            "builtin": "online:pypi"
+          }
+        ]
+      }
+    },
+    {
+      "name": "uninstall",
+      "description": "Uninstall packages",
+      "options": [
+        {
+          "name": [
+            "-y",
+            "--yes"
+          ],
+          "description": "Don't ask for confirmation"
+        },
+        {
+          "name": [
+            "-r",
+            "--requirement"
+          ],
+          "description": "Uninstall from a requirements file",
+          "args": {
+            "name": "file",
+            "template": "filepaths"
+          }
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "pip:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "list",
+      "description": "List installed packages",
+      "options": [
+        {
+          "name": [
+            "-o",
+            "--outdated"
+          ],
+          "description": "List outdated packages"
+        },
+        {
+          "name": [
+            "-u",
+            "--uptodate"
+          ],
+          "description": "List up-to-date packages"
+        },
+        {
+          "name": "--user",
+          "description": "User site only"
+        },
+        {
+          "name": "--format",
+          "description": "Output format",
+          "args": {
+            "name": "fmt",
+            "suggestions": [
+              "columns",
+              "freeze",
+              "json"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "show",
+      "description": "Show information about installed packages",
+      "options": [
+        {
+          "name": [
+            "-f",
+            "--files"
+          ],
+          "description": "Show installed files"
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "pip:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "freeze",
+      "description": "Output installed packages in requirements format",
+      "options": [
+        {
+          "name": "--all",
+          "description": "Include pip, setuptools, wheel"
+        }
+      ]
+    },
+    {
+      "name": "download",
+      "description": "Download packages",
+      "options": [
+        {
+          "name": [
+            "-d",
+            "--dest"
+          ],
+          "description": "Directory",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "online:pypi-top"
+          },
+          {
+            "builtin": "online:pypi"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wheel",
+      "description": "Build wheels",
+      "options": [
+        {
+          "name": [
+            "-w",
+            "--wheel-dir"
+          ],
+          "description": "Directory",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "template": "filepaths"
+      }
+    },
+    {
+      "name": "check",
+      "description": "Verify installed packages have compatible dependencies"
+    },
+    {
+      "name": "cache",
+      "description": "Inspect and manage pip's cache",
+      "subcommands": [
+        {
+          "name": "dir",
+          "description": "Show the cache directory"
+        },
+        {
+          "name": "info",
+          "description": "Show cache information"
+        },
+        {
+          "name": "list",
+          "description": "List cached wheels"
+        },
+        {
+          "name": "purge",
+          "description": "Remove all items"
+        }
+      ]
+    },
+    {
+      "name": "config",
+      "description": "Manage configuration",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List values"
+        },
+        {
+          "name": "edit",
+          "description": "Edit the config file"
+        },
+        {
+          "name": "get",
+          "description": "Get a value",
+          "args": {
+            "name": "name"
+          }
+        },
+        {
+          "name": "set",
+          "description": "Set a value",
+          "args": [
+            {
+              "name": "name"
+            },
+            {
+              "name": "value"
+            }
+          ]
+        },
+        {
+          "name": "unset",
+          "description": "Unset a value",
+          "args": {
+            "name": "name"
+          }
+        }
+      ]
+    },
+    {
+      "name": "search",
+      "description": "Search PyPI",
+      "args": {
+        "name": "query"
+      }
+    },
+    {
+      "name": "inspect",
+      "description": "Inspect the Python environment"
+    },
+    {
+      "name": "help",
+      "description": "Show help for commands",
+      "args": {
+        "name": "command",
+        "isOptional": true
+      }
+    }
+  ]
+}

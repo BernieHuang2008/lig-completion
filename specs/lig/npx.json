@@ -1,0 +1,27 @@
+{
+  "name": "npx",
+  "description": "Run a command from a local or remote npm package",
+  "options": [
+    {
+      "name": [
+        "-y",
+        "--yes"
+      ],
+      "description": "Don't prompt to install"
+    },
+    {
+      "name": [
+        "-p",
+        "--package"
+      ],
+      "description": "Package to install",
+      "args": {
+        "name": "package"
+      }
+    }
+  ],
+  "args": {
+    "name": "command",
+    "isCommand": true
+  }
+}

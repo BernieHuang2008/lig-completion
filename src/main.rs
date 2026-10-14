@@ -135,6 +135,8 @@ enum SpecsCmd {
     Path,
     /// Forget cached --help parsing results
     ClearCache,
+    /// List the native generators spec files can use (`{"builtin": "<id>"}`)
+    Generators,
 }
 
 /// Append a line to the debug log when `LIG_LOG` is set.
@@ -285,11 +287,11 @@ fn main() -> Result<()> {
         Cmd::Specs { cmd: SpecsCmd::List } => {
             let user = store::Store::default().commands();
             let mut all: std::collections::BTreeMap<String, &str> = std::collections::BTreeMap::new();
-            for c in specs::fig::names() {
-                all.insert(c.to_string(), "withfig");
+            for c in specs::FIG.names() {
+                all.insert(c.to_string(), "fig");
             }
-            for c in specs::NAMES {
-                let src = if all.contains_key(*c) { "rust + withfig" } else { "rust" };
+            for c in specs::lig_names() {
+                let src = if all.contains_key(c) { "lig + fig" } else { "lig" };
                 all.insert(c.to_string(), src);
             }
             for c in &user {
@@ -298,11 +300,18 @@ fn main() -> Result<()> {
             for (c, src) in &all {
                 println!("{c:<32} {src}");
             }
-            eprintln!("{} commands ({} spec files embedded)", all.len(), specs::fig::count());
+            eprintln!("{} commands ({} lig + {} fig spec files embedded)", all.len(), specs::LIG.count(), specs::FIG.count());
         }
         Cmd::Specs { cmd: SpecsCmd::Path } => {
             println!("user specs: {}", store::user_dir().display());
             println!("--help cache: {}", help::cache_dir().display());
+        }
+        Cmd::Specs { cmd: SpecsCmd::Generators } => {
+            for (id, what) in specs::gens::BUILTIN_IDS {
+                println!("{id:<30} {what}");
+            }
+            println!("{:<30} <prefix> then local paths (e.g. files:file://)", "files:<prefix>");
+            println!("{:<30} names of a kubernetes resource type", "kube:names:<type>");
         }
         Cmd::Specs { cmd: SpecsCmd::ClearCache } => {
             let dir = help::cache_dir();

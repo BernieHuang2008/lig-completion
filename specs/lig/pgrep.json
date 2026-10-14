@@ -1,0 +1,156 @@
+{
+  "name": "pgrep",
+  "description": "Signal processes by name",
+  "options": [
+    {
+      "name": [
+        "-s",
+        "--signal"
+      ],
+      "description": "Signal to send",
+      "args": {
+        "name": "signal",
+        "suggestions": [
+          {
+            "name": "HUP",
+            "description": "Hangup / reload"
+          },
+          {
+            "name": "INT",
+            "description": "Interrupt (Ctrl-C)"
+          },
+          {
+            "name": "QUIT",
+            "description": "Quit and dump core"
+          },
+          {
+            "name": "KILL",
+            "description": "Kill, cannot be caught"
+          },
+          {
+            "name": "TERM",
+            "description": "Terminate gracefully (default)"
+          },
+          {
+            "name": "STOP",
+            "description": "Stop, cannot be caught"
+          },
+          {
+            "name": "CONT",
+            "description": "Continue if stopped"
+          },
+          {
+            "name": "TSTP",
+            "description": "Stop from terminal (Ctrl-Z)"
+          },
+          {
+            "name": "USR1",
+            "description": "User-defined signal 1"
+          },
+          {
+            "name": "USR2",
+            "description": "User-defined signal 2"
+          },
+          {
+            "name": "ALRM",
+            "description": "Alarm clock"
+          },
+          {
+            "name": "CHLD",
+            "description": "Child status changed"
+          },
+          {
+            "name": "WINCH",
+            "description": "Window size changed"
+          },
+          {
+            "name": "PIPE",
+            "description": "Broken pipe"
+          }
+        ]
+      }
+    },
+    {
+      "name": [
+        "-u",
+        "--user"
+      ],
+      "description": "Only processes of this user",
+      "args": {
+        "name": "user"
+      }
+    },
+    {
+      "name": [
+        "-i",
+        "--interactive"
+      ],
+      "description": "Ask before killing"
+    },
+    {
+      "name": [
+        "-e",
+        "--exact"
+      ],
+      "description": "Require an exact match"
+    },
+    {
+      "name": [
+        "-I",
+        "--ignore-case"
+      ],
+      "description": "Case insensitive match"
+    },
+    {
+      "name": [
+        "-w",
+        "--wait"
+      ],
+      "description": "Wait for processes to die"
+    },
+    {
+      "name": [
+        "-f",
+        "--full"
+      ],
+      "description": "Match the full command line"
+    },
+    {
+      "name": [
+        "-x",
+        "--exact"
+      ],
+      "description": "Match exactly"
+    },
+    {
+      "name": [
+        "-n",
+        "--newest"
+      ],
+      "description": "Newest matching process"
+    },
+    {
+      "name": [
+        "-o",
+        "--oldest"
+      ],
+      "description": "Oldest matching process"
+    },
+    {
+      "name": [
+        "-l",
+        "--list-name"
+      ],
+      "description": "List names too"
+    }
+  ],
+  "args": {
+    "name": "name",
+    "isVariadic": true,
+    "generators": [
+      {
+        "builtin": "sys:process-names"
+      }
+    ]
+  }
+}

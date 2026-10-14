@@ -1,0 +1,34 @@
+{
+  "name": "watch",
+  "description": "Execute a program periodically",
+  "options": [
+    {
+      "name": [
+        "-n",
+        "--interval"
+      ],
+      "description": "Seconds between updates",
+      "args": {
+        "name": "seconds"
+      }
+    },
+    {
+      "name": [
+        "-d",
+        "--differences"
+      ],
+      "description": "Highlight changes"
+    },
+    {
+      "name": [
+        "-t",
+        "--no-title"
+      ],
+      "description": "Turn off the header"
+    }
+  ],
+  "args": {
+    "name": "command",
+    "isCommand": true
+  }
+}

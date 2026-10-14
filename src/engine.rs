@@ -356,10 +356,7 @@ impl Engine {
                     crate::log(&format!("spec {e}"));
                     None
                 }
-                None => match (specs::builtin(name), specs::fig::load(name)) {
-                    (Some(b), Some(f)) => Some(Arc::new(specs::merge(&b, &f))),
-                    (b, f) => b.or(f).map(Arc::new),
-                },
+                None => specs::builtin(name).map(Arc::new),
             };
             self.specs.insert(name.to_string(), s.clone());
             if s.is_some() || !self.cfg.help_parsing {
@@ -540,8 +537,8 @@ impl Engine {
         let with_spec = self
             .spec_cmds
             .get_or_insert_with(|| {
-                let mut s: HashSet<String> = specs::NAMES.iter().map(|s| s.to_string()).collect();
-                s.extend(specs::fig::names().map(str::to_string));
+                let mut s: HashSet<String> = specs::lig_names().map(str::to_string).collect();
+                s.extend(specs::FIG.names().map(str::to_string));
                 s.extend(store.commands());
                 Arc::new(s)
             })
@@ -983,10 +980,10 @@ mod tests {
 
     #[test]
     fn every_embedded_spec_loads() {
-        let names: Vec<&str> = specs::fig::names().collect();
+        let names: Vec<&str> = specs::FIG.names().collect();
         assert!(names.len() > 700, "only {} specs", names.len());
         for n in names {
-            assert!(specs::fig::load(n).is_some_and(|s| !s.meta.names.is_empty()), "{n}");
+            assert!(specs::FIG.load(n).is_some_and(|s| !s.meta.names.is_empty()), "{n}");
         }
     }
 

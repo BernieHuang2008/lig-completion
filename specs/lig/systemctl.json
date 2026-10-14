@@ -1,0 +1,465 @@
+{
+  "name": "systemctl",
+  "description": "Control the systemd system and service manager",
+  "options": [
+    {
+      "name": "--user",
+      "description": "Talk to the user service manager",
+      "isPersistent": true
+    },
+    {
+      "name": "--system",
+      "description": "Talk to the system service manager",
+      "isPersistent": true
+    },
+    {
+      "name": "--now",
+      "description": "Also start/stop the unit when enabling/disabling",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-a",
+        "--all"
+      ],
+      "description": "Show all units",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-t",
+        "--type"
+      ],
+      "description": "Unit type",
+      "args": {
+        "name": "type",
+        "suggestions": [
+          "service",
+          "socket",
+          "timer",
+          "mount",
+          "target",
+          "path",
+          "slice",
+          "scope",
+          "device"
+        ]
+      },
+      "isPersistent": true,
+      "requiresSeparator": true
+    },
+    {
+      "name": "--state",
+      "description": "Unit state",
+      "args": {
+        "name": "state",
+        "suggestions": [
+          "running",
+          "failed",
+          "active",
+          "inactive",
+          "enabled",
+          "disabled",
+          "exited"
+        ]
+      },
+      "isPersistent": true,
+      "requiresSeparator": true
+    },
+    {
+      "name": [
+        "-l",
+        "--full"
+      ],
+      "description": "Don't ellipsize",
+      "isPersistent": true
+    },
+    {
+      "name": "--no-pager",
+      "description": "Don't pipe into a pager",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-q",
+        "--quiet"
+      ],
+      "description": "Suppress output",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-f",
+        "--force"
+      ],
+      "description": "Force the operation",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-H",
+        "--host"
+      ],
+      "description": "Operate on a remote host",
+      "args": {
+        "name": "host",
+        "generators": [
+          {
+            "builtin": "ssh:hosts"
+          }
+        ]
+      },
+      "isPersistent": true
+    }
+  ],
+  "subcommands": [
+    {
+      "name": "status",
+      "description": "Show runtime status of units",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "start",
+      "description": "Start units",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "stop",
+      "description": "Stop units",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "restart",
+      "description": "Restart units",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "reload",
+      "description": "Reload units",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "reload-or-restart",
+      "description": "Reload units if supported, otherwise restart",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "try-restart",
+      "description": "Restart units if running",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "enable",
+      "description": "Enable units",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "disable",
+      "description": "Disable units",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "reenable",
+      "description": "Reenable units",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "mask",
+      "description": "Mask units",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unmask",
+      "description": "Unmask units",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "is-active",
+      "description": "Check whether units are active",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "is-enabled",
+      "description": "Check whether units are enabled",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "is-failed",
+      "description": "Check whether units are failed",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "cat",
+      "description": "Show unit files",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "show",
+      "description": "Show properties of units",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "edit",
+      "description": "Edit units",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "kill",
+      "description": "Send a signal to the processes of units",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "reset-failed",
+      "description": "Reset the failed state of units",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "list-dependencies",
+      "description": "Show unit dependency tree",
+      "args": {
+        "name": "unit",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    },
+    {
+      "name": "list-units",
+      "description": "List loaded units",
+      "args": {
+        "name": "pattern",
+        "isOptional": true
+      }
+    },
+    {
+      "name": "list-unit-files",
+      "description": "List installed unit files",
+      "args": {
+        "name": "pattern",
+        "isOptional": true
+      }
+    },
+    {
+      "name": "list-timers",
+      "description": "List timer units"
+    },
+    {
+      "name": "list-sockets",
+      "description": "List socket units"
+    },
+    {
+      "name": "daemon-reload",
+      "description": "Reload the systemd manager configuration"
+    },
+    {
+      "name": "daemon-reexec",
+      "description": "Re-execute the systemd manager"
+    },
+    {
+      "name": "poweroff",
+      "description": "Shut down and power off"
+    },
+    {
+      "name": "reboot",
+      "description": "Shut down and reboot"
+    },
+    {
+      "name": "suspend",
+      "description": "Suspend the system"
+    },
+    {
+      "name": "hibernate",
+      "description": "Hibernate the system"
+    },
+    {
+      "name": "get-default",
+      "description": "Show the default target"
+    },
+    {
+      "name": "set-default",
+      "description": "Set the default target",
+      "args": {
+        "name": "target",
+        "suggestions": [
+          "graphical.target",
+          "multi-user.target"
+        ]
+      }
+    },
+    {
+      "name": "isolate",
+      "description": "Start one unit and stop all others",
+      "args": {
+        "name": "unit",
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      }
+    }
+  ]
+}

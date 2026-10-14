@@ -1,0 +1,113 @@
+{
+  "name": "extrepo",
+  "description": "Manage external Debian repositories",
+  "options": [
+    {
+      "name": "--url",
+      "description": "URL to fetch the repository metadata from",
+      "args": {
+        "name": "url",
+        "suggestions": [
+          "https://extrepo-team.pages.debian.net/extrepo-data",
+          "file:///usr/share/extrepo/offline-data"
+        ]
+      },
+      "isPersistent": true
+    },
+    {
+      "name": "--offlinedata",
+      "description": "Use the data from the extrepo-offline-data package",
+      "isPersistent": true
+    },
+    {
+      "name": "--mirror",
+      "description": "Use this mirror of the repository (enable, update)",
+      "args": {
+        "name": "url"
+      },
+      "isPersistent": true
+    },
+    {
+      "name": "--tor",
+      "description": "Tor mode for the repository",
+      "args": {
+        "name": "mode",
+        "suggestions": [
+          {
+            "name": "off",
+            "description": "No tor configuration (default)"
+          },
+          {
+            "name": "auto",
+            "description": "The .onion URL if there is one, else tunnel through tor"
+          },
+          {
+            "name": "onion",
+            "description": "Use the .onion URL; fail if there is none"
+          },
+          {
+            "name": "tunnel",
+            "description": "Tunnel the regular URL through tor"
+          },
+          {
+            "name": "if-onion",
+            "description": "The .onion URL if there is one, else no tor"
+          }
+        ]
+      },
+      "isPersistent": true
+    }
+  ],
+  "subcommands": [
+    {
+      "name": "search",
+      "description": "Search repositories by name, description or URL (a regex)",
+      "args": {
+        "name": "key",
+        "isOptional": true,
+        "generators": [
+          {
+            "builtin": "extrepo:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "enable",
+      "description": "Enable a repository (re-enables a disabled one without updating it)",
+      "args": {
+        "name": "repository",
+        "generators": [
+          {
+            "builtin": "extrepo:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "disable",
+      "description": "Disable a repository (adds Enabled: no to its apt sources)",
+      "args": {
+        "name": "repository",
+        "generators": [
+          {
+            "builtin": "extrepo:enabled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "update",
+      "description": "Rewrite a repository's apt sources and keyring from the current metadata (all, without a name)",
+      "args": {
+        "name": "repository",
+        "isOptional": true,
+        "generators": [
+          {
+            "builtin": "extrepo:installed"
+          }
+        ]
+      }
+    }
+  ]
+}

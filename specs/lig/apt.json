@@ -1,0 +1,305 @@
+{
+  "name": "apt",
+  "description": "Package manager",
+  "options": [
+    {
+      "name": [
+        "-y",
+        "--yes",
+        "--assume-yes"
+      ],
+      "description": "Assume yes to all prompts",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-q",
+        "--quiet"
+      ],
+      "description": "Less output",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-s",
+        "--simulate",
+        "--dry-run"
+      ],
+      "description": "Simulate",
+      "isPersistent": true
+    }
+  ],
+  "subcommands": [
+    {
+      "name": "install",
+      "description": "Install packages",
+      "options": [
+        {
+          "name": "--no-install-recommends",
+          "description": "Don't install recommended packages"
+        },
+        {
+          "name": "--reinstall",
+          "description": "Reinstall packages"
+        },
+        {
+          "name": [
+            "-f",
+            "--fix-broken"
+          ],
+          "description": "Fix broken dependencies"
+        },
+        {
+          "name": "--only-upgrade",
+          "description": "Only upgrade installed packages"
+        },
+        {
+          "name": [
+            "-t",
+            "--target-release"
+          ],
+          "description": "Target release",
+          "args": {
+            "name": "release"
+          }
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "template": "filepaths",
+        "generators": [
+          {
+            "builtin": "apt:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "remove",
+      "description": "Remove packages",
+      "options": [
+        {
+          "name": "--purge",
+          "description": "Also remove configuration"
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "apt:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "purge",
+      "description": "Remove packages and their configuration",
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "apt:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "autoremove",
+      "description": "Remove automatically installed unused packages",
+      "options": [
+        {
+          "name": "--purge",
+          "description": "Also remove configuration"
+        }
+      ]
+    },
+    {
+      "name": "update",
+      "description": "Update the package index"
+    },
+    {
+      "name": "upgrade",
+      "description": "Upgrade installed packages",
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "apt:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": [
+        "full-upgrade",
+        "dist-upgrade"
+      ],
+      "description": "Upgrade, removing packages if needed"
+    },
+    {
+      "name": "reinstall",
+      "description": "Reinstall packages",
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "apt:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "show",
+      "description": "Show package details",
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "template": "filepaths",
+        "generators": [
+          {
+            "builtin": "apt:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "source",
+      "description": "Download source packages",
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "template": "filepaths",
+        "generators": [
+          {
+            "builtin": "apt:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "download",
+      "description": "Download the .deb file",
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "template": "filepaths",
+        "generators": [
+          {
+            "builtin": "apt:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "clean",
+      "description": "Clear the package cache"
+    },
+    {
+      "name": "autoclean",
+      "description": "Clear obsolete packages from the cache"
+    },
+    {
+      "name": "policy",
+      "description": "Show policy settings",
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "template": "filepaths",
+        "generators": [
+          {
+            "builtin": "apt:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "depends",
+      "description": "Show package dependencies",
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "template": "filepaths",
+        "generators": [
+          {
+            "builtin": "apt:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "rdepends",
+      "description": "Show reverse dependencies",
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "template": "filepaths",
+        "generators": [
+          {
+            "builtin": "apt:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "search",
+      "description": "Search package descriptions",
+      "options": [
+        {
+          "name": "--names-only",
+          "description": "Search names only"
+        }
+      ],
+      "args": {
+        "name": "regex"
+      }
+    },
+    {
+      "name": "list",
+      "description": "List packages",
+      "options": [
+        {
+          "name": "--installed",
+          "description": "Installed packages"
+        },
+        {
+          "name": "--upgradable",
+          "description": "Upgradable packages"
+        },
+        {
+          "name": "--manual-installed",
+          "description": "Manually installed packages"
+        },
+        {
+          "name": [
+            "-a",
+            "--all-versions"
+          ],
+          "description": "All versions"
+        }
+      ],
+      "args": {
+        "name": "pattern",
+        "isOptional": true
+      }
+    },
+    {
+      "name": "edit-sources",
+      "description": "Edit the sources list"
+    },
+    {
+      "name": "satisfy",
+      "description": "Satisfy dependency strings",
+      "args": {
+        "name": "deps"
+      }
+    }
+  ]
+}

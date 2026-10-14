@@ -1,0 +1,8 @@
+{
+  "name": "time",
+  "description": "Time a command",
+  "args": {
+    "name": "command",
+    "isCommand": true
+  }
+}

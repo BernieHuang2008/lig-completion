@@ -1,0 +1,35 @@
+{
+  "name": "ionice",
+  "description": "Set IO scheduling class",
+  "options": [
+    {
+      "name": [
+        "-c",
+        "--class"
+      ],
+      "description": "Class",
+      "args": {
+        "name": "class",
+        "suggestions": [
+          "1",
+          "2",
+          "3"
+        ]
+      }
+    },
+    {
+      "name": [
+        "-n",
+        "--classdata"
+      ],
+      "description": "Priority",
+      "args": {
+        "name": "n"
+      }
+    }
+  ],
+  "args": {
+    "name": "command",
+    "isCommand": true
+  }
+}

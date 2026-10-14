@@ -1,0 +1,14 @@
+{
+  "name": "flatpak-spawn",
+  "description": "Run a command on the host",
+  "options": [
+    {
+      "name": "--host",
+      "description": "Run on the host"
+    }
+  ],
+  "args": {
+    "name": "command",
+    "isCommand": true
+  }
+}

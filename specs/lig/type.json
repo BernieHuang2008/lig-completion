@@ -1,0 +1,9 @@
+{
+  "name": "type",
+  "description": "Describe how a name would be interpreted",
+  "args": {
+    "name": "command",
+    "isVariadic": true,
+    "commandNames": true
+  }
+}

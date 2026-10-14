@@ -1,0 +1,20 @@
+{
+  "name": "nice",
+  "description": "Run with a modified scheduling priority",
+  "options": [
+    {
+      "name": [
+        "-n",
+        "--adjustment"
+      ],
+      "description": "Niceness",
+      "args": {
+        "name": "n"
+      }
+    }
+  ],
+  "args": {
+    "name": "command",
+    "isCommand": true
+  }
+}

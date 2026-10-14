@@ -1,0 +1,237 @@
+{
+  "name": "kill",
+  "description": "Send a signal to a process",
+  "options": [
+    {
+      "name": "-s",
+      "description": "Signal to send",
+      "args": {
+        "name": "signal",
+        "suggestions": [
+          {
+            "name": "HUP",
+            "description": "Hangup / reload"
+          },
+          {
+            "name": "INT",
+            "description": "Interrupt (Ctrl-C)"
+          },
+          {
+            "name": "QUIT",
+            "description": "Quit and dump core"
+          },
+          {
+            "name": "KILL",
+            "description": "Kill, cannot be caught"
+          },
+          {
+            "name": "TERM",
+            "description": "Terminate gracefully (default)"
+          },
+          {
+            "name": "STOP",
+            "description": "Stop, cannot be caught"
+          },
+          {
+            "name": "CONT",
+            "description": "Continue if stopped"
+          },
+          {
+            "name": "TSTP",
+            "description": "Stop from terminal (Ctrl-Z)"
+          },
+          {
+            "name": "USR1",
+            "description": "User-defined signal 1"
+          },
+          {
+            "name": "USR2",
+            "description": "User-defined signal 2"
+          },
+          {
+            "name": "ALRM",
+            "description": "Alarm clock"
+          },
+          {
+            "name": "CHLD",
+            "description": "Child status changed"
+          },
+          {
+            "name": "WINCH",
+            "description": "Window size changed"
+          },
+          {
+            "name": "PIPE",
+            "description": "Broken pipe"
+          }
+        ]
+      }
+    },
+    {
+      "name": [
+        "-l",
+        "-L"
+      ],
+      "description": "List signal names"
+    },
+    {
+      "name": [
+        "-HUP",
+        "-SIGHUP"
+      ],
+      "description": "Hangup / reload",
+      "priority": 40.0
+    },
+    {
+      "name": [
+        "-INT",
+        "-SIGINT"
+      ],
+      "description": "Interrupt (Ctrl-C)",
+      "priority": 40.0
+    },
+    {
+      "name": [
+        "-QUIT",
+        "-SIGQUIT"
+      ],
+      "description": "Quit and dump core",
+      "priority": 40.0
+    },
+    {
+      "name": [
+        "-KILL",
+        "-SIGKILL"
+      ],
+      "description": "Kill, cannot be caught",
+      "priority": 40.0
+    },
+    {
+      "name": [
+        "-TERM",
+        "-SIGTERM"
+      ],
+      "description": "Terminate gracefully (default)",
+      "priority": 40.0
+    },
+    {
+      "name": [
+        "-STOP",
+        "-SIGSTOP"
+      ],
+      "description": "Stop, cannot be caught",
+      "priority": 40.0
+    },
+    {
+      "name": [
+        "-CONT",
+        "-SIGCONT"
+      ],
+      "description": "Continue if stopped",
+      "priority": 40.0
+    },
+    {
+      "name": [
+        "-TSTP",
+        "-SIGTSTP"
+      ],
+      "description": "Stop from terminal (Ctrl-Z)",
+      "priority": 40.0
+    },
+    {
+      "name": [
+        "-USR1",
+        "-SIGUSR1"
+      ],
+      "description": "User-defined signal 1",
+      "priority": 40.0
+    },
+    {
+      "name": [
+        "-USR2",
+        "-SIGUSR2"
+      ],
+      "description": "User-defined signal 2",
+      "priority": 40.0
+    },
+    {
+      "name": [
+        "-ALRM",
+        "-SIGALRM"
+      ],
+      "description": "Alarm clock",
+      "priority": 40.0
+    },
+    {
+      "name": [
+        "-CHLD",
+        "-SIGCHLD"
+      ],
+      "description": "Child status changed",
+      "priority": 40.0
+    },
+    {
+      "name": [
+        "-WINCH",
+        "-SIGWINCH"
+      ],
+      "description": "Window size changed",
+      "priority": 40.0
+    },
+    {
+      "name": [
+        "-PIPE",
+        "-SIGPIPE"
+      ],
+      "description": "Broken pipe",
+      "priority": 40.0
+    },
+    {
+      "name": "-9",
+      "description": "KILL",
+      "priority": 45.0
+    },
+    {
+      "name": "-15",
+      "description": "TERM",
+      "priority": 45.0
+    },
+    {
+      "name": "-1",
+      "description": "HUP",
+      "priority": 45.0
+    },
+    {
+      "name": "-2",
+      "description": "INT",
+      "priority": 45.0
+    },
+    {
+      "name": "-3",
+      "description": "QUIT",
+      "priority": 45.0
+    },
+    {
+      "name": "-19",
+      "description": "STOP",
+      "priority": 45.0
+    },
+    {
+      "name": "-18",
+      "description": "CONT",
+      "priority": 45.0
+    }
+  ],
+  "args": {
+    "name": "pid",
+    "isVariadic": true,
+    "generators": [
+      {
+        "builtin": "sys:pids"
+      }
+    ]
+  },
+  "parserDirectives": {
+    "flagsArePosixNoncompliant": true
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "man",
+  "description": "Display manual pages",
+  "args": {
+    "name": "command",
+    "isVariadic": true,
+    "commandNames": true
+  }
+}

@@ -1,0 +1,207 @@
+{
+  "name": "journalctl",
+  "description": "Query the systemd journal",
+  "options": [
+    {
+      "name": [
+        "-u",
+        "--unit"
+      ],
+      "description": "Show messages for a unit",
+      "args": {
+        "name": "unit",
+        "generators": [
+          {
+            "builtin": "systemd:units"
+          }
+        ]
+      },
+      "isRepeatable": true
+    },
+    {
+      "name": "--user-unit",
+      "description": "Show messages for a user unit",
+      "args": {
+        "name": "unit"
+      }
+    },
+    {
+      "name": "--user",
+      "description": "Show the user journal"
+    },
+    {
+      "name": [
+        "-f",
+        "--follow"
+      ],
+      "description": "Follow the journal"
+    },
+    {
+      "name": [
+        "-e",
+        "--pager-end"
+      ],
+      "description": "Jump to the end"
+    },
+    {
+      "name": [
+        "-r",
+        "--reverse"
+      ],
+      "description": "Newest entries first"
+    },
+    {
+      "name": [
+        "-n",
+        "--lines"
+      ],
+      "description": "Number of entries to show",
+      "args": {
+        "name": "n",
+        "suggestions": [
+          "50",
+          "100",
+          "500",
+          "all"
+        ]
+      }
+    },
+    {
+      "name": [
+        "-b",
+        "--boot"
+      ],
+      "description": "Show messages from a boot",
+      "args": {
+        "name": "id",
+        "isOptional": true,
+        "suggestions": [
+          "0",
+          "-1",
+          "-2"
+        ]
+      }
+    },
+    {
+      "name": [
+        "-k",
+        "--dmesg"
+      ],
+      "description": "Show kernel messages"
+    },
+    {
+      "name": [
+        "-x",
+        "--catalog"
+      ],
+      "description": "Add explanatory help texts"
+    },
+    {
+      "name": [
+        "-p",
+        "--priority"
+      ],
+      "description": "Filter by priority",
+      "args": {
+        "name": "level",
+        "suggestions": [
+          "emerg",
+          "alert",
+          "crit",
+          "err",
+          "warning",
+          "notice",
+          "info",
+          "debug"
+        ]
+      }
+    },
+    {
+      "name": [
+        "-g",
+        "--grep"
+      ],
+      "description": "Filter by pattern",
+      "args": {
+        "name": "pattern"
+      }
+    },
+    {
+      "name": [
+        "-S",
+        "--since"
+      ],
+      "description": "Entries since a date",
+      "args": {
+        "name": "date",
+        "suggestions": [
+          "today",
+          "yesterday",
+          "-1h",
+          "-10m"
+        ]
+      }
+    },
+    {
+      "name": [
+        "-U",
+        "--until"
+      ],
+      "description": "Entries until a date",
+      "args": {
+        "name": "date",
+        "suggestions": [
+          "now",
+          "today"
+        ]
+      }
+    },
+    {
+      "name": [
+        "-o",
+        "--output"
+      ],
+      "description": "Output format",
+      "args": {
+        "name": "mode",
+        "suggestions": [
+          "short",
+          "short-iso",
+          "short-precise",
+          "verbose",
+          "json",
+          "json-pretty",
+          "cat"
+        ]
+      }
+    },
+    {
+      "name": "--no-pager",
+      "description": "Don't pipe into a pager"
+    },
+    {
+      "name": "--list-boots",
+      "description": "Show boots"
+    },
+    {
+      "name": "--disk-usage",
+      "description": "Show disk usage"
+    },
+    {
+      "name": "--vacuum-size",
+      "description": "Reduce the journal to a size",
+      "args": {
+        "name": "size"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--vacuum-time",
+      "description": "Remove entries older than",
+      "args": {
+        "name": "time"
+      },
+      "requiresSeparator": true
+    }
+  ]
+}

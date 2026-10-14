@@ -1,0 +1,2372 @@
+{
+  "name": "cargo",
+  "description": "Rust's package manager",
+  "options": [
+    {
+      "name": [
+        "-V",
+        "--version"
+      ],
+      "description": "Print version info"
+    },
+    {
+      "name": "--list",
+      "description": "List installed commands"
+    },
+    {
+      "name": "-C",
+      "description": "Change to DIRECTORY before doing anything",
+      "args": {
+        "name": "dir",
+        "template": "folders"
+      }
+    },
+    {
+      "name": "-Z",
+      "description": "Unstable (nightly-only) flags",
+      "args": {
+        "name": "flag"
+      }
+    }
+  ],
+  "subcommands": [
+    {
+      "name": [
+        "build",
+        "b"
+      ],
+      "description": "Compile the current package",
+      "options": [
+        {
+          "name": [
+            "-p",
+            "--package"
+          ],
+          "description": "Package to operate on",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          },
+          "isRepeatable": true
+        },
+        {
+          "name": [
+            "--workspace",
+            "--all"
+          ],
+          "description": "All packages in the workspace"
+        },
+        {
+          "name": "--exclude",
+          "description": "Exclude packages",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-F",
+            "--features"
+          ],
+          "description": "Space or comma separated list of features",
+          "args": {
+            "name": "features",
+            "generators": [
+              {
+                "builtin": "cargo:features"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--all-features",
+          "description": "Activate all available features"
+        },
+        {
+          "name": "--no-default-features",
+          "description": "Do not activate the default feature"
+        },
+        {
+          "name": [
+            "-r",
+            "--release"
+          ],
+          "description": "Build in release mode"
+        },
+        {
+          "name": "--profile",
+          "description": "Build with the given profile",
+          "args": {
+            "name": "profile",
+            "suggestions": [
+              "dev",
+              "release",
+              "test",
+              "bench"
+            ]
+          }
+        },
+        {
+          "name": "--target",
+          "description": "Build for the target triple",
+          "args": {
+            "name": "triple",
+            "generators": [
+              {
+                "builtin": "rustup:targets-installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-j",
+            "--jobs"
+          ],
+          "description": "Number of parallel jobs",
+          "args": {
+            "name": "n"
+          }
+        },
+        {
+          "name": "--manifest-path",
+          "description": "Path to Cargo.toml",
+          "args": {
+            "name": "path",
+            "template": "filepaths"
+          }
+        },
+        {
+          "name": "--target-dir",
+          "description": "Directory for all generated artifacts",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "--locked",
+          "description": "Assert that Cargo.lock will remain unchanged"
+        },
+        {
+          "name": "--offline",
+          "description": "Run without accessing the network"
+        },
+        {
+          "name": "--frozen",
+          "description": "Equivalent to --locked and --offline"
+        },
+        {
+          "name": [
+            "-q",
+            "--quiet"
+          ],
+          "description": "Do not print cargo log messages"
+        },
+        {
+          "name": [
+            "-v",
+            "--verbose"
+          ],
+          "description": "Use verbose output",
+          "isRepeatable": true
+        },
+        {
+          "name": "--message-format",
+          "description": "Error format",
+          "args": {
+            "name": "fmt",
+            "suggestions": [
+              "human",
+              "short",
+              "json"
+            ]
+          }
+        },
+        {
+          "name": "--lib",
+          "description": "Only this package's library"
+        },
+        {
+          "name": "--bin",
+          "description": "Only the specified binary",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:bin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--bins",
+          "description": "All binaries"
+        },
+        {
+          "name": "--example",
+          "description": "Only the specified example",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:example"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--examples",
+          "description": "All examples"
+        },
+        {
+          "name": "--test",
+          "description": "Only the specified test target",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:test"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--tests",
+          "description": "All tests"
+        },
+        {
+          "name": "--bench",
+          "description": "Only the specified bench target",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:bench"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--benches",
+          "description": "All benches"
+        },
+        {
+          "name": "--all-targets",
+          "description": "All targets"
+        }
+      ]
+    },
+    {
+      "name": [
+        "check",
+        "c"
+      ],
+      "description": "Analyze the current package and report errors",
+      "options": [
+        {
+          "name": [
+            "-p",
+            "--package"
+          ],
+          "description": "Package to operate on",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          },
+          "isRepeatable": true
+        },
+        {
+          "name": [
+            "--workspace",
+            "--all"
+          ],
+          "description": "All packages in the workspace"
+        },
+        {
+          "name": "--exclude",
+          "description": "Exclude packages",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-F",
+            "--features"
+          ],
+          "description": "Space or comma separated list of features",
+          "args": {
+            "name": "features",
+            "generators": [
+              {
+                "builtin": "cargo:features"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--all-features",
+          "description": "Activate all available features"
+        },
+        {
+          "name": "--no-default-features",
+          "description": "Do not activate the default feature"
+        },
+        {
+          "name": [
+            "-r",
+            "--release"
+          ],
+          "description": "Build in release mode"
+        },
+        {
+          "name": "--profile",
+          "description": "Build with the given profile",
+          "args": {
+            "name": "profile",
+            "suggestions": [
+              "dev",
+              "release",
+              "test",
+              "bench"
+            ]
+          }
+        },
+        {
+          "name": "--target",
+          "description": "Build for the target triple",
+          "args": {
+            "name": "triple",
+            "generators": [
+              {
+                "builtin": "rustup:targets-installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-j",
+            "--jobs"
+          ],
+          "description": "Number of parallel jobs",
+          "args": {
+            "name": "n"
+          }
+        },
+        {
+          "name": "--manifest-path",
+          "description": "Path to Cargo.toml",
+          "args": {
+            "name": "path",
+            "template": "filepaths"
+          }
+        },
+        {
+          "name": "--target-dir",
+          "description": "Directory for all generated artifacts",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "--locked",
+          "description": "Assert that Cargo.lock will remain unchanged"
+        },
+        {
+          "name": "--offline",
+          "description": "Run without accessing the network"
+        },
+        {
+          "name": "--frozen",
+          "description": "Equivalent to --locked and --offline"
+        },
+        {
+          "name": [
+            "-q",
+            "--quiet"
+          ],
+          "description": "Do not print cargo log messages"
+        },
+        {
+          "name": [
+            "-v",
+            "--verbose"
+          ],
+          "description": "Use verbose output",
+          "isRepeatable": true
+        },
+        {
+          "name": "--message-format",
+          "description": "Error format",
+          "args": {
+            "name": "fmt",
+            "suggestions": [
+              "human",
+              "short",
+              "json"
+            ]
+          }
+        },
+        {
+          "name": "--lib",
+          "description": "Only this package's library"
+        },
+        {
+          "name": "--bin",
+          "description": "Only the specified binary",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:bin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--bins",
+          "description": "All binaries"
+        },
+        {
+          "name": "--example",
+          "description": "Only the specified example",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:example"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--examples",
+          "description": "All examples"
+        },
+        {
+          "name": "--test",
+          "description": "Only the specified test target",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:test"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--tests",
+          "description": "All tests"
+        },
+        {
+          "name": "--bench",
+          "description": "Only the specified bench target",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:bench"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--benches",
+          "description": "All benches"
+        },
+        {
+          "name": "--all-targets",
+          "description": "All targets"
+        }
+      ]
+    },
+    {
+      "name": [
+        "run",
+        "r"
+      ],
+      "description": "Run a binary or example of the local package",
+      "options": [
+        {
+          "name": [
+            "-p",
+            "--package"
+          ],
+          "description": "Package to operate on",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          },
+          "isRepeatable": true
+        },
+        {
+          "name": [
+            "--workspace",
+            "--all"
+          ],
+          "description": "All packages in the workspace"
+        },
+        {
+          "name": "--exclude",
+          "description": "Exclude packages",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-F",
+            "--features"
+          ],
+          "description": "Space or comma separated list of features",
+          "args": {
+            "name": "features",
+            "generators": [
+              {
+                "builtin": "cargo:features"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--all-features",
+          "description": "Activate all available features"
+        },
+        {
+          "name": "--no-default-features",
+          "description": "Do not activate the default feature"
+        },
+        {
+          "name": [
+            "-r",
+            "--release"
+          ],
+          "description": "Build in release mode"
+        },
+        {
+          "name": "--profile",
+          "description": "Build with the given profile",
+          "args": {
+            "name": "profile",
+            "suggestions": [
+              "dev",
+              "release",
+              "test",
+              "bench"
+            ]
+          }
+        },
+        {
+          "name": "--target",
+          "description": "Build for the target triple",
+          "args": {
+            "name": "triple",
+            "generators": [
+              {
+                "builtin": "rustup:targets-installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-j",
+            "--jobs"
+          ],
+          "description": "Number of parallel jobs",
+          "args": {
+            "name": "n"
+          }
+        },
+        {
+          "name": "--manifest-path",
+          "description": "Path to Cargo.toml",
+          "args": {
+            "name": "path",
+            "template": "filepaths"
+          }
+        },
+        {
+          "name": "--target-dir",
+          "description": "Directory for all generated artifacts",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "--locked",
+          "description": "Assert that Cargo.lock will remain unchanged"
+        },
+        {
+          "name": "--offline",
+          "description": "Run without accessing the network"
+        },
+        {
+          "name": "--frozen",
+          "description": "Equivalent to --locked and --offline"
+        },
+        {
+          "name": [
+            "-q",
+            "--quiet"
+          ],
+          "description": "Do not print cargo log messages"
+        },
+        {
+          "name": [
+            "-v",
+            "--verbose"
+          ],
+          "description": "Use verbose output",
+          "isRepeatable": true
+        },
+        {
+          "name": "--message-format",
+          "description": "Error format",
+          "args": {
+            "name": "fmt",
+            "suggestions": [
+              "human",
+              "short",
+              "json"
+            ]
+          }
+        },
+        {
+          "name": "--bin",
+          "description": "Name of the bin target to run",
+          "args": {
+            "name": "name",
+            "generators": [
+              {
+                "builtin": "cargo:bin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--example",
+          "description": "Name of the example target to run",
+          "args": {
+            "name": "name",
+            "generators": [
+              {
+                "builtin": "cargo:example"
+              }
+            ]
+          }
+        }
+      ],
+      "args": {
+        "name": "args",
+        "isOptional": true,
+        "isVariadic": true,
+        "template": "filepaths"
+      }
+    },
+    {
+      "name": [
+        "test",
+        "t"
+      ],
+      "description": "Run the tests",
+      "options": [
+        {
+          "name": [
+            "-p",
+            "--package"
+          ],
+          "description": "Package to operate on",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          },
+          "isRepeatable": true
+        },
+        {
+          "name": [
+            "--workspace",
+            "--all"
+          ],
+          "description": "All packages in the workspace"
+        },
+        {
+          "name": "--exclude",
+          "description": "Exclude packages",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-F",
+            "--features"
+          ],
+          "description": "Space or comma separated list of features",
+          "args": {
+            "name": "features",
+            "generators": [
+              {
+                "builtin": "cargo:features"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--all-features",
+          "description": "Activate all available features"
+        },
+        {
+          "name": "--no-default-features",
+          "description": "Do not activate the default feature"
+        },
+        {
+          "name": [
+            "-r",
+            "--release"
+          ],
+          "description": "Build in release mode"
+        },
+        {
+          "name": "--profile",
+          "description": "Build with the given profile",
+          "args": {
+            "name": "profile",
+            "suggestions": [
+              "dev",
+              "release",
+              "test",
+              "bench"
+            ]
+          }
+        },
+        {
+          "name": "--target",
+          "description": "Build for the target triple",
+          "args": {
+            "name": "triple",
+            "generators": [
+              {
+                "builtin": "rustup:targets-installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-j",
+            "--jobs"
+          ],
+          "description": "Number of parallel jobs",
+          "args": {
+            "name": "n"
+          }
+        },
+        {
+          "name": "--manifest-path",
+          "description": "Path to Cargo.toml",
+          "args": {
+            "name": "path",
+            "template": "filepaths"
+          }
+        },
+        {
+          "name": "--target-dir",
+          "description": "Directory for all generated artifacts",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "--locked",
+          "description": "Assert that Cargo.lock will remain unchanged"
+        },
+        {
+          "name": "--offline",
+          "description": "Run without accessing the network"
+        },
+        {
+          "name": "--frozen",
+          "description": "Equivalent to --locked and --offline"
+        },
+        {
+          "name": [
+            "-q",
+            "--quiet"
+          ],
+          "description": "Do not print cargo log messages"
+        },
+        {
+          "name": [
+            "-v",
+            "--verbose"
+          ],
+          "description": "Use verbose output",
+          "isRepeatable": true
+        },
+        {
+          "name": "--message-format",
+          "description": "Error format",
+          "args": {
+            "name": "fmt",
+            "suggestions": [
+              "human",
+              "short",
+              "json"
+            ]
+          }
+        },
+        {
+          "name": "--lib",
+          "description": "Only this package's library"
+        },
+        {
+          "name": "--bin",
+          "description": "Only the specified binary",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:bin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--bins",
+          "description": "All binaries"
+        },
+        {
+          "name": "--example",
+          "description": "Only the specified example",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:example"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--examples",
+          "description": "All examples"
+        },
+        {
+          "name": "--test",
+          "description": "Only the specified test target",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:test"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--tests",
+          "description": "All tests"
+        },
+        {
+          "name": "--bench",
+          "description": "Only the specified bench target",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:bench"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--benches",
+          "description": "All benches"
+        },
+        {
+          "name": "--all-targets",
+          "description": "All targets"
+        },
+        {
+          "name": "--doc",
+          "description": "Test only this library's documentation"
+        },
+        {
+          "name": "--no-run",
+          "description": "Compile, but don't run tests"
+        },
+        {
+          "name": "--no-fail-fast",
+          "description": "Run all tests regardless of failure"
+        }
+      ],
+      "args": [
+        {
+          "name": "testname",
+          "isOptional": true
+        },
+        {
+          "name": "args",
+          "isOptional": true,
+          "isVariadic": true,
+          "suggestions": [
+            {
+              "name": "--nocapture",
+              "description": "Don't capture stdout/stderr"
+            },
+            {
+              "name": "--ignored",
+              "description": "Run only ignored tests"
+            },
+            {
+              "name": "--include-ignored",
+              "description": "Run ignored and not ignored tests"
+            },
+            {
+              "name": "--exact",
+              "description": "Exactly match filters"
+            },
+            {
+              "name": "--test-threads",
+              "description": "Number of threads"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "bench",
+      "description": "Run the benchmarks",
+      "options": [
+        {
+          "name": [
+            "-p",
+            "--package"
+          ],
+          "description": "Package to operate on",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          },
+          "isRepeatable": true
+        },
+        {
+          "name": [
+            "--workspace",
+            "--all"
+          ],
+          "description": "All packages in the workspace"
+        },
+        {
+          "name": "--exclude",
+          "description": "Exclude packages",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-F",
+            "--features"
+          ],
+          "description": "Space or comma separated list of features",
+          "args": {
+            "name": "features",
+            "generators": [
+              {
+                "builtin": "cargo:features"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--all-features",
+          "description": "Activate all available features"
+        },
+        {
+          "name": "--no-default-features",
+          "description": "Do not activate the default feature"
+        },
+        {
+          "name": [
+            "-r",
+            "--release"
+          ],
+          "description": "Build in release mode"
+        },
+        {
+          "name": "--profile",
+          "description": "Build with the given profile",
+          "args": {
+            "name": "profile",
+            "suggestions": [
+              "dev",
+              "release",
+              "test",
+              "bench"
+            ]
+          }
+        },
+        {
+          "name": "--target",
+          "description": "Build for the target triple",
+          "args": {
+            "name": "triple",
+            "generators": [
+              {
+                "builtin": "rustup:targets-installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-j",
+            "--jobs"
+          ],
+          "description": "Number of parallel jobs",
+          "args": {
+            "name": "n"
+          }
+        },
+        {
+          "name": "--manifest-path",
+          "description": "Path to Cargo.toml",
+          "args": {
+            "name": "path",
+            "template": "filepaths"
+          }
+        },
+        {
+          "name": "--target-dir",
+          "description": "Directory for all generated artifacts",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "--locked",
+          "description": "Assert that Cargo.lock will remain unchanged"
+        },
+        {
+          "name": "--offline",
+          "description": "Run without accessing the network"
+        },
+        {
+          "name": "--frozen",
+          "description": "Equivalent to --locked and --offline"
+        },
+        {
+          "name": [
+            "-q",
+            "--quiet"
+          ],
+          "description": "Do not print cargo log messages"
+        },
+        {
+          "name": [
+            "-v",
+            "--verbose"
+          ],
+          "description": "Use verbose output",
+          "isRepeatable": true
+        },
+        {
+          "name": "--message-format",
+          "description": "Error format",
+          "args": {
+            "name": "fmt",
+            "suggestions": [
+              "human",
+              "short",
+              "json"
+            ]
+          }
+        },
+        {
+          "name": "--lib",
+          "description": "Only this package's library"
+        },
+        {
+          "name": "--bin",
+          "description": "Only the specified binary",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:bin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--bins",
+          "description": "All binaries"
+        },
+        {
+          "name": "--example",
+          "description": "Only the specified example",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:example"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--examples",
+          "description": "All examples"
+        },
+        {
+          "name": "--test",
+          "description": "Only the specified test target",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:test"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--tests",
+          "description": "All tests"
+        },
+        {
+          "name": "--bench",
+          "description": "Only the specified bench target",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:bench"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--benches",
+          "description": "All benches"
+        },
+        {
+          "name": "--all-targets",
+          "description": "All targets"
+        }
+      ],
+      "args": {
+        "name": "benchname",
+        "isOptional": true
+      }
+    },
+    {
+      "name": "clippy",
+      "description": "Check a package to catch common mistakes",
+      "options": [
+        {
+          "name": [
+            "-p",
+            "--package"
+          ],
+          "description": "Package to operate on",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          },
+          "isRepeatable": true
+        },
+        {
+          "name": [
+            "--workspace",
+            "--all"
+          ],
+          "description": "All packages in the workspace"
+        },
+        {
+          "name": "--exclude",
+          "description": "Exclude packages",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-F",
+            "--features"
+          ],
+          "description": "Space or comma separated list of features",
+          "args": {
+            "name": "features",
+            "generators": [
+              {
+                "builtin": "cargo:features"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--all-features",
+          "description": "Activate all available features"
+        },
+        {
+          "name": "--no-default-features",
+          "description": "Do not activate the default feature"
+        },
+        {
+          "name": [
+            "-r",
+            "--release"
+          ],
+          "description": "Build in release mode"
+        },
+        {
+          "name": "--profile",
+          "description": "Build with the given profile",
+          "args": {
+            "name": "profile",
+            "suggestions": [
+              "dev",
+              "release",
+              "test",
+              "bench"
+            ]
+          }
+        },
+        {
+          "name": "--target",
+          "description": "Build for the target triple",
+          "args": {
+            "name": "triple",
+            "generators": [
+              {
+                "builtin": "rustup:targets-installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-j",
+            "--jobs"
+          ],
+          "description": "Number of parallel jobs",
+          "args": {
+            "name": "n"
+          }
+        },
+        {
+          "name": "--manifest-path",
+          "description": "Path to Cargo.toml",
+          "args": {
+            "name": "path",
+            "template": "filepaths"
+          }
+        },
+        {
+          "name": "--target-dir",
+          "description": "Directory for all generated artifacts",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "--locked",
+          "description": "Assert that Cargo.lock will remain unchanged"
+        },
+        {
+          "name": "--offline",
+          "description": "Run without accessing the network"
+        },
+        {
+          "name": "--frozen",
+          "description": "Equivalent to --locked and --offline"
+        },
+        {
+          "name": [
+            "-q",
+            "--quiet"
+          ],
+          "description": "Do not print cargo log messages"
+        },
+        {
+          "name": [
+            "-v",
+            "--verbose"
+          ],
+          "description": "Use verbose output",
+          "isRepeatable": true
+        },
+        {
+          "name": "--message-format",
+          "description": "Error format",
+          "args": {
+            "name": "fmt",
+            "suggestions": [
+              "human",
+              "short",
+              "json"
+            ]
+          }
+        },
+        {
+          "name": "--lib",
+          "description": "Only this package's library"
+        },
+        {
+          "name": "--bin",
+          "description": "Only the specified binary",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:bin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--bins",
+          "description": "All binaries"
+        },
+        {
+          "name": "--example",
+          "description": "Only the specified example",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:example"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--examples",
+          "description": "All examples"
+        },
+        {
+          "name": "--test",
+          "description": "Only the specified test target",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:test"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--tests",
+          "description": "All tests"
+        },
+        {
+          "name": "--bench",
+          "description": "Only the specified bench target",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "cargo:bench"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--benches",
+          "description": "All benches"
+        },
+        {
+          "name": "--all-targets",
+          "description": "All targets"
+        },
+        {
+          "name": "--fix",
+          "description": "Automatically apply lint suggestions"
+        },
+        {
+          "name": "--allow-dirty",
+          "description": "Fix code even if the working directory is dirty"
+        },
+        {
+          "name": "--no-deps",
+          "description": "Run only on the given crate"
+        }
+      ],
+      "args": {
+        "name": "args",
+        "isOptional": true,
+        "isVariadic": true,
+        "suggestions": [
+          {
+            "name": "--",
+            "description": "Pass options to clippy"
+          },
+          {
+            "name": "-D",
+            "description": "Deny a lint"
+          },
+          {
+            "name": "-W",
+            "description": "Warn about a lint"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fmt",
+      "description": "Format all Rust files of the current crate",
+      "options": [
+        {
+          "name": "--check",
+          "description": "Run in check mode"
+        },
+        {
+          "name": "--all",
+          "description": "Format all packages"
+        },
+        {
+          "name": [
+            "-p",
+            "--package"
+          ],
+          "description": "Package",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": [
+        "doc",
+        "d"
+      ],
+      "description": "Build this package's documentation",
+      "options": [
+        {
+          "name": [
+            "-p",
+            "--package"
+          ],
+          "description": "Package to operate on",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          },
+          "isRepeatable": true
+        },
+        {
+          "name": [
+            "--workspace",
+            "--all"
+          ],
+          "description": "All packages in the workspace"
+        },
+        {
+          "name": "--exclude",
+          "description": "Exclude packages",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-F",
+            "--features"
+          ],
+          "description": "Space or comma separated list of features",
+          "args": {
+            "name": "features",
+            "generators": [
+              {
+                "builtin": "cargo:features"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--all-features",
+          "description": "Activate all available features"
+        },
+        {
+          "name": "--no-default-features",
+          "description": "Do not activate the default feature"
+        },
+        {
+          "name": [
+            "-r",
+            "--release"
+          ],
+          "description": "Build in release mode"
+        },
+        {
+          "name": "--profile",
+          "description": "Build with the given profile",
+          "args": {
+            "name": "profile",
+            "suggestions": [
+              "dev",
+              "release",
+              "test",
+              "bench"
+            ]
+          }
+        },
+        {
+          "name": "--target",
+          "description": "Build for the target triple",
+          "args": {
+            "name": "triple",
+            "generators": [
+              {
+                "builtin": "rustup:targets-installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-j",
+            "--jobs"
+          ],
+          "description": "Number of parallel jobs",
+          "args": {
+            "name": "n"
+          }
+        },
+        {
+          "name": "--manifest-path",
+          "description": "Path to Cargo.toml",
+          "args": {
+            "name": "path",
+            "template": "filepaths"
+          }
+        },
+        {
+          "name": "--target-dir",
+          "description": "Directory for all generated artifacts",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "--locked",
+          "description": "Assert that Cargo.lock will remain unchanged"
+        },
+        {
+          "name": "--offline",
+          "description": "Run without accessing the network"
+        },
+        {
+          "name": "--frozen",
+          "description": "Equivalent to --locked and --offline"
+        },
+        {
+          "name": [
+            "-q",
+            "--quiet"
+          ],
+          "description": "Do not print cargo log messages"
+        },
+        {
+          "name": [
+            "-v",
+            "--verbose"
+          ],
+          "description": "Use verbose output",
+          "isRepeatable": true
+        },
+        {
+          "name": "--message-format",
+          "description": "Error format",
+          "args": {
+            "name": "fmt",
+            "suggestions": [
+              "human",
+              "short",
+              "json"
+            ]
+          }
+        },
+        {
+          "name": "--open",
+          "description": "Open the docs in a browser"
+        },
+        {
+          "name": "--no-deps",
+          "description": "Don't build docs for dependencies"
+        },
+        {
+          "name": "--document-private-items",
+          "description": "Document private items"
+        }
+      ]
+    },
+    {
+      "name": "new",
+      "description": "Create a new cargo package",
+      "options": [
+        {
+          "name": "--bin",
+          "description": "Use a binary template (default)"
+        },
+        {
+          "name": "--lib",
+          "description": "Use a library template"
+        },
+        {
+          "name": "--name",
+          "description": "Package name",
+          "args": {
+            "name": "name"
+          }
+        },
+        {
+          "name": "--vcs",
+          "description": "VCS",
+          "args": {
+            "name": "vcs",
+            "suggestions": [
+              "git",
+              "none"
+            ]
+          }
+        },
+        {
+          "name": "--edition",
+          "description": "Edition",
+          "args": {
+            "name": "year",
+            "suggestions": [
+              "2024",
+              "2021",
+              "2018"
+            ]
+          }
+        }
+      ],
+      "args": {
+        "name": "path",
+        "template": "folders"
+      }
+    },
+    {
+      "name": "init",
+      "description": "Create a new cargo package in an existing directory",
+      "options": [
+        {
+          "name": "--bin",
+          "description": "Use a binary template"
+        },
+        {
+          "name": "--lib",
+          "description": "Use a library template"
+        },
+        {
+          "name": "--name",
+          "description": "Package name",
+          "args": {
+            "name": "name"
+          }
+        }
+      ],
+      "args": {
+        "name": "path",
+        "isOptional": true,
+        "template": "folders"
+      }
+    },
+    {
+      "name": "add",
+      "description": "Add dependencies to a Cargo.toml manifest file",
+      "options": [
+        {
+          "name": "--dev",
+          "description": "Add as a development dependency"
+        },
+        {
+          "name": "--build",
+          "description": "Add as a build dependency"
+        },
+        {
+          "name": [
+            "-F",
+            "--features"
+          ],
+          "description": "Features to activate",
+          "args": {
+            "name": "features"
+          }
+        },
+        {
+          "name": "--no-default-features",
+          "description": "Disable the default features"
+        },
+        {
+          "name": "--optional",
+          "description": "Mark the dependency as optional"
+        },
+        {
+          "name": "--path",
+          "description": "Local crate path",
+          "args": {
+            "name": "path",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "--git",
+          "description": "Git repository location",
+          "args": {
+            "name": "uri"
+          }
+        },
+        {
+          "name": "--branch",
+          "description": "Git branch",
+          "args": {
+            "name": "branch"
+          }
+        },
+        {
+          "name": "--rename",
+          "description": "Rename the dependency",
+          "args": {
+            "name": "name"
+          }
+        },
+        {
+          "name": [
+            "-p",
+            "--package"
+          ],
+          "description": "Package to modify",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--dry-run",
+          "description": "Don't actually write the manifest"
+        }
+      ],
+      "args": {
+        "name": "crate",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "online:crates"
+          }
+        ]
+      }
+    },
+    {
+      "name": [
+        "remove",
+        "rm"
+      ],
+      "description": "Remove dependencies from a Cargo.toml manifest file",
+      "options": [
+        {
+          "name": "--dev",
+          "description": "Remove from dev-dependencies"
+        },
+        {
+          "name": "--build",
+          "description": "Remove from build-dependencies"
+        },
+        {
+          "name": [
+            "-p",
+            "--package"
+          ],
+          "description": "Package to modify",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          }
+        }
+      ],
+      "args": {
+        "name": "dependency",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "cargo:deps"
+          }
+        ]
+      }
+    },
+    {
+      "name": "install",
+      "description": "Install a Rust binary",
+      "options": [
+        {
+          "name": "--path",
+          "description": "Filesystem path to local crate",
+          "args": {
+            "name": "path",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "--git",
+          "description": "Git URL to install from",
+          "args": {
+            "name": "url"
+          }
+        },
+        {
+          "name": "--version",
+          "description": "Version to install",
+          "args": {
+            "name": "version"
+          }
+        },
+        {
+          "name": [
+            "-f",
+            "--force"
+          ],
+          "description": "Force overwriting existing crates"
+        },
+        {
+          "name": "--locked",
+          "description": "Use Cargo.lock"
+        },
+        {
+          "name": "--root",
+          "description": "Directory to install packages into",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "--list",
+          "description": "List all installed packages"
+        },
+        {
+          "name": [
+            "-F",
+            "--features"
+          ],
+          "description": "Features",
+          "args": {
+            "name": "features"
+          }
+        }
+      ],
+      "args": {
+        "name": "crate",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "online:crates"
+          }
+        ]
+      }
+    },
+    {
+      "name": "uninstall",
+      "description": "Remove a Rust binary",
+      "args": {
+        "name": "spec",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "cargo:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "update",
+      "description": "Update dependencies listed in Cargo.lock",
+      "options": [
+        {
+          "name": [
+            "-p",
+            "--package"
+          ],
+          "description": "Package to update",
+          "args": {
+            "name": "spec"
+          }
+        },
+        {
+          "name": "--dry-run",
+          "description": "Don't write the lockfile"
+        },
+        {
+          "name": "--precise",
+          "description": "Update to exactly this version",
+          "args": {
+            "name": "version"
+          }
+        }
+      ],
+      "args": {
+        "name": "spec",
+        "isOptional": true,
+        "isVariadic": true
+      }
+    },
+    {
+      "name": "publish",
+      "description": "Upload a package to the registry",
+      "options": [
+        {
+          "name": "--dry-run",
+          "description": "Perform all checks without uploading"
+        },
+        {
+          "name": "--allow-dirty",
+          "description": "Allow dirty working directories"
+        },
+        {
+          "name": "--no-verify",
+          "description": "Don't verify the contents by building them"
+        }
+      ]
+    },
+    {
+      "name": "clean",
+      "description": "Remove the target directory",
+      "options": [
+        {
+          "name": [
+            "-r",
+            "--release"
+          ],
+          "description": "Only the release directory"
+        },
+        {
+          "name": "--doc",
+          "description": "Only the doc directory"
+        },
+        {
+          "name": [
+            "-p",
+            "--package"
+          ],
+          "description": "Package to clean",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "tree",
+      "description": "Display a tree visualization of a dependency graph",
+      "options": [
+        {
+          "name": [
+            "-i",
+            "--invert"
+          ],
+          "description": "Invert the tree for a package",
+          "args": {
+            "name": "spec"
+          }
+        },
+        {
+          "name": [
+            "-d",
+            "--duplicates"
+          ],
+          "description": "Show only duplicated dependencies"
+        },
+        {
+          "name": "--depth",
+          "description": "Maximum display depth",
+          "args": {
+            "name": "n"
+          }
+        },
+        {
+          "name": [
+            "-e",
+            "--edges"
+          ],
+          "description": "Kinds of dependencies",
+          "args": {
+            "name": "kinds",
+            "suggestions": [
+              "normal",
+              "build",
+              "dev",
+              "all",
+              "features"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "search",
+      "description": "Search packages in crates.io",
+      "options": [
+        {
+          "name": "--limit",
+          "description": "Limit results",
+          "args": {
+            "name": "n"
+          }
+        }
+      ],
+      "args": {
+        "name": "query"
+      }
+    },
+    {
+      "name": "fix",
+      "description": "Automatically fix lint warnings reported by rustc",
+      "options": [
+        {
+          "name": [
+            "-p",
+            "--package"
+          ],
+          "description": "Package to operate on",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          },
+          "isRepeatable": true
+        },
+        {
+          "name": [
+            "--workspace",
+            "--all"
+          ],
+          "description": "All packages in the workspace"
+        },
+        {
+          "name": "--exclude",
+          "description": "Exclude packages",
+          "args": {
+            "name": "spec",
+            "generators": [
+              {
+                "builtin": "cargo:packages"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-F",
+            "--features"
+          ],
+          "description": "Space or comma separated list of features",
+          "args": {
+            "name": "features",
+            "generators": [
+              {
+                "builtin": "cargo:features"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--all-features",
+          "description": "Activate all available features"
+        },
+        {
+          "name": "--no-default-features",
+          "description": "Do not activate the default feature"
+        },
+        {
+          "name": [
+            "-r",
+            "--release"
+          ],
+          "description": "Build in release mode"
+        },
+        {
+          "name": "--profile",
+          "description": "Build with the given profile",
+          "args": {
+            "name": "profile",
+            "suggestions": [
+              "dev",
+              "release",
+              "test",
+              "bench"
+            ]
+          }
+        },
+        {
+          "name": "--target",
+          "description": "Build for the target triple",
+          "args": {
+            "name": "triple",
+            "generators": [
+              {
+                "builtin": "rustup:targets-installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": [
+            "-j",
+            "--jobs"
+          ],
+          "description": "Number of parallel jobs",
+          "args": {
+            "name": "n"
+          }
+        },
+        {
+          "name": "--manifest-path",
+          "description": "Path to Cargo.toml",
+          "args": {
+            "name": "path",
+            "template": "filepaths"
+          }
+        },
+        {
+          "name": "--target-dir",
+          "description": "Directory for all generated artifacts",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "--locked",
+          "description": "Assert that Cargo.lock will remain unchanged"
+        },
+        {
+          "name": "--offline",
+          "description": "Run without accessing the network"
+        },
+        {
+          "name": "--frozen",
+          "description": "Equivalent to --locked and --offline"
+        },
+        {
+          "name": [
+            "-q",
+            "--quiet"
+          ],
+          "description": "Do not print cargo log messages"
+        },
+        {
+          "name": [
+            "-v",
+            "--verbose"
+          ],
+          "description": "Use verbose output",
+          "isRepeatable": true
+        },
+        {
+          "name": "--message-format",
+          "description": "Error format",
+          "args": {
+            "name": "fmt",
+            "suggestions": [
+              "human",
+              "short",
+              "json"
+            ]
+          }
+        },
+        {
+          "name": "--edition",
+          "description": "Fix in preparation for the next edition"
+        },
+        {
+          "name": "--allow-dirty",
+          "description": "Fix code even if the working directory is dirty"
+        }
+      ]
+    },
+    {
+      "name": "metadata",
+      "description": "Output the resolved dependencies of a package",
+      "options": [
+        {
+          "name": "--no-deps",
+          "description": "Only workspace members"
+        },
+        {
+          "name": "--format-version",
+          "description": "Format version",
+          "args": {
+            "name": "v",
+            "suggestions": [
+              "1"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "vendor",
+      "description": "Vendor all dependencies locally",
+      "args": {
+        "name": "path",
+        "isOptional": true,
+        "template": "folders"
+      }
+    },
+    {
+      "name": "login",
+      "description": "Log in to a registry",
+      "args": {
+        "name": "token",
+        "isOptional": true
+      }
+    },
+    {
+      "name": "package",
+      "description": "Assemble the local package into a distributable tarball",
+      "options": [
+        {
+          "name": "--list",
+          "description": "Print files included"
+        },
+        {
+          "name": "--allow-dirty",
+          "description": "Allow dirty working directories"
+        }
+      ]
+    },
+    {
+      "name": "generate-lockfile",
+      "description": "Generate the lockfile for a package"
+    },
+    {
+      "name": "help",
+      "description": "Displays help for a cargo subcommand",
+      "args": {
+        "name": "command",
+        "isOptional": true
+      }
+    }
+  ]
+}

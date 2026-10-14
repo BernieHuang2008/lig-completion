@@ -1,0 +1,348 @@
+{
+  "name": "rustup",
+  "description": "The Rust toolchain installer",
+  "subcommands": [
+    {
+      "name": "update",
+      "description": "Update Rust toolchains and rustup",
+      "args": {
+        "name": "toolchain",
+        "isOptional": true,
+        "isVariadic": true,
+        "suggestions": [
+          "stable",
+          "beta",
+          "nightly"
+        ],
+        "generators": [
+          {
+            "builtin": "rustup:toolchains"
+          }
+        ]
+      }
+    },
+    {
+      "name": "default",
+      "description": "Set the default toolchain",
+      "args": {
+        "name": "toolchain",
+        "isOptional": true,
+        "suggestions": [
+          "stable",
+          "beta",
+          "nightly"
+        ],
+        "generators": [
+          {
+            "builtin": "rustup:toolchains"
+          }
+        ]
+      }
+    },
+    {
+      "name": "show",
+      "description": "Show the active and installed toolchains",
+      "subcommands": [
+        {
+          "name": "active-toolchain",
+          "description": "Show the active toolchain"
+        },
+        {
+          "name": "home",
+          "description": "Display the rustup home"
+        }
+      ]
+    },
+    {
+      "name": "toolchain",
+      "description": "Modify or query the installed toolchains",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List installed toolchains"
+        },
+        {
+          "name": "install",
+          "description": "Install a toolchain",
+          "options": [
+            {
+              "name": "--profile",
+              "description": "Profile",
+              "args": {
+                "name": "profile",
+                "suggestions": [
+                  "minimal",
+                  "default",
+                  "complete"
+                ]
+              }
+            }
+          ],
+          "args": {
+            "name": "toolchain",
+            "isVariadic": true,
+            "suggestions": [
+              "stable",
+              "beta",
+              "nightly"
+            ],
+            "generators": [
+              {
+                "builtin": "rustup:toolchains"
+              }
+            ]
+          }
+        },
+        {
+          "name": "uninstall",
+          "description": "Uninstall a toolchain",
+          "args": {
+            "name": "toolchain",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "rustup:toolchains"
+              }
+            ]
+          }
+        },
+        {
+          "name": "link",
+          "description": "Create a custom toolchain from a directory",
+          "args": [
+            {
+              "name": "name"
+            },
+            {
+              "name": "path",
+              "template": "folders"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "target",
+      "description": "Modify a toolchain's supported targets",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List installed and available targets",
+          "options": [
+            {
+              "name": "--installed",
+              "description": "List only installed targets"
+            }
+          ]
+        },
+        {
+          "name": "add",
+          "description": "Add a target",
+          "options": [
+            {
+              "name": "--toolchain",
+              "description": "Toolchain",
+              "args": {
+                "name": "toolchain",
+                "suggestions": [
+                  "stable",
+                  "beta",
+                  "nightly"
+                ],
+                "generators": [
+                  {
+                    "builtin": "rustup:toolchains"
+                  }
+                ]
+              }
+            }
+          ],
+          "args": {
+            "name": "target",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "rustup:targets"
+              }
+            ]
+          }
+        },
+        {
+          "name": "remove",
+          "description": "Remove a target",
+          "args": {
+            "name": "target",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "rustup:targets-installed"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "component",
+      "description": "Modify a toolchain's installed components",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List installed and available components",
+          "options": [
+            {
+              "name": "--installed",
+              "description": "List only installed components"
+            }
+          ]
+        },
+        {
+          "name": "add",
+          "description": "Add a component",
+          "options": [
+            {
+              "name": "--toolchain",
+              "description": "Toolchain",
+              "args": {
+                "name": "toolchain",
+                "suggestions": [
+                  "stable",
+                  "beta",
+                  "nightly"
+                ],
+                "generators": [
+                  {
+                    "builtin": "rustup:toolchains"
+                  }
+                ]
+              }
+            }
+          ],
+          "args": {
+            "name": "component",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "rustup:components"
+              }
+            ]
+          }
+        },
+        {
+          "name": "remove",
+          "description": "Remove a component",
+          "args": {
+            "name": "component",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "rustup:components-installed"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "override",
+      "description": "Modify toolchain overrides for directories",
+      "subcommands": [
+        {
+          "name": "set",
+          "description": "Set the override toolchain for a directory",
+          "args": {
+            "name": "toolchain",
+            "suggestions": [
+              "stable",
+              "beta",
+              "nightly"
+            ],
+            "generators": [
+              {
+                "builtin": "rustup:toolchains"
+              }
+            ]
+          }
+        },
+        {
+          "name": "unset",
+          "description": "Remove the override toolchain for a directory"
+        },
+        {
+          "name": "list",
+          "description": "List directory toolchain overrides"
+        }
+      ]
+    },
+    {
+      "name": "run",
+      "description": "Run a command with an environment configured for a toolchain",
+      "args": [
+        {
+          "name": "toolchain",
+          "suggestions": [
+            "stable",
+            "beta",
+            "nightly"
+          ],
+          "generators": [
+            {
+              "builtin": "rustup:toolchains"
+            }
+          ]
+        },
+        {
+          "name": "command",
+          "isCommand": true
+        }
+      ]
+    },
+    {
+      "name": "which",
+      "description": "Display which binary will be run for a command",
+      "args": {
+        "name": "command"
+      }
+    },
+    {
+      "name": "doc",
+      "description": "Open the documentation for the current toolchain",
+      "options": [
+        {
+          "name": "--std",
+          "description": "Standard library API"
+        },
+        {
+          "name": "--book",
+          "description": "The Rust Programming Language book"
+        }
+      ]
+    },
+    {
+      "name": "self",
+      "description": "Modify the rustup installation",
+      "subcommands": [
+        {
+          "name": "update",
+          "description": "Download and install updates to rustup"
+        },
+        {
+          "name": "uninstall",
+          "description": "Uninstall rustup"
+        }
+      ]
+    },
+    {
+      "name": "completions",
+      "description": "Generate tab-completion scripts",
+      "args": {
+        "name": "shell",
+        "suggestions": [
+          "bash",
+          "zsh",
+          "fish"
+        ]
+      }
+    }
+  ]
+}

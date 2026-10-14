@@ -1,0 +1,8 @@
+{
+  "name": "builtin",
+  "description": "Run a shell builtin",
+  "args": {
+    "name": "command",
+    "isCommand": true
+  }
+}

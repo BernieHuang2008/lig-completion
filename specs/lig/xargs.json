@@ -1,0 +1,51 @@
+{
+  "name": "xargs",
+  "description": "Build command lines from standard input",
+  "options": [
+    {
+      "name": [
+        "-0",
+        "--null"
+      ],
+      "description": "Items are null terminated"
+    },
+    {
+      "name": [
+        "-n",
+        "--max-args"
+      ],
+      "description": "Max args per command",
+      "args": {
+        "name": "n"
+      }
+    },
+    {
+      "name": [
+        "-P",
+        "--max-procs"
+      ],
+      "description": "Parallel processes",
+      "args": {
+        "name": "n"
+      }
+    },
+    {
+      "name": "-I",
+      "description": "Replace string",
+      "args": {
+        "name": "replstr"
+      }
+    },
+    {
+      "name": [
+        "-r",
+        "--no-run-if-empty"
+      ],
+      "description": "Don't run if input is empty"
+    }
+  ],
+  "args": {
+    "name": "command",
+    "isCommand": true
+  }
+}

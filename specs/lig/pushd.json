@@ -1,0 +1,15 @@
+{
+  "name": "pushd",
+  "description": "Change the working directory",
+  "args": {
+    "name": "dir",
+    "isOptional": true,
+    "suggestions": [
+      {
+        "name": "-",
+        "description": "Previous directory"
+      }
+    ],
+    "template": "folders"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "zi",
+  "description": "Pick a frecent directory interactively",
+  "args": {
+    "name": "keywords",
+    "isOptional": true,
+    "isVariadic": true,
+    "template": "folders",
+    "generators": [
+      {
+        "builtin": "zoxide:dirs"
+      }
+    ]
+  }
+}

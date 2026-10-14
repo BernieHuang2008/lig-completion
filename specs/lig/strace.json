@@ -1,0 +1,41 @@
+{
+  "name": "strace",
+  "description": "Trace system calls",
+  "options": [
+    {
+      "name": "-f",
+      "description": "Follow forks"
+    },
+    {
+      "name": "-e",
+      "description": "Filter expression",
+      "args": {
+        "name": "expr"
+      }
+    },
+    {
+      "name": "-o",
+      "description": "Output file",
+      "args": {
+        "name": "file",
+        "template": "filepaths"
+      }
+    },
+    {
+      "name": "-p",
+      "description": "Attach to PID",
+      "args": {
+        "name": "pid",
+        "generators": [
+          {
+            "builtin": "sys:pids"
+          }
+        ]
+      }
+    }
+  ],
+  "args": {
+    "name": "command",
+    "isCommand": true
+  }
+}

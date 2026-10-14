@@ -1,0 +1,814 @@
+{
+  "name": "kubectl",
+  "description": "Kubernetes command-line tool",
+  "options": [
+    {
+      "name": [
+        "-n",
+        "--namespace"
+      ],
+      "description": "Namespace",
+      "args": {
+        "name": "namespace",
+        "generators": [
+          {
+            "builtin": "kube:namespaces"
+          }
+        ]
+      },
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-A",
+        "--all-namespaces"
+      ],
+      "description": "All namespaces",
+      "isPersistent": true
+    },
+    {
+      "name": "--context",
+      "description": "Kubeconfig context",
+      "args": {
+        "name": "context",
+        "generators": [
+          {
+            "builtin": "kube:contexts"
+          }
+        ]
+      },
+      "isPersistent": true
+    },
+    {
+      "name": "--kubeconfig",
+      "description": "Kubeconfig file",
+      "args": {
+        "name": "file",
+        "template": "filepaths"
+      },
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-l",
+        "--selector"
+      ],
+      "description": "Label selector",
+      "args": {
+        "name": "selector"
+      },
+      "isPersistent": true
+    }
+  ],
+  "subcommands": [
+    {
+      "name": "get",
+      "description": "Display resources",
+      "options": [
+        {
+          "name": [
+            "-o",
+            "--output"
+          ],
+          "description": "Output format",
+          "args": {
+            "name": "format",
+            "suggestions": [
+              "json",
+              "yaml",
+              "wide",
+              "name",
+              "jsonpath=",
+              "custom-columns="
+            ]
+          }
+        },
+        {
+          "name": [
+            "-w",
+            "--watch"
+          ],
+          "description": "Watch for changes"
+        },
+        {
+          "name": "--show-labels",
+          "description": "Show labels"
+        }
+      ],
+      "args": [
+        {
+          "name": "type",
+          "suggestions": [
+            "pods",
+            "deployments",
+            "services",
+            "nodes",
+            "namespaces",
+            "configmaps",
+            "secrets",
+            "ingresses",
+            "statefulsets",
+            "daemonsets",
+            "replicasets",
+            "jobs",
+            "cronjobs",
+            "persistentvolumeclaims",
+            "persistentvolumes",
+            "serviceaccounts",
+            "events",
+            "endpoints",
+            "horizontalpodautoscalers",
+            "networkpolicies",
+            "roles",
+            "rolebindings",
+            "clusterroles",
+            "clusterrolebindings",
+            "storageclasses",
+            "customresourcedefinitions",
+            "all"
+          ]
+        },
+        {
+          "name": "name",
+          "isOptional": true,
+          "isVariadic": true,
+          "generators": [
+            {
+              "builtin": "kube:names:"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "describe",
+      "description": "Show details of resources",
+      "args": [
+        {
+          "name": "type",
+          "suggestions": [
+            "pods",
+            "deployments",
+            "services",
+            "nodes",
+            "namespaces",
+            "configmaps",
+            "secrets",
+            "ingresses",
+            "statefulsets",
+            "daemonsets",
+            "replicasets",
+            "jobs",
+            "cronjobs",
+            "persistentvolumeclaims",
+            "persistentvolumes",
+            "serviceaccounts",
+            "events",
+            "endpoints",
+            "horizontalpodautoscalers",
+            "networkpolicies",
+            "roles",
+            "rolebindings",
+            "clusterroles",
+            "clusterrolebindings",
+            "storageclasses",
+            "customresourcedefinitions",
+            "all"
+          ]
+        },
+        {
+          "name": "name",
+          "isOptional": true,
+          "isVariadic": true,
+          "generators": [
+            {
+              "builtin": "kube:names:"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "delete",
+      "description": "Delete resources",
+      "options": [
+        {
+          "name": [
+            "-f",
+            "--filename"
+          ],
+          "description": "File",
+          "args": {
+            "name": "file",
+            "template": "filepaths"
+          }
+        },
+        {
+          "name": "--force",
+          "description": "Force"
+        },
+        {
+          "name": "--grace-period",
+          "description": "Seconds",
+          "args": {
+            "name": "n"
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "type",
+          "isOptional": true,
+          "suggestions": [
+            "pods",
+            "deployments",
+            "services",
+            "nodes",
+            "namespaces",
+            "configmaps",
+            "secrets",
+            "ingresses",
+            "statefulsets",
+            "daemonsets",
+            "replicasets",
+            "jobs",
+            "cronjobs",
+            "persistentvolumeclaims",
+            "persistentvolumes",
+            "serviceaccounts",
+            "events",
+            "endpoints",
+            "horizontalpodautoscalers",
+            "networkpolicies",
+            "roles",
+            "rolebindings",
+            "clusterroles",
+            "clusterrolebindings",
+            "storageclasses",
+            "customresourcedefinitions",
+            "all"
+          ]
+        },
+        {
+          "name": "name",
+          "isOptional": true,
+          "isVariadic": true,
+          "generators": [
+            {
+              "builtin": "kube:names:"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "edit",
+      "description": "Edit a resource",
+      "args": [
+        {
+          "name": "type",
+          "suggestions": [
+            "pods",
+            "deployments",
+            "services",
+            "nodes",
+            "namespaces",
+            "configmaps",
+            "secrets",
+            "ingresses",
+            "statefulsets",
+            "daemonsets",
+            "replicasets",
+            "jobs",
+            "cronjobs",
+            "persistentvolumeclaims",
+            "persistentvolumes",
+            "serviceaccounts",
+            "events",
+            "endpoints",
+            "horizontalpodautoscalers",
+            "networkpolicies",
+            "roles",
+            "rolebindings",
+            "clusterroles",
+            "clusterrolebindings",
+            "storageclasses",
+            "customresourcedefinitions",
+            "all"
+          ]
+        },
+        {
+          "name": "name",
+          "isOptional": true,
+          "isVariadic": true,
+          "generators": [
+            {
+              "builtin": "kube:names:"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "apply",
+      "description": "Apply a configuration",
+      "options": [
+        {
+          "name": [
+            "-f",
+            "--filename"
+          ],
+          "description": "File or directory",
+          "args": {
+            "name": "file",
+            "template": "filepaths"
+          },
+          "isRepeatable": true
+        },
+        {
+          "name": [
+            "-k",
+            "--kustomize"
+          ],
+          "description": "Kustomization directory",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "--dry-run",
+          "description": "Dry run",
+          "args": {
+            "name": "mode",
+            "suggestions": [
+              "client",
+              "server",
+              "none"
+            ]
+          },
+          "requiresSeparator": true
+        },
+        {
+          "name": "--server-side",
+          "description": "Server-side apply"
+        }
+      ]
+    },
+    {
+      "name": "create",
+      "description": "Create a resource",
+      "options": [
+        {
+          "name": [
+            "-f",
+            "--filename"
+          ],
+          "description": "File",
+          "args": {
+            "name": "file",
+            "template": "filepaths"
+          }
+        }
+      ],
+      "args": {
+        "name": "type",
+        "isOptional": true,
+        "suggestions": [
+          "deployment",
+          "namespace",
+          "secret",
+          "configmap",
+          "service",
+          "job",
+          "cronjob"
+        ]
+      }
+    },
+    {
+      "name": "logs",
+      "description": "Print the logs of a container",
+      "options": [
+        {
+          "name": [
+            "-f",
+            "--follow"
+          ],
+          "description": "Stream logs"
+        },
+        {
+          "name": [
+            "-c",
+            "--container"
+          ],
+          "description": "Container",
+          "args": {
+            "name": "name"
+          }
+        },
+        {
+          "name": "--tail",
+          "description": "Lines",
+          "args": {
+            "name": "n"
+          }
+        },
+        {
+          "name": [
+            "-p",
+            "--previous"
+          ],
+          "description": "Previous container instance"
+        },
+        {
+          "name": "--since",
+          "description": "Duration",
+          "args": {
+            "name": "duration"
+          }
+        },
+        {
+          "name": "--all-containers",
+          "description": "All containers"
+        }
+      ],
+      "args": {
+        "name": "pod",
+        "generators": [
+          {
+            "builtin": "kube:names:pods"
+          }
+        ]
+      }
+    },
+    {
+      "name": "exec",
+      "description": "Execute a command in a container",
+      "options": [
+        {
+          "name": [
+            "-i",
+            "--stdin"
+          ],
+          "description": "Pass stdin"
+        },
+        {
+          "name": [
+            "-t",
+            "--tty"
+          ],
+          "description": "Allocate a TTY"
+        },
+        {
+          "name": "-it",
+          "description": "Interactive TTY"
+        },
+        {
+          "name": [
+            "-c",
+            "--container"
+          ],
+          "description": "Container",
+          "args": {
+            "name": "name"
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "pod",
+          "generators": [
+            {
+              "builtin": "kube:names:pods"
+            }
+          ]
+        },
+        {
+          "name": "command",
+          "isOptional": true,
+          "isVariadic": true
+        }
+      ]
+    },
+    {
+      "name": "port-forward",
+      "description": "Forward local ports to a pod",
+      "args": [
+        {
+          "name": "pod",
+          "generators": [
+            {
+              "builtin": "kube:names:pods"
+            }
+          ]
+        },
+        {
+          "name": "ports",
+          "isVariadic": true
+        }
+      ]
+    },
+    {
+      "name": "rollout",
+      "description": "Manage rollouts",
+      "subcommands": [
+        {
+          "name": "status",
+          "description": "Show rollout status",
+          "args": {
+            "name": "resource",
+            "generators": [
+              {
+                "builtin": "kube:names:deployments"
+              }
+            ]
+          }
+        },
+        {
+          "name": "restart",
+          "description": "Restart a resource",
+          "args": {
+            "name": "resource",
+            "generators": [
+              {
+                "builtin": "kube:names:deployments"
+              }
+            ]
+          }
+        },
+        {
+          "name": "history",
+          "description": "View rollout history",
+          "args": {
+            "name": "resource",
+            "generators": [
+              {
+                "builtin": "kube:names:deployments"
+              }
+            ]
+          }
+        },
+        {
+          "name": "undo",
+          "description": "Undo a rollout",
+          "args": {
+            "name": "resource",
+            "generators": [
+              {
+                "builtin": "kube:names:deployments"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "scale",
+      "description": "Set a new size",
+      "options": [
+        {
+          "name": "--replicas",
+          "description": "Replicas",
+          "args": {
+            "name": "n"
+          },
+          "requiresSeparator": true
+        }
+      ],
+      "args": [
+        {
+          "name": "type",
+          "suggestions": [
+            "pods",
+            "deployments",
+            "services",
+            "nodes",
+            "namespaces",
+            "configmaps",
+            "secrets",
+            "ingresses",
+            "statefulsets",
+            "daemonsets",
+            "replicasets",
+            "jobs",
+            "cronjobs",
+            "persistentvolumeclaims",
+            "persistentvolumes",
+            "serviceaccounts",
+            "events",
+            "endpoints",
+            "horizontalpodautoscalers",
+            "networkpolicies",
+            "roles",
+            "rolebindings",
+            "clusterroles",
+            "clusterrolebindings",
+            "storageclasses",
+            "customresourcedefinitions",
+            "all"
+          ]
+        },
+        {
+          "name": "name",
+          "isOptional": true,
+          "isVariadic": true,
+          "generators": [
+            {
+              "builtin": "kube:names:"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "top",
+      "description": "Display resource usage",
+      "subcommands": [
+        {
+          "name": "pod",
+          "description": "Pods",
+          "args": {
+            "name": "pod",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "kube:names:pods"
+              }
+            ]
+          }
+        },
+        {
+          "name": "node",
+          "description": "Nodes"
+        }
+      ]
+    },
+    {
+      "name": "config",
+      "description": "Modify kubeconfig files",
+      "subcommands": [
+        {
+          "name": "use-context",
+          "description": "Set the current context",
+          "args": {
+            "name": "context",
+            "generators": [
+              {
+                "builtin": "kube:contexts"
+              }
+            ]
+          }
+        },
+        {
+          "name": "get-contexts",
+          "description": "List contexts"
+        },
+        {
+          "name": "current-context",
+          "description": "Display the current context"
+        },
+        {
+          "name": "set-context",
+          "description": "Set a context entry",
+          "options": [
+            {
+              "name": "--namespace",
+              "description": "Namespace",
+              "args": {
+                "name": "ns",
+                "generators": [
+                  {
+                    "builtin": "kube:namespaces"
+                  }
+                ]
+              },
+              "requiresSeparator": true
+            }
+          ],
+          "args": {
+            "name": "context",
+            "generators": [
+              {
+                "builtin": "kube:contexts"
+              }
+            ]
+          }
+        },
+        {
+          "name": "view",
+          "description": "Display merged kubeconfig settings"
+        }
+      ]
+    },
+    {
+      "name": "cp",
+      "description": "Copy files to and from containers",
+      "args": [
+        {
+          "name": "src",
+          "template": "filepaths"
+        },
+        {
+          "name": "dest",
+          "template": "filepaths"
+        }
+      ]
+    },
+    {
+      "name": "label",
+      "description": "Update labels",
+      "args": [
+        {
+          "name": "type",
+          "suggestions": [
+            "pods",
+            "deployments",
+            "services",
+            "nodes",
+            "namespaces",
+            "configmaps",
+            "secrets",
+            "ingresses",
+            "statefulsets",
+            "daemonsets",
+            "replicasets",
+            "jobs",
+            "cronjobs",
+            "persistentvolumeclaims",
+            "persistentvolumes",
+            "serviceaccounts",
+            "events",
+            "endpoints",
+            "horizontalpodautoscalers",
+            "networkpolicies",
+            "roles",
+            "rolebindings",
+            "clusterroles",
+            "clusterrolebindings",
+            "storageclasses",
+            "customresourcedefinitions",
+            "all"
+          ]
+        },
+        {
+          "name": "name",
+          "isOptional": true,
+          "isVariadic": true,
+          "generators": [
+            {
+              "builtin": "kube:names:"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "api-resources",
+      "description": "Print supported API resources"
+    },
+    {
+      "name": "cluster-info",
+      "description": "Display cluster information"
+    },
+    {
+      "name": "version",
+      "description": "Print version information"
+    },
+    {
+      "name": "explain",
+      "description": "Documentation of resources",
+      "args": {
+        "name": "type",
+        "suggestions": [
+          "pods",
+          "deployments",
+          "services",
+          "nodes",
+          "namespaces",
+          "configmaps",
+          "secrets",
+          "ingresses",
+          "statefulsets",
+          "daemonsets",
+          "replicasets",
+          "jobs",
+          "cronjobs",
+          "persistentvolumeclaims",
+          "persistentvolumes",
+          "serviceaccounts",
+          "events",
+          "endpoints",
+          "horizontalpodautoscalers",
+          "networkpolicies",
+          "roles",
+          "rolebindings",
+          "clusterroles",
+          "clusterrolebindings",
+          "storageclasses",
+          "customresourcedefinitions",
+          "all"
+        ]
+      }
+    }
+  ]
+}

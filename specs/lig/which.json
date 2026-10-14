@@ -1,0 +1,9 @@
+{
+  "name": "which",
+  "description": "Locate a command",
+  "args": {
+    "name": "command",
+    "isVariadic": true,
+    "commandNames": true
+  }
+}

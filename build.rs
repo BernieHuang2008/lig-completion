@@ -1,4 +1,7 @@
-//! Packs `specs/fig/**/*.json` into one archive embedded in the binary:
+//! Packs the spec folders into archives embedded in the binary:
+//!
+//! * `specs/lig/` (hand-written) → `lig_specs.bin`
+//! * `specs/fig/` (converted from withfig/autocomplete) → `fig_specs.bin`
 //!
 //! ```text
 //! "LIGSPEC1" | u32 count | count × (u16 name_len, name, u32 offset, u32 len) | deflate blobs…
@@ -20,18 +23,20 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-fn main() {
-    let root = Path::new("specs/fig");
-    println!("cargo:rerun-if-changed=specs/fig");
+fn pack(root: &Path, dest: &Path) {
+    println!("cargo:rerun-if-changed={}", root.display());
     let mut files = vec![];
     walk(root, &mut files);
     files.sort();
-
     let mut index = Vec::new();
     let mut blobs = Vec::new();
     for f in &files {
         let name = f.strip_prefix(root).unwrap().with_extension("").to_string_lossy().replace('\\', "/");
         let data = std::fs::read(f).unwrap();
+        // Fail the build on broken JSON rather than at completion time.
+        if let Err(e) = serde_json::from_slice::<serde_json::Value>(&data) {
+            panic!("{}: {e}", f.display());
+        }
         let mut enc = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::best());
         enc.write_all(&data).unwrap();
         let z = enc.finish().unwrap();
@@ -47,6 +52,11 @@ fn main() {
         out.extend(len.to_le_bytes());
     }
     out.extend(blobs);
-    let dest = Path::new(&std::env::var("OUT_DIR").unwrap()).join("fig_specs.bin");
     std::fs::write(dest, out).unwrap();
+}
+
+fn main() {
+    let out = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    pack(Path::new("specs/lig"), &out.join("lig_specs.bin"));
+    pack(Path::new("specs/fig"), &out.join("fig_specs.bin"));
 }

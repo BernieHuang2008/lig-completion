@@ -1,0 +1,15 @@
+{
+  "name": "source",
+  "description": "Read and run commands from a file",
+  "args": [
+    {
+      "name": "file",
+      "template": "filepaths"
+    },
+    {
+      "name": "args",
+      "isOptional": true,
+      "isVariadic": true
+    }
+  ]
+}

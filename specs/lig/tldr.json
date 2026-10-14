@@ -1,0 +1,9 @@
+{
+  "name": "tldr",
+  "description": "Simplified man pages",
+  "args": {
+    "name": "command",
+    "isVariadic": true,
+    "commandNames": true
+  }
+}

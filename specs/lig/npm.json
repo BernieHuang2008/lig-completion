@@ -1,0 +1,577 @@
+{
+  "name": "npm",
+  "description": "Node package manager",
+  "options": [
+    {
+      "name": [
+        "-v",
+        "--version"
+      ],
+      "description": "Print version"
+    },
+    {
+      "name": [
+        "-g",
+        "--global"
+      ],
+      "description": "Operate globally",
+      "isPersistent": true
+    }
+  ],
+  "subcommands": [
+    {
+      "name": [
+        "install",
+        "i",
+        "add"
+      ],
+      "description": "Install a package",
+      "options": [
+        {
+          "name": [
+            "-D",
+            "--save-dev"
+          ],
+          "description": "Save to devDependencies"
+        },
+        {
+          "name": [
+            "-P",
+            "--save-prod"
+          ],
+          "description": "Save to dependencies"
+        },
+        {
+          "name": [
+            "-O",
+            "--save-optional"
+          ],
+          "description": "Save to optionalDependencies"
+        },
+        {
+          "name": [
+            "-E",
+            "--save-exact"
+          ],
+          "description": "Save an exact version"
+        },
+        {
+          "name": "--no-save",
+          "description": "Don't save to package.json"
+        },
+        {
+          "name": "--legacy-peer-deps",
+          "description": "Ignore peer dependency conflicts"
+        },
+        {
+          "name": "--force",
+          "description": "Force fetching remote resources"
+        },
+        {
+          "name": [
+            "-w",
+            "--workspace"
+          ],
+          "description": "Run in a workspace",
+          "args": {
+            "name": "name",
+            "template": "folders"
+          },
+          "isRepeatable": true
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "template": "folders",
+        "generators": [
+          {
+            "builtin": "online:npm"
+          }
+        ]
+      }
+    },
+    {
+      "name": [
+        "ci",
+        "clean-install"
+      ],
+      "description": "Clean install from the lockfile",
+      "options": [
+        {
+          "name": "--omit",
+          "description": "Omit dependency types",
+          "args": {
+            "name": "type",
+            "suggestions": [
+              "dev",
+              "optional",
+              "peer"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": [
+        "uninstall",
+        "remove",
+        "rm",
+        "un"
+      ],
+      "description": "Remove a package",
+      "options": [
+        {
+          "name": [
+            "-D",
+            "--save-dev"
+          ],
+          "description": "From devDependencies"
+        },
+        {
+          "name": [
+            "-w",
+            "--workspace"
+          ],
+          "description": "Run in a workspace",
+          "args": {
+            "name": "name",
+            "template": "folders"
+          },
+          "isRepeatable": true
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "npm:deps"
+          }
+        ]
+      }
+    },
+    {
+      "name": [
+        "update",
+        "up",
+        "upgrade"
+      ],
+      "description": "Update packages",
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "npm:deps"
+          }
+        ]
+      }
+    },
+    {
+      "name": [
+        "run",
+        "run-script"
+      ],
+      "description": "Run a package.json script",
+      "options": [
+        {
+          "name": [
+            "-w",
+            "--workspace"
+          ],
+          "description": "Run in a workspace",
+          "args": {
+            "name": "name",
+            "template": "folders"
+          },
+          "isRepeatable": true
+        },
+        {
+          "name": "--if-present",
+          "description": "Don't fail if the script is missing"
+        },
+        {
+          "name": "--workspaces",
+          "description": "Run in all workspaces"
+        }
+      ],
+      "args": [
+        {
+          "name": "script",
+          "generators": [
+            {
+              "builtin": "npm:scripts"
+            }
+          ]
+        },
+        {
+          "name": "args",
+          "isOptional": true,
+          "isVariadic": true
+        }
+      ]
+    },
+    {
+      "name": [
+        "test",
+        "t"
+      ],
+      "description": "Run the test script"
+    },
+    {
+      "name": "start",
+      "description": "Run the start script"
+    },
+    {
+      "name": "stop",
+      "description": "Run the stop script"
+    },
+    {
+      "name": "restart",
+      "description": "Run the restart script"
+    },
+    {
+      "name": [
+        "init",
+        "create"
+      ],
+      "description": "Create a package.json file",
+      "options": [
+        {
+          "name": [
+            "-y",
+            "--yes"
+          ],
+          "description": "Use defaults"
+        },
+        {
+          "name": "--scope",
+          "description": "Scope",
+          "args": {
+            "name": "scope"
+          }
+        }
+      ],
+      "args": {
+        "name": "initializer",
+        "isOptional": true
+      }
+    },
+    {
+      "name": [
+        "exec",
+        "x"
+      ],
+      "description": "Run a command from a local or remote package",
+      "options": [
+        {
+          "name": [
+            "-p",
+            "--package"
+          ],
+          "description": "Package to install",
+          "args": {
+            "name": "package"
+          }
+        },
+        {
+          "name": [
+            "-c",
+            "--call"
+          ],
+          "description": "Script string",
+          "args": {
+            "name": "script"
+          }
+        }
+      ],
+      "args": {
+        "name": "command",
+        "isCommand": true
+      }
+    },
+    {
+      "name": "outdated",
+      "description": "Check for outdated packages",
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "npm:deps"
+          }
+        ]
+      }
+    },
+    {
+      "name": [
+        "ls",
+        "list"
+      ],
+      "description": "List installed packages",
+      "options": [
+        {
+          "name": "--depth",
+          "description": "Depth",
+          "args": {
+            "name": "n"
+          }
+        },
+        {
+          "name": "--all",
+          "description": "Show all dependencies"
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "npm:deps"
+          }
+        ]
+      }
+    },
+    {
+      "name": "audit",
+      "description": "Run a security audit",
+      "subcommands": [
+        {
+          "name": "fix",
+          "description": "Fix vulnerabilities",
+          "options": [
+            {
+              "name": "--force",
+              "description": "Allow breaking changes"
+            }
+          ]
+        },
+        {
+          "name": "signatures",
+          "description": "Verify signatures"
+        }
+      ]
+    },
+    {
+      "name": "publish",
+      "description": "Publish a package",
+      "options": [
+        {
+          "name": "--access",
+          "description": "Access level",
+          "args": {
+            "name": "level",
+            "suggestions": [
+              "public",
+              "restricted"
+            ]
+          }
+        },
+        {
+          "name": "--tag",
+          "description": "Dist tag",
+          "args": {
+            "name": "tag"
+          }
+        },
+        {
+          "name": "--dry-run",
+          "description": "Dry run"
+        }
+      ],
+      "args": {
+        "name": "folder",
+        "isOptional": true,
+        "template": "folders"
+      }
+    },
+    {
+      "name": "version",
+      "description": "Bump a package version",
+      "args": {
+        "name": "type",
+        "suggestions": [
+          "patch",
+          "minor",
+          "major",
+          "prepatch",
+          "preminor",
+          "premajor",
+          "prerelease"
+        ]
+      }
+    },
+    {
+      "name": [
+        "link",
+        "ln"
+      ],
+      "description": "Symlink a package folder",
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "template": "folders"
+      }
+    },
+    {
+      "name": "pack",
+      "description": "Create a tarball from a package",
+      "options": [
+        {
+          "name": "--dry-run",
+          "description": "Dry run"
+        }
+      ]
+    },
+    {
+      "name": [
+        "view",
+        "info",
+        "show"
+      ],
+      "description": "View registry info",
+      "args": [
+        {
+          "name": "package"
+        },
+        {
+          "name": "field",
+          "isOptional": true
+        }
+      ]
+    },
+    {
+      "name": [
+        "search",
+        "s",
+        "find"
+      ],
+      "description": "Search for packages",
+      "args": {
+        "name": "terms",
+        "isVariadic": true
+      }
+    },
+    {
+      "name": "cache",
+      "description": "Manipulate the packages cache",
+      "subcommands": [
+        {
+          "name": "clean",
+          "description": "Delete all data",
+          "options": [
+            {
+              "name": "--force",
+              "description": "Force"
+            }
+          ]
+        },
+        {
+          "name": "verify",
+          "description": "Verify the cache"
+        },
+        {
+          "name": "ls",
+          "description": "List cached packages"
+        }
+      ]
+    },
+    {
+      "name": [
+        "config",
+        "c"
+      ],
+      "description": "Manage the npm configuration",
+      "subcommands": [
+        {
+          "name": "set",
+          "description": "Set a value",
+          "args": {
+            "name": "key=value"
+          }
+        },
+        {
+          "name": "get",
+          "description": "Get a value",
+          "args": {
+            "name": "key"
+          }
+        },
+        {
+          "name": "delete",
+          "description": "Delete a key",
+          "args": {
+            "name": "key"
+          }
+        },
+        {
+          "name": [
+            "list",
+            "ls"
+          ],
+          "description": "List all config",
+          "options": [
+            {
+              "name": [
+                "-l",
+                "--long"
+              ],
+              "description": "Show defaults"
+            }
+          ]
+        },
+        {
+          "name": "edit",
+          "description": "Open the config file"
+        }
+      ]
+    },
+    {
+      "name": [
+        "login",
+        "adduser"
+      ],
+      "description": "Log in to a registry"
+    },
+    {
+      "name": "logout",
+      "description": "Log out of the registry"
+    },
+    {
+      "name": "whoami",
+      "description": "Display the npm username"
+    },
+    {
+      "name": "prune",
+      "description": "Remove extraneous packages"
+    },
+    {
+      "name": [
+        "dedupe",
+        "ddp"
+      ],
+      "description": "Reduce duplication in the package tree"
+    },
+    {
+      "name": "doctor",
+      "description": "Check the npm environment"
+    },
+    {
+      "name": "fund",
+      "description": "Retrieve funding information"
+    },
+    {
+      "name": "help",
+      "description": "Get help on npm",
+      "args": {
+        "name": "term",
+        "isOptional": true
+      }
+    }
+  ]
+}

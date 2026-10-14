@@ -1,58 +1,34 @@
-//! Built-in completion specs.
+//! Built-in completion specs, all JSON:
 //!
-//! * Hand-written in Rust (the modules below), with native generators.
-//! * ~1500 converted from withfig/autocomplete (`specs/fig/`, see `fig.rs`).
-//!   Where both exist they are merged: the Rust spec wins, the converted one
-//!   fills in the options and subcommands it lacks.
+//! * `specs/lig/`: hand-written, with native generators referenced by id
+//!   (`{"builtin": "git:branches"}`, see `gens.rs`).
+//! * `specs/fig/`: ~1500 converted from withfig/autocomplete.
 //!
-//! Commands with neither get a spec parsed from `--help` / man (`help.rs`);
-//! user JSON/TOML specs in `~/.config/lig/specs/` override everything.
+//! Where both have a command they are merged: the lig spec wins, the
+//! converted one fills in the options and subcommands it lacks. Commands
+//! with neither get a spec parsed from `--help` / man (`help.rs`); user
+//! JSON/TOML specs in `~/.config/lig/specs/` override everything.
 
-pub mod fig;
+pub mod archive;
 pub mod gens;
-mod docker;
-mod git;
-mod node;
-mod rust;
-mod system;
 
 use crate::spec::Subcommand;
 
-/// Names with a built-in spec.
-pub const NAMES: &[&str] = &[
-    "git", "docker", "cargo", "rustup", "npm", "npx", "pnpm", "yarn", "bun", "pip", "pip3", "systemctl", "journalctl",
-    "apt", "apt-get", "kill", "killall", "pkill", "pgrep", "ssh", "scp", "make", "tmux", "kubectl", "sudo", "doas",
-    "cd", "pushd", "time", "nohup", "exec", "command", "builtin", "nice", "ionice", "timeout", "watch", "xargs", "env",
-    "strace", "flatpak-spawn", "which", "whereis", "type", "man", "tldr", "z", "zi", "source", ".", "snap", "extrepo",
-];
+pub use archive::{FIG, LIG};
 
+/// Commands with a hand-written spec.
+pub fn lig_names() -> impl Iterator<Item = &'static str> {
+    LIG.names()
+}
+
+/// The spec for `name`: hand-written merged with the converted one.
 pub fn builtin(name: &str) -> Option<Subcommand> {
-    Some(match name {
-        "git" => git::spec(),
-        "docker" => docker::spec(),
-        "cargo" => rust::cargo(),
-        "rustup" => rust::rustup(),
-        "npm" => node::npm(),
-        "npx" => node::npx(),
-        "pnpm" | "yarn" | "bun" => node::pm(name),
-        "pip" | "pip3" => node::pip(name),
-        "systemctl" => system::systemctl(),
-        "journalctl" => system::journalctl(),
-        "apt" | "apt-get" => system::apt(name),
-        "kill" => system::kill(),
-        "killall" | "pkill" | "pgrep" => system::killall(name),
-        "ssh" => system::ssh(),
-        "scp" => system::scp(),
-        "make" => system::make(),
-        "tmux" => system::tmux(),
-        "kubectl" => system::kubectl(),
-        "sudo" | "doas" => system::sudo(name),
-        "cd" | "pushd" => system::cd(name),
-        "z" | "zi" => system::z(name),
-        "snap" => system::snap(),
-        "extrepo" => system::extrepo(),
-        _ => return system::wrappers().into_iter().find(|s| s.meta.names[0] == name),
-    })
+    // `.` is `source`.
+    let name = if name == "." { "source" } else { name };
+    match (LIG.load(name), FIG.load(name)) {
+        (Some(b), Some(f)) => Some(merge(&b, &f)),
+        (b, f) => b.or(f),
+    }
 }
 
 /// Merge `extra` into `base`: `base` wins, `extra` adds what's missing.
@@ -127,11 +103,21 @@ mod tests {
         assert!(m.find_subcommand("freeze").is_some());
     }
 
+    /// Every hand-written spec loads, survives a JSON round trip unchanged
+    /// (no unknown or misspelled keys), and only uses generators that exist.
     #[test]
-    fn every_name_builds() {
-        for n in super::NAMES {
-            let s = super::builtin(n).unwrap_or_else(|| panic!("no builtin spec for {n}"));
-            assert_eq!(s.meta.names[0], *n);
+    fn lig_specs_are_valid() {
+        let names: Vec<&str> = super::lig_names().collect();
+        assert!(names.len() >= 50, "{}", names.len());
+        for n in names {
+            let v = super::LIG.json(n).unwrap();
+            let spec = crate::spec::from_value(&v);
+            assert_eq!(spec.meta.names[0], n, "{n}: name doesn't match the file name");
+            assert_eq!(crate::spec::to_value(&spec), v, "{n}: keys lig doesn't understand");
+            let text = v.to_string();
+            for id in text.split("\"builtin\":\"").skip(1).map(|r| r.split('"').next().unwrap()) {
+                assert!(super::gens::builtin(id).is_some(), "{n}: unknown generator {id}");
+            }
         }
     }
 }

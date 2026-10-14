@@ -1,0 +1,108 @@
+{
+  "name": "make",
+  "description": "Maintain program dependencies",
+  "options": [
+    {
+      "name": [
+        "-C",
+        "--directory"
+      ],
+      "description": "Change to directory",
+      "args": {
+        "name": "dir",
+        "template": "folders"
+      }
+    },
+    {
+      "name": [
+        "-f",
+        "--file",
+        "--makefile"
+      ],
+      "description": "Read this makefile",
+      "args": {
+        "name": "file",
+        "template": "filepaths"
+      }
+    },
+    {
+      "name": [
+        "-j",
+        "--jobs"
+      ],
+      "description": "Parallel jobs",
+      "args": {
+        "name": "n",
+        "isOptional": true
+      }
+    },
+    {
+      "name": [
+        "-k",
+        "--keep-going"
+      ],
+      "description": "Keep going when some targets fail"
+    },
+    {
+      "name": [
+        "-n",
+        "--dry-run",
+        "--just-print"
+      ],
+      "description": "Print commands without running them"
+    },
+    {
+      "name": [
+        "-B",
+        "--always-make"
+      ],
+      "description": "Unconditionally make all targets"
+    },
+    {
+      "name": [
+        "-s",
+        "--silent",
+        "--quiet"
+      ],
+      "description": "Don't echo recipes"
+    },
+    {
+      "name": [
+        "-e",
+        "--environment-overrides"
+      ],
+      "description": "Environment overrides makefile variables"
+    },
+    {
+      "name": [
+        "-i",
+        "--ignore-errors"
+      ],
+      "description": "Ignore errors from recipes"
+    },
+    {
+      "name": [
+        "-q",
+        "--question"
+      ],
+      "description": "Exit status says whether up to date"
+    },
+    {
+      "name": [
+        "-p",
+        "--print-data-base"
+      ],
+      "description": "Print make's internal database"
+    }
+  ],
+  "args": {
+    "name": "target",
+    "isOptional": true,
+    "isVariadic": true,
+    "generators": [
+      {
+        "builtin": "make:targets"
+      }
+    ]
+  }
+}

@@ -1,0 +1,308 @@
+{
+  "name": "snap",
+  "description": "Manage snap packages",
+  "subcommands": [
+    {
+      "name": "install",
+      "description": "Install snaps",
+      "options": [
+        {
+          "name": "--classic",
+          "description": "Put the snap in classic mode and disable security confinement"
+        },
+        {
+          "name": "--channel",
+          "description": "Use this channel",
+          "args": {
+            "name": "channel",
+            "suggestions": [
+              "stable",
+              "candidate",
+              "beta",
+              "edge"
+            ]
+          },
+          "requiresSeparator": true
+        },
+        {
+          "name": "--edge",
+          "description": "Install from the edge channel"
+        },
+        {
+          "name": "--beta",
+          "description": "Install from the beta channel"
+        },
+        {
+          "name": "--candidate",
+          "description": "Install from the candidate channel"
+        },
+        {
+          "name": "--devmode",
+          "description": "Put the snap in development mode"
+        },
+        {
+          "name": "--dangerous",
+          "description": "Install the given snap file even if there are no pre-acknowledged signatures"
+        }
+      ],
+      "args": {
+        "name": "snap",
+        "isVariadic": true,
+        "template": "filepaths",
+        "generators": [
+          {
+            "builtin": "online:snap"
+          }
+        ]
+      }
+    },
+    {
+      "name": "remove",
+      "description": "Remove snaps",
+      "options": [
+        {
+          "name": "--purge",
+          "description": "Don't save a snapshot"
+        }
+      ],
+      "args": {
+        "name": "snap",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "snap:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "refresh",
+      "description": "Refresh snaps",
+      "options": [
+        {
+          "name": "--list",
+          "description": "Show available refreshes"
+        },
+        {
+          "name": "--channel",
+          "description": "Channel",
+          "args": {
+            "name": "channel"
+          },
+          "requiresSeparator": true
+        }
+      ],
+      "args": {
+        "name": "snap",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "snap:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "revert",
+      "description": "Revert a snap to its previous revision",
+      "args": {
+        "name": "snap",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "snap:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "list",
+      "description": "List installed snaps",
+      "options": [
+        {
+          "name": "--all",
+          "description": "Show all revisions"
+        }
+      ]
+    },
+    {
+      "name": [
+        "find",
+        "search"
+      ],
+      "description": "Find packages to install",
+      "args": {
+        "name": "query",
+        "isOptional": true,
+        "generators": [
+          {
+            "builtin": "online:snap"
+          }
+        ]
+      }
+    },
+    {
+      "name": "info",
+      "description": "Show detailed information about snaps",
+      "args": {
+        "name": "snap",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "snap:installed"
+          },
+          {
+            "builtin": "online:snap"
+          }
+        ]
+      }
+    },
+    {
+      "name": "run",
+      "description": "Run the given snap command",
+      "args": [
+        {
+          "name": "app",
+          "generators": [
+            {
+              "builtin": "snap:installed"
+            }
+          ]
+        },
+        {
+          "name": "args",
+          "isOptional": true,
+          "isVariadic": true
+        }
+      ]
+    },
+    {
+      "name": "enable",
+      "description": "Enable a snap",
+      "args": {
+        "name": "snap",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "snap:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "disable",
+      "description": "Disable a snap",
+      "args": {
+        "name": "snap",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "snap:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "connections",
+      "description": "List interface connections",
+      "args": {
+        "name": "snap",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "snap:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "services",
+      "description": "Query the status of services",
+      "args": {
+        "name": "snap",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "snap:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "start",
+      "description": "Start services",
+      "args": {
+        "name": "snap",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "snap:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "stop",
+      "description": "Stop services",
+      "args": {
+        "name": "snap",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "snap:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "restart",
+      "description": "Restart services",
+      "args": {
+        "name": "snap",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "snap:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "logs",
+      "description": "Retrieve logs for services",
+      "options": [
+        {
+          "name": "-f",
+          "description": "Follow"
+        },
+        {
+          "name": "-n",
+          "description": "Lines",
+          "args": {
+            "name": "n"
+          }
+        }
+      ],
+      "args": {
+        "name": "snap",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "snap:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "changes",
+      "description": "List system changes"
+    },
+    {
+      "name": "version",
+      "description": "Show version details"
+    }
+  ]
+}

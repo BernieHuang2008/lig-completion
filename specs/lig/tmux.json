@@ -1,0 +1,295 @@
+{
+  "name": "tmux",
+  "description": "Terminal multiplexer",
+  "options": [
+    {
+      "name": "-L",
+      "description": "Socket name",
+      "args": {
+        "name": "name"
+      }
+    },
+    {
+      "name": "-S",
+      "description": "Socket path",
+      "args": {
+        "name": "path",
+        "template": "filepaths"
+      }
+    },
+    {
+      "name": "-f",
+      "description": "Config file",
+      "args": {
+        "name": "file",
+        "template": "filepaths"
+      }
+    },
+    {
+      "name": "-V",
+      "description": "Print version"
+    }
+  ],
+  "subcommands": [
+    {
+      "name": [
+        "new-session",
+        "new"
+      ],
+      "description": "Create a new session",
+      "options": [
+        {
+          "name": "-s",
+          "description": "Session name",
+          "args": {
+            "name": "name"
+          }
+        },
+        {
+          "name": "-d",
+          "description": "Detached"
+        },
+        {
+          "name": "-n",
+          "description": "Window name",
+          "args": {
+            "name": "name"
+          }
+        },
+        {
+          "name": "-c",
+          "description": "Start directory",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "-A",
+          "description": "Attach if the session exists"
+        }
+      ]
+    },
+    {
+      "name": [
+        "attach-session",
+        "attach",
+        "a"
+      ],
+      "description": "Attach to a session",
+      "options": [
+        {
+          "name": "-t",
+          "description": "Target session",
+          "args": {
+            "name": "session",
+            "generators": [
+              {
+                "builtin": "tmux:sessions"
+              }
+            ]
+          }
+        },
+        {
+          "name": "-d",
+          "description": "Detach other clients"
+        }
+      ]
+    },
+    {
+      "name": [
+        "list-sessions",
+        "ls"
+      ],
+      "description": "List sessions"
+    },
+    {
+      "name": "kill-session",
+      "description": "Kill a session",
+      "options": [
+        {
+          "name": "-t",
+          "description": "Target session",
+          "args": {
+            "name": "session",
+            "generators": [
+              {
+                "builtin": "tmux:sessions"
+              }
+            ]
+          }
+        },
+        {
+          "name": "-a",
+          "description": "Kill all other sessions"
+        }
+      ]
+    },
+    {
+      "name": "kill-server",
+      "description": "Kill the server and all sessions"
+    },
+    {
+      "name": [
+        "switch-client",
+        "switch"
+      ],
+      "description": "Switch the client to a session",
+      "options": [
+        {
+          "name": "-t",
+          "description": "Target session",
+          "args": {
+            "name": "session",
+            "generators": [
+              {
+                "builtin": "tmux:sessions"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": [
+        "rename-session",
+        "rename"
+      ],
+      "description": "Rename a session",
+      "options": [
+        {
+          "name": "-t",
+          "description": "Target session",
+          "args": {
+            "name": "session",
+            "generators": [
+              {
+                "builtin": "tmux:sessions"
+              }
+            ]
+          }
+        }
+      ],
+      "args": {
+        "name": "new-name"
+      }
+    },
+    {
+      "name": [
+        "detach-client",
+        "detach"
+      ],
+      "description": "Detach the current client"
+    },
+    {
+      "name": [
+        "new-window",
+        "neww"
+      ],
+      "description": "Create a new window",
+      "options": [
+        {
+          "name": "-n",
+          "description": "Window name",
+          "args": {
+            "name": "name"
+          }
+        },
+        {
+          "name": "-c",
+          "description": "Start directory",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        }
+      ]
+    },
+    {
+      "name": [
+        "split-window",
+        "splitw"
+      ],
+      "description": "Split a pane",
+      "options": [
+        {
+          "name": "-h",
+          "description": "Horizontal split"
+        },
+        {
+          "name": "-v",
+          "description": "Vertical split"
+        },
+        {
+          "name": "-c",
+          "description": "Start directory",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        }
+      ]
+    },
+    {
+      "name": [
+        "source-file",
+        "source"
+      ],
+      "description": "Execute commands from a file",
+      "args": {
+        "name": "file",
+        "template": "filepaths"
+      }
+    },
+    {
+      "name": [
+        "list-keys",
+        "lsk"
+      ],
+      "description": "List key bindings"
+    },
+    {
+      "name": [
+        "show-options",
+        "show"
+      ],
+      "description": "Show options",
+      "options": [
+        {
+          "name": "-g",
+          "description": "Global options"
+        },
+        {
+          "name": "-w",
+          "description": "Window options"
+        }
+      ]
+    },
+    {
+      "name": [
+        "set-option",
+        "set"
+      ],
+      "description": "Set an option",
+      "options": [
+        {
+          "name": "-g",
+          "description": "Global"
+        },
+        {
+          "name": "-w",
+          "description": "Window option"
+        }
+      ],
+      "args": [
+        {
+          "name": "option"
+        },
+        {
+          "name": "value",
+          "isOptional": true
+        }
+      ]
+    }
+  ]
+}

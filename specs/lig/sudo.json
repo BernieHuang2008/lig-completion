@@ -1,0 +1,74 @@
+{
+  "name": "sudo",
+  "description": "Execute a command as another user",
+  "options": [
+    {
+      "name": [
+        "-u",
+        "--user"
+      ],
+      "description": "Run as this user",
+      "args": {
+        "name": "user",
+        "generators": [
+          {
+            "builtin": "sys:users"
+          }
+        ]
+      }
+    },
+    {
+      "name": [
+        "-i",
+        "--login"
+      ],
+      "description": "Run a login shell"
+    },
+    {
+      "name": [
+        "-s",
+        "--shell"
+      ],
+      "description": "Run a shell"
+    },
+    {
+      "name": [
+        "-E",
+        "--preserve-env"
+      ],
+      "description": "Preserve the environment"
+    },
+    {
+      "name": [
+        "-k",
+        "--reset-timestamp"
+      ],
+      "description": "Invalidate cached credentials"
+    },
+    {
+      "name": [
+        "-v",
+        "--validate"
+      ],
+      "description": "Refresh cached credentials"
+    },
+    {
+      "name": [
+        "-l",
+        "--list"
+      ],
+      "description": "List allowed commands"
+    },
+    {
+      "name": [
+        "-b",
+        "--background"
+      ],
+      "description": "Run in the background"
+    }
+  ],
+  "args": {
+    "name": "command",
+    "isCommand": true
+  }
+}

@@ -61,6 +61,36 @@ pub enum Icon {
 }
 
 impl Icon {
+    pub fn name(self) -> &'static str {
+        match self {
+            Icon::Alias => "alias",
+            Icon::Function => "function",
+            Icon::Builtin => "builtin",
+            Icon::Package => "package",
+            Icon::Npm => "npm",
+            Icon::Rust => "rust",
+            Icon::Python => "python",
+            Icon::Docker => "docker",
+            Icon::Container => "container",
+            Icon::GitBranch => "git-branch",
+            Icon::GitTag => "git-tag",
+            Icon::GitCommit => "git-commit",
+            Icon::GitRemote => "git-remote",
+            Icon::GitStash => "git-stash",
+            Icon::Process => "process",
+            Icon::Service => "service",
+            Icon::Host => "host",
+            Icon::User => "user",
+            Icon::Version => "version",
+            Icon::Script => "script",
+            Icon::Folder => "folder",
+            Icon::Volume => "volume",
+            Icon::Network => "network",
+            Icon::Cloud => "cloud",
+            Icon::Terminal => "terminal",
+        }
+    }
+
     /// Icon names usable in spec files (`"icon": "git-branch"`).
     pub fn from_name(n: &str) -> Option<Icon> {
         Some(match n {
@@ -625,6 +655,177 @@ impl Generator {
     }
 }
 
+// ---------------------------------------------------------------- spec → JSON
+
+fn names_value(names: &[String]) -> Value {
+    match names {
+        [one] => Value::String(one.clone()),
+        many => Value::Array(many.iter().cloned().map(Value::String).collect()),
+    }
+}
+
+fn meta_into(m: &Meta, o: &mut serde_json::Map<String, Value>) {
+    o.insert("name".into(), names_value(&m.names));
+    if let Some(d) = &m.display_name {
+        o.insert("displayName".into(), d.clone().into());
+    }
+    if let Some(d) = &m.description {
+        o.insert("description".into(), d.clone().into());
+    }
+    if let Some(i) = &m.insert_value {
+        o.insert("insertValue".into(), i.clone().into());
+    }
+    if let Some(p) = m.priority {
+        o.insert("priority".into(), p.into());
+    }
+    if m.hidden {
+        o.insert("hidden".into(), true.into());
+    }
+    if let Some(i) = m.icon {
+        o.insert("icon".into(), i.name().into());
+    }
+}
+
+fn suggestion_value(s: &SuggestionDef) -> Value {
+    let plain = s.meta.description.is_none()
+        && s.meta.insert_value.is_none()
+        && s.meta.priority.is_none()
+        && s.meta.icon.is_none()
+        && s.meta.display_name.is_none()
+        && s.kind.is_none()
+        && s.meta.names.len() == 1;
+    if plain {
+        return Value::String(s.meta.names[0].clone());
+    }
+    let mut o = serde_json::Map::new();
+    meta_into(&s.meta, &mut o);
+    if let Some(k) = s.kind {
+        let t = match k {
+            Kind::File => "file",
+            Kind::Folder => "folder",
+            Kind::Subcommand => "subcommand",
+            Kind::Option => "option",
+            Kind::Shortcut => "shortcut",
+            _ => "arg",
+        };
+        o.insert("type".into(), t.into());
+    }
+    Value::Object(o)
+}
+
+fn arg_value(a: &Arg) -> Value {
+    let mut o = serde_json::Map::new();
+    if !a.name.is_empty() {
+        o.insert("name".into(), a.name.clone().into());
+    }
+    for (key, on) in [
+        ("isOptional", a.is_optional),
+        ("isVariadic", a.is_variadic),
+        ("isCommand", a.is_command),
+        ("commandNames", a.command_names),
+    ] {
+        if on {
+            o.insert(key.into(), true.into());
+        }
+    }
+    if !a.options_can_break_variadic {
+        o.insert("optionsCanBreakVariadicArg".into(), false.into());
+    }
+    if !a.suggestions.is_empty() {
+        o.insert("suggestions".into(), a.suggestions.iter().map(suggestion_value).collect());
+    }
+    if !a.template.is_empty() {
+        let t: Vec<Value> = a
+            .template
+            .iter()
+            .map(|t| match t {
+                Template::Filepaths => "filepaths".into(),
+                Template::Folders => "folders".into(),
+            })
+            .collect();
+        o.insert("template".into(), if t.len() == 1 { t[0].clone() } else { Value::Array(t) });
+    }
+    if !a.generators.is_empty() {
+        let gens: Vec<Value> = a.generators.iter().map(|g| serde_json::json!({ "builtin": g.id })).collect();
+        o.insert("generators".into(), Value::Array(gens));
+    }
+    Value::Object(o)
+}
+
+fn args_value(args: &[Arc<Arg>]) -> Value {
+    match args {
+        [one] => arg_value(one),
+        many => many.iter().map(|a| arg_value(a)).collect(),
+    }
+}
+
+fn opt_value(o: &Opt) -> Value {
+    let mut m = serde_json::Map::new();
+    meta_into(&o.meta, &mut m);
+    if !o.args.is_empty() {
+        m.insert("args".into(), args_value(&o.args));
+    }
+    if o.is_persistent {
+        m.insert("isPersistent".into(), true.into());
+    }
+    if o.is_repeatable {
+        m.insert("isRepeatable".into(), true.into());
+    }
+    match o.separator.as_deref() {
+        Some("=") => {
+            m.insert("requiresSeparator".into(), true.into());
+        }
+        Some(sep) => {
+            m.insert("requiresSeparator".into(), sep.into());
+        }
+        None => {}
+    }
+    if !o.exclusive_on.is_empty() {
+        m.insert("exclusiveOn".into(), o.exclusive_on.clone().into());
+    }
+    Value::Object(m)
+}
+
+/// A spec as JSON in the same (Fig-style) format `from_value` reads.
+pub fn to_value(s: &Subcommand) -> Value {
+    let mut o = serde_json::Map::new();
+    meta_into(&s.meta, &mut o);
+    if !s.options.is_empty() {
+        o.insert("options".into(), s.options.iter().map(|x| opt_value(x)).collect());
+    }
+    if !s.subcommands.is_empty() {
+        o.insert("subcommands".into(), s.subcommands.iter().map(|x| to_value(x)).collect());
+    }
+    if !s.args.is_empty() {
+        o.insert("args".into(), args_value(&s.args));
+    }
+    if !s.additional_suggestions.is_empty() {
+        o.insert("additionalSuggestions".into(), s.additional_suggestions.iter().map(suggestion_value).collect());
+    }
+    match &s.load_spec {
+        Some(LoadSpec::Name(n)) => {
+            o.insert("loadSpec".into(), n.clone().into());
+        }
+        Some(LoadSpec::Help(argv)) => {
+            o.insert("loadHelp".into(), argv.clone().into());
+        }
+        None => {}
+    }
+    if let Some(d) = &s.directives {
+        let mut pd = serde_json::Map::new();
+        if d.flags_are_posix_noncompliant {
+            pd.insert("flagsArePosixNoncompliant".into(), true.into());
+        }
+        if !d.option_arg_separators.is_empty() {
+            pd.insert("optionArgSeparators".into(), d.option_arg_separators.clone().into());
+        }
+        if !pd.is_empty() {
+            o.insert("parserDirectives".into(), Value::Object(pd));
+        }
+    }
+    Value::Object(o)
+}
+
 // ---------------------------------------------------------------- user specs (JSON/TOML)
 
 fn string(v: &Value, key: &str) -> Option<String> {
@@ -706,7 +907,11 @@ pub fn from_value(v: &Value) -> Subcommand {
         options: one_or_many(v.get("options")).into_iter().map(|o| Arc::new(opt_from(o))).collect(),
         args: one_or_many(v.get("args")).into_iter().map(|a| Arc::new(arg_from(a))).collect(),
         additional_suggestions: one_or_many(v.get("additionalSuggestions")).into_iter().filter_map(suggestion).collect(),
-        load_spec: string(v, "loadSpec").map(LoadSpec::Name),
+        load_spec: string(v, "loadSpec").map(LoadSpec::Name).or_else(|| {
+            // lig: take the details from `<argv> --help` when entered.
+            let argv = names(v.get("loadHelp"));
+            (!argv.is_empty()).then_some(LoadSpec::Help(argv))
+        }),
         directives,
     }
 }
@@ -734,7 +939,8 @@ fn arg_from(v: &Value) -> Arg {
         is_variadic: flag(v, "isVariadic"),
         options_can_break_variadic: v.get("optionsCanBreakVariadicArg").and_then(Value::as_bool).unwrap_or(true),
         is_command: flag(v, "isCommand"),
-        command_names: false,
+        // lig: suggest command names without switching to their spec (`which`).
+        command_names: flag(v, "commandNames"),
         suggestions: one_or_many(v.get("suggestions")).into_iter().filter_map(suggestion).collect(),
         template: templates(v.get("template"))
             .into_iter()

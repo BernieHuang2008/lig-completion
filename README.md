@@ -19,18 +19,19 @@ Everything runs locally. There is no daemon, no account and no telemetry.
    brew, npm, cargo, ffmpeg, heroku, deno, go…). They are converted to plain JSON in
    `specs/fig/`, compressed into the binary at build time, and inflated one at a time
    on first use. lig contains no JavaScript; see [Converted specs](#converted-specs).
-2. **Hand-written specs in Rust** (`src/specs/`): `git`, `docker` (+ `compose`),
-   `cargo`, `rustup`, `npm`, `npx`, `pnpm`, `yarn`, `bun`, `pip`, `systemctl`,
-   `journalctl`, `apt`, `apt-get`, `kill`, `killall`, `pkill`, `ssh`, `scp`, `make`,
-   `tmux`, `kubectl`, `snap`, `extrepo`, `sudo`, `cd`, `z`, `which`, `man`, `time`,
-   `watch`, `xargs`, ….
-   Their dynamic values are native Rust generators: git branches, tags, commits,
-   stashes and changed files, docker containers, images and compose services, systemd
-   units, PIDs and signals, ssh hosts, Makefile targets, `package.json` scripts, cargo
-   bins/examples/features, apt packages, extrepo repositories (the index is cached for a
-   day), kube resources, and more. When a command also
-   has a converted spec, the two are merged: the Rust spec wins, and the converted one
-   adds the options and subcommands it's missing.
+2. **Hand-written specs** (`specs/lig/*.json`): `git`, `docker` (+ `compose`), `cargo`,
+   `rustup`, `npm`, `npx`, `pnpm`, `yarn`, `bun`, `pip`, `systemctl`, `journalctl`,
+   `apt`, `apt-get`, `kill`, `killall`, `pkill`, `ssh`, `scp`, `make`, `tmux`,
+   `kubectl`, `snap`, `extrepo`, `sudo`, `cd`, `z`, `which`, `man`, `time`, `watch`,
+   `xargs`, …. They're JSON like the others. Their dynamic values come from native
+   generators written in Rust and referenced by id (`{"builtin": "git:branches"}`):
+   git branches, tags, commits, stashes and changed files, docker containers, images
+   and compose services, systemd units, PIDs, ssh hosts, Makefile targets,
+   `package.json` scripts, cargo bins and features, apt packages, extrepo repositories,
+   kube resources, zoxide directories, and the online registries. `lig specs generators`
+   lists them all. When a command also has a converted spec, the two are merged: the
+   hand-written one wins, and the converted one adds the options and subcommands it's
+   missing.
 3. **Every other command**: lig parses its `--help` output or man page and caches the
    result per executable version. This covers GNU/uutils tools, clap, cobra, click and
    argparse CLIs, and anything with a man page. Subcommands are expanded lazily
@@ -305,21 +306,31 @@ Supported fields: `name` (string or list), `description`, `subcommands`, `option
 `generators` (`script` as an argv list or a shell string, plus `splitOn`), and
 `loadSpec`.
 
-### In Rust (built in)
+### In this repository (built in)
 
-Add a module under `src/specs/` and register it in `src/specs/mod.rs`:
+Add `specs/lig/<command>.json` and rebuild. `build.rs` embeds it, and fails the build
+if the JSON is broken. The format is the same as above, plus three lig-specific keys:
 
-```rust
-use crate::spec::{Subcommand, arg, cmd, gen_fn, opt, sug};
+* `"generators": [{"builtin": "<id>"}]`: a native generator; `lig specs generators`
+  lists the ids
+* `"loadHelp": ["docker", "buildx"]`: on a subcommand, read its details from
+  `docker buildx --help` when it's reached
+* `"commandNames": true`: on an argument, suggest command names (as `which` does)
 
-pub fn spec() -> Subcommand {
-    cmd("deploy", "Deploy the app")
-        .opt(opt("-e, --env", "Target environment").arg(arg("env").suggest(&["staging", "production"])))
-        .sub(cmd("logs", "Tail logs").arg(arg("service").generator(gen_fn("deploy:services", |cx| {
-            cx.lines(&["deploy", "services"]).into_iter().map(|s| sug(s).desc("service")).collect()
-        }))))
+```json
+{
+  "name": "deploy",
+  "description": "Deploy the app",
+  "options": [{ "name": ["-e", "--env"], "args": { "name": "env", "suggestions": ["staging", "production"] } }],
+  "subcommands": [
+    { "name": "checkout", "args": { "name": "branch", "generators": [{ "builtin": "git:branches" }] } }
+  ]
 }
 ```
+
+A new kind of dynamic value needs Rust: add a generator to `src/specs/gens.rs` and give
+it an id in `builtin()`. `cargo test` checks that every spec in `specs/lig/` loads, uses
+only keys lig understands, and only refers to generators that exist.
 
 ### Debugging
 
@@ -381,14 +392,14 @@ src/
   parser.rs    shell command-line tokenizer
   engine.rs    spec walker, generators, ranking, insertion text
   spec.rs      spec model + builder DSL + JSON/TOML loading
-  specs/       hand-written specs (git, docker, cargo, node, system), generators,
-               fig.rs (reader for the embedded converted specs)
+  specs/       gens.rs (native generators), archive.rs (embedded spec archives)
   help.rs      --help / man page parser and cache
   exec.rs      running commands with timeouts
   store.rs     user spec files
   config.rs    configuration
 shell/         zsh integration (pre/post)
+specs/lig/     hand-written specs (JSON)
 specs/fig/     converted withfig/autocomplete specs (generated, JSON)
-build.rs       packs specs/fig into a compressed archive embedded in the binary
+build.rs       packs specs/lig and specs/fig into compressed archives in the binary
 tools/         figconv (spec converter) and update-fig-specs.sh
 ```

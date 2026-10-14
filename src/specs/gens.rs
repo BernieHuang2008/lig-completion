@@ -367,22 +367,6 @@ pub fn process_names() -> Generator {
     .ttl(2000)
 }
 
-pub const SIGNALS: &[(&str, &str)] = &[
-    ("HUP", "Hangup / reload"),
-    ("INT", "Interrupt (Ctrl-C)"),
-    ("QUIT", "Quit and dump core"),
-    ("KILL", "Kill, cannot be caught"),
-    ("TERM", "Terminate gracefully (default)"),
-    ("STOP", "Stop, cannot be caught"),
-    ("CONT", "Continue if stopped"),
-    ("TSTP", "Stop from terminal (Ctrl-Z)"),
-    ("USR1", "User-defined signal 1"),
-    ("USR2", "User-defined signal 2"),
-    ("ALRM", "Alarm clock"),
-    ("CHLD", "Child status changed"),
-    ("WINCH", "Window size changed"),
-    ("PIPE", "Broken pipe"),
-];
 
 /// `systemctl` units; `--user` in the line lists user units.
 pub fn systemd_units() -> Generator {
@@ -534,12 +518,6 @@ pub fn rustup_list(id: &'static str, what: &'static str, installed: bool) -> Gen
 
 // ---------------------------------------------------------------- kubectl
 
-pub const KUBE_RESOURCES: &[&str] = &[
-    "pods", "deployments", "services", "nodes", "namespaces", "configmaps", "secrets", "ingresses", "statefulsets",
-    "daemonsets", "replicasets", "jobs", "cronjobs", "persistentvolumeclaims", "persistentvolumes", "serviceaccounts",
-    "events", "endpoints", "horizontalpodautoscalers", "networkpolicies", "roles", "rolebindings", "clusterroles",
-    "clusterrolebindings", "storageclasses", "customresourcedefinitions", "all",
-];
 
 fn kube_base(cx: &GenCtx) -> Vec<String> {
     let mut v = vec!["kubectl".to_string()];
@@ -553,10 +531,11 @@ fn kube_base(cx: &GenCtx) -> Vec<String> {
 }
 
 /// Names of the resource type typed before (`kubectl get deploy <here>`), or pods.
-pub fn kube_names(default_type: Option<&'static str>) -> Generator {
-    gen_fn(&format!("kube:names:{}", default_type.unwrap_or("")), move |cx| {
-        let ty = match default_type {
-            Some(t) => t.to_string(),
+pub fn kube_names(default_type: Option<&str>) -> Generator {
+    let default_type = default_type.map(str::to_string);
+    gen_fn(&format!("kube:names:{}", default_type.as_deref().unwrap_or("")), move |cx| {
+        let ty = match &default_type {
+            Some(t) => t.clone(),
             None => match cx.positionals().get(1) {
                 Some(t) => t.to_string(),
                 None => return vec![],
@@ -584,6 +563,14 @@ pub fn kube_namespaces() -> Generator {
 #[cfg(test)]
 mod tests {
     use super::relative_to;
+
+    #[test]
+    fn every_listed_generator_exists() {
+        for (id, _) in super::BUILTIN_IDS {
+            assert!(super::builtin(id).is_some_and(|g| g.id == *id || id.starts_with("kube:")), "{id}");
+        }
+        assert!(super::builtin("files:file://").is_some() && super::builtin("kube:names:services").is_some());
+    }
 
     #[test]
     fn git_paths_relative_to_cwd() {
@@ -622,10 +609,119 @@ pub fn prefixed_files(prefix: String) -> Generator {
     .query_after("/")
 }
 
+pub fn docker_contexts() -> Generator {
+    gen_fn("docker:contexts", |cx| cx.lines(&["docker", "context", "ls", "--format", "{{.Name}}"]).into_iter().map(sug).collect())
+}
+
+/// Dependencies listed in the nearest `Cargo.toml`.
+pub fn cargo_deps() -> Generator {
+    gen_fn("cargo:deps", |cx| {
+        let Some(m) = find_up(cx.cwd, "Cargo.toml") else { return vec![] };
+        let v = std::fs::read_to_string(m).ok().and_then(|t| t.parse::<toml::Table>().ok()).unwrap_or_default();
+        let mut out = vec![];
+        for (sec, d) in [("dependencies", "dependency"), ("dev-dependencies", "dev dependency"), ("build-dependencies", "build dependency")] {
+            if let Some(t) = v.get(sec).and_then(|x| x.as_table()) {
+                out.extend(t.keys().map(|k| sug(k.clone()).desc(d)));
+            }
+        }
+        out
+    })
+}
+
+/// ssh hosts as `host:` (for scp/rsync remote paths).
+pub fn ssh_hosts_colon() -> Generator {
+    gen_fn("ssh:hosts-colon", |_| {
+        ssh_host_list()
+            .into_iter()
+            .map(|s| {
+                let n = format!("{}:", s.meta.names[0]);
+                sug(n.clone()).desc("remote host").insert(n)
+            })
+            .collect()
+    })
+    .ttl(30_000)
+}
+
+/// Local users from `/etc/passwd`.
+pub fn sys_users() -> Generator {
+    gen_fn("sys:users", |_| {
+        std::fs::read_to_string("/etc/passwd")
+            .unwrap_or_default()
+            .lines()
+            .filter_map(|l| l.split(':').next())
+            .map(sug)
+            .collect()
+    })
+}
+
+/// Ids accepted by [`builtin`] (besides `files:<prefix>` and `kube:names:<type>`).
+pub const BUILTIN_IDS: &[(&str, &str)] = &[
+    ("git:branches", "local and remote branches, recent first"),
+    ("git:local-branches", "local branches"),
+    ("git:remotes", "remotes"),
+    ("git:tags", "tags"),
+    ("git:commits", "the last 100 commits"),
+    ("git:stashes", "stashes"),
+    ("git:unstaged", "modified and untracked files"),
+    ("git:staged", "staged files"),
+    ("git:modified", "modified tracked files"),
+    ("docker:containers", "all containers"),
+    ("docker:running", "running containers"),
+    ("docker:images", "local images"),
+    ("docker:networks", "networks"),
+    ("docker:volumes", "volumes"),
+    ("docker:contexts", "contexts"),
+    ("docker:compose-services", "compose services"),
+    ("npm:scripts", "package.json scripts"),
+    ("npm:deps", "package.json dependencies"),
+    ("cargo:packages", "workspace packages"),
+    ("cargo:features", "features of the nearest Cargo.toml"),
+    ("cargo:deps", "dependencies of the nearest Cargo.toml"),
+    ("cargo:bin", "binary targets"),
+    ("cargo:example", "examples"),
+    ("cargo:test", "integration tests"),
+    ("cargo:bench", "benchmarks"),
+    ("cargo:installed", "installed binaries (cargo install --list)"),
+    ("rustup:toolchains", "installed toolchains"),
+    ("rustup:targets", "all targets"),
+    ("rustup:targets-installed", "installed targets"),
+    ("rustup:components", "all components"),
+    ("rustup:components-installed", "installed components"),
+    ("make:targets", "Makefile targets"),
+    ("sys:pids", "processes, by PID"),
+    ("sys:process-names", "process names"),
+    ("sys:users", "local users"),
+    ("systemd:units", "systemd units (--user aware)"),
+    ("apt:installed", "installed packages"),
+    ("apt:available", "packages in the apt index"),
+    ("snap:installed", "installed snaps"),
+    ("extrepo:available", "repositories in the extrepo index"),
+    ("extrepo:enabled", "enabled extrepo repositories"),
+    ("extrepo:disabled", "disabled extrepo repositories"),
+    ("extrepo:installed", "configured extrepo repositories"),
+    ("ssh:hosts", "hosts from ssh config and known_hosts"),
+    ("ssh:hosts-colon", "the same, as host: (scp)"),
+    ("tmux:sessions", "tmux sessions"),
+    ("pip:installed", "installed Python packages"),
+    ("kube:contexts", "kubeconfig contexts"),
+    ("kube:namespaces", "namespaces"),
+    ("kube:pods", "pods"),
+    ("zoxide:dirs", "frecent directories (zoxide or ~/.z)"),
+    ("online:npm", "npm registry search; versions after name@"),
+    ("online:crates", "crates.io search; versions after name@"),
+    ("online:dockerhub", "Docker Hub search; tags after image:"),
+    ("online:pypi", "PyPI versions after name=="),
+    ("online:pypi-top", "the 15,000 most downloaded PyPI packages"),
+    ("online:snap", "Snap Store search"),
+];
+
 /// Native generators referenced by id from spec files (`{"builtin": "git:branches"}`).
 pub fn builtin(id: &str) -> Option<Generator> {
     if let Some(prefix) = id.strip_prefix("files:") {
         return Some(prefixed_files(prefix.to_string()));
+    }
+    if let Some(ty) = id.strip_prefix("kube:names:") {
+        return Some(kube_names((!ty.is_empty()).then_some(ty)));
     }
     Some(match id {
         "git:branches" => git_branches(),
@@ -658,6 +754,29 @@ pub fn builtin(id: &str) -> Option<Generator> {
         "kube:contexts" => kube_contexts(),
         "kube:namespaces" => kube_namespaces(),
         "kube:pods" => kube_names(Some("pods")),
+        "docker:contexts" => docker_contexts(),
+        "cargo:deps" => cargo_deps(),
+        "cargo:bin" => cargo_targets("bin"),
+        "cargo:example" => cargo_targets("example"),
+        "cargo:test" => cargo_targets("test"),
+        "cargo:bench" => cargo_targets("bench"),
+        "rustup:targets" => rustup_list("rustup:targets", "target", false),
+        "rustup:targets-installed" => rustup_list("rustup:targets-installed", "target", true),
+        "rustup:components" => rustup_list("rustup:components", "component", false),
+        "rustup:components-installed" => rustup_list("rustup:components-installed", "component", true),
+        "ssh:hosts-colon" => ssh_hosts_colon(),
+        "sys:users" => sys_users(),
+        "snap:installed" => snaps_installed(),
+        "extrepo:available" => extrepo_available(),
+        "extrepo:enabled" => extrepo_installed(Some(true)),
+        "extrepo:disabled" => extrepo_installed(Some(false)),
+        "extrepo:installed" => extrepo_installed(None),
+        "online:npm" => npm_registry(),
+        "online:crates" => crates_io(),
+        "online:dockerhub" => docker_hub(),
+        "online:pypi" => pypi_versions(),
+        "online:pypi-top" => pypi_top(),
+        "online:snap" => snap_store(),
         "cargo:packages" => cargo_packages(),
         "cargo:installed" => cargo_installed(),
         "cargo:features" => cargo_features(),
