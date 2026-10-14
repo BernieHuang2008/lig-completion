@@ -135,6 +135,25 @@ shape and titles keep working.
 LIG_DISABLE=1 zsh
 ```
 
+## Icons
+
+With `icons = "auto"` (the default), lig uses [Nerd Font](https://www.nerdfonts.com)
+glyphs when they're available. Ghostty and WezTerm bundle them, and otherwise any
+installed Nerd Font is detected with `fc-list`. Without Nerd Fonts it falls back to plain
+Unicode symbols. The icon depends on what the suggestion is:
+
+* commands, aliases, functions, builtins, subcommands, flags
+* folders, and files by type (Rust, Python, JS/TS, JSON, Markdown, configs, shell,
+  images, archives, lockfiles…)
+* packages by ecosystem (npm, crates.io, PyPI, Docker, apt/snap/brew)
+* git branches, tags, commits, remotes and stashes
+* containers, processes, services, hosts, users, versions, scripts and make targets
+
+Spec files can set one with `"icon"`: `package`, `npm`, `rust`, `python`, `docker`,
+`container`, `git-branch`, `git-tag`, `git-commit`, `git-remote`, `git-stash`,
+`process`, `service`, `host`, `user`, `version`, `script`, `folder`, `volume`,
+`network`, `cloud`, `terminal`, `alias`, `function` or `builtin`.
+
 ## Keys
 
 | Key | Action |
@@ -166,7 +185,7 @@ works. `Ctrl+Space` is taken from zsh's `set-mark-command` while you edit a comm
 max_rows = 8
 max_width = 90
 descriptions = true
-icons = "unicode"        # "nerd" (Ghostty ships Nerd Font symbols), or "none"
+icons = "auto"           # "nerd", "unicode" or "none"
 bg = "236"               # 0-255 palette index or "#rrggbb"
 fg = "252"
 selected_bg = "25"

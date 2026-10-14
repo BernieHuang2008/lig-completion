@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::spec::{GenCtx, Generator, Kind, SuggestionDef, Trigger, gen_fn, sug};
+use crate::spec::{GenCtx, Generator, Icon, Kind, SuggestionDef, Trigger, gen_fn, sug};
 
 // ---------------------------------------------------------------- git
 
@@ -766,7 +766,7 @@ fn version_suggestions(name: &str, sep: &str, typed: &str, versions: impl IntoIt
         .filter(|(v, _)| v.starts_with(typed))
         .take(100)
         .map(|(v, d)| {
-            let mut s = sug(format!("{name}{sep}{v}")).desc(d);
+            let mut s = sug(format!("{name}{sep}{v}")).desc(d).icon(Icon::Version);
             s.meta.display_name = Some(v);
             s
         })

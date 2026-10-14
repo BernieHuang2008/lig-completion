@@ -599,6 +599,7 @@ impl Session {
                 label: label.to_string(),
                 description: String::new(),
                 kind: Kind::Info,
+                icon: None,
                 insert: String::new(),
                 delete: word.min(n),
                 back: 0,

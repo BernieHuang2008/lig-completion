@@ -2,6 +2,7 @@ mod config;
 mod engine;
 mod exec;
 mod help;
+mod icons;
 mod keys;
 mod osc;
 mod parser;
@@ -241,6 +242,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.cmd {
         Cmd::Shell { shell, login } => {
+            icons::detect_in_background();
             let code = session::run(shell.unwrap_or_else(default_shell), login)?;
             std::process::exit(code);
         }

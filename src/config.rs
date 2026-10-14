@@ -30,7 +30,8 @@ pub struct Ui {
     pub max_width: u16,
     /// Show descriptions next to suggestions.
     pub descriptions: bool,
-    /// `"unicode"`, `"nerd"` (Nerd Font glyphs, built into Ghostty) or `"none"`.
+    /// `"auto"` (Nerd Font glyphs when the terminal/fonts have them),
+    /// `"nerd"`, `"unicode"` or `"none"`.
     pub icons: String,
     /// Colors: 0-255 palette index or `"#rrggbb"`.
     pub bg: String,
@@ -93,7 +94,7 @@ impl Default for Ui {
             max_rows: 8,
             max_width: 90,
             descriptions: true,
-            icons: "unicode".into(),
+            icons: "auto".into(),
             bg: "236".into(),
             fg: "252".into(),
             selected_bg: "25".into(),

@@ -11,7 +11,7 @@ use crate::config::Behavior;
 use crate::exec::{self, Cmd};
 use crate::help::{HelpLoader, Lookup};
 use crate::parser::{self, CommandLine, Token};
-pub use crate::spec::Kind;
+pub use crate::spec::{Icon, Kind};
 use crate::spec::{self, Arg, GenCtx, GenSource, Generator, LoadSpec, Opt, Subcommand, SuggestionDef, Template, Trigger};
 use crate::specs;
 use crate::store::Store;
@@ -21,6 +21,8 @@ pub struct Suggestion {
     pub label: String,
     pub description: String,
     pub kind: Kind,
+    /// A more specific icon than the kind's, if known.
+    pub icon: Option<Icon>,
     /// Text to insert after deleting `delete` characters left of the cursor.
     pub insert: String,
     pub delete: usize,
@@ -57,6 +59,7 @@ struct Cand {
     priority: f64,
     hidden: bool,
     kind: Kind,
+    icon: Option<Icon>,
     query: String,
     delete: usize,
     suffix: String,
@@ -109,6 +112,7 @@ fn cand(m: &spec::Meta, kind: Kind, suffix: &str) -> Cand {
         priority: m.priority.unwrap_or(50.0),
         hidden: m.hidden,
         kind,
+        icon: m.icon,
         query: String::new(),
         delete: 0,
         suffix: suffix.to_string(),
@@ -459,10 +463,13 @@ impl Engine {
                 defs
             }
         };
+        let icon = generator_icon(&g.id);
         for d in &defs {
             cx.push_def(d, Kind::Arg, &query, delete);
-            if !g.filter {
-                cx.cands.last_mut().unwrap().unfiltered = true;
+            let c = cx.cands.last_mut().unwrap();
+            c.unfiltered = !g.filter;
+            if c.icon.is_none() {
+                c.icon = icon;
             }
         }
     }
@@ -545,6 +552,7 @@ impl Engine {
                 names: vec![name.clone()],
                 description: Some(format!("alias → {value}")),
                 priority: Some(56.0),
+                icon: Some(Icon::Alias),
                 ..Default::default()
             };
             let mut c = cand(&meta, Kind::Command, " ");
@@ -556,13 +564,14 @@ impl Engine {
             .env
             .functions
             .iter()
-            .map(|n| (n, "shell function", 54.0))
-            .chain(cx.env.builtins.iter().map(|n| (n, "shell builtin", 53.0)));
-        for (name, what, priority) in shell_names {
+            .map(|n| (n, "shell function", 54.0, Icon::Function))
+            .chain(cx.env.builtins.iter().map(|n| (n, "shell builtin", 53.0, Icon::Builtin)));
+        for (name, what, priority, icon) in shell_names {
             let meta = spec::Meta {
                 names: vec![name.clone()],
                 description: Some(what.into()),
                 priority: Some(priority),
+                icon: Some(icon),
                 ..Default::default()
             };
             let mut c = cand(&meta, Kind::Command, " ");
@@ -669,6 +678,7 @@ impl Engine {
                 label: c.label.clone(),
                 description: c.description.as_deref().unwrap_or("").lines().next().unwrap_or("").trim().to_string(),
                 kind: c.kind,
+                icon: c.icon,
                 insert,
                 delete: c.delete,
                 back,
@@ -684,6 +694,36 @@ impl Engine {
         }
         out
     }
+}
+
+/// The icon for what a generator produces (by its id).
+fn generator_icon(id: &str) -> Option<Icon> {
+    let (ns, what) = id.split_once(':').unwrap_or((id, ""));
+    Some(match (ns, what) {
+        ("git", "branches" | "local-branches") => Icon::GitBranch,
+        ("git", "tags") => Icon::GitTag,
+        ("git", "commits") => Icon::GitCommit,
+        ("git", "remotes") => Icon::GitRemote,
+        ("git", "stashes") => Icon::GitStash,
+        ("docker", "containers" | "running" | "compose-services") => Icon::Container,
+        ("docker", "images") | ("online", "dockerhub") => Icon::Docker,
+        ("docker", "networks") => Icon::Network,
+        ("docker", "volumes") => Icon::Volume,
+        ("docker", "contexts") | ("kube", _) => Icon::Cloud,
+        ("npm", "scripts") | ("make", _) | ("cargo", "bin" | "example" | "test" | "bench") => Icon::Script,
+        ("npm", "deps") | ("online", "npm") => Icon::Npm,
+        ("sys", "pids" | "process-names") => Icon::Process,
+        ("sys", "users") => Icon::User,
+        ("systemd", _) => Icon::Service,
+        ("apt", _) | ("snap", _) | ("online", "snap") => Icon::Package,
+        ("ssh", _) => Icon::Host,
+        ("tmux", _) => Icon::Terminal,
+        ("pip", _) | ("online", "pypi" | "pypi-top") => Icon::Python,
+        ("rustup", _) => Icon::Version,
+        ("cargo", _) | ("online", "crates") => Icon::Rust,
+        ("zoxide", _) => Icon::Folder,
+        _ => return None,
+    })
 }
 
 /// The message shown while a generator runs.

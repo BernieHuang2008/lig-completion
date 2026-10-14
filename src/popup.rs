@@ -45,44 +45,6 @@ fn theme(ui: &Ui) -> Theme {
     }
 }
 
-fn icon(kind: Kind, style: &str) -> (&'static str, &'static str) {
-    // (glyph, SGR foreground)
-    let color = match kind {
-        Kind::Command => "38;5;213",
-        Kind::Subcommand => "38;5;81",
-        Kind::Option => "38;5;221",
-        Kind::Arg => "38;5;114",
-        Kind::File => "38;5;250",
-        Kind::Folder => "38;5;75",
-        Kind::Shortcut => "38;5;209",
-        Kind::Info => "38;5;244",
-    };
-    let glyph = match style {
-        "none" => "",
-        "nerd" => match kind {
-            Kind::Command => "\u{f120}",
-            Kind::Subcommand => "\u{f0da}",
-            Kind::Option => "\u{f024}",
-            Kind::Arg => "\u{f0eb}",
-            Kind::File => "\u{f15b}",
-            Kind::Folder => "\u{f07b}",
-            Kind::Shortcut => "\u{f0e7}",
-            Kind::Info => "\u{f110}",
-        },
-        _ => match kind {
-            Kind::Command => "❯",
-            Kind::Subcommand => "▸",
-            Kind::Option => "◆",
-            Kind::Arg => "•",
-            Kind::File => "▫",
-            Kind::Folder => "▪",
-            Kind::Info => "…",
-            Kind::Shortcut => "★",
-        },
-    };
-    (glyph, color)
-}
-
 /// Truncate to `w` columns (adding `…` when cut) and pad to exactly `w`.
 fn fit(s: &str, w: usize) -> String {
     let mut out = String::new();
@@ -152,6 +114,7 @@ pub fn layout(
 
 pub fn draw(out: &mut Vec<u8>, ui: &Ui, l: &Layout, items: &[Suggestion], selected: usize, scroll: usize) {
     let t = theme(ui);
+    let nerd = crate::icons::use_nerd(&ui.icons);
     let r = l.rect;
     let n = items.len();
     let h = r.height as usize;
@@ -170,8 +133,7 @@ pub fn draw(out: &mut Vec<u8>, ui: &Ui, l: &Layout, items: &[Suggestion], select
         let (bg, fg) = if sel { (&t.sel_bg, &t.sel_fg) } else { (&t.bg, &t.fg) };
         let _ = write!(out, "\x1b[{};{}H\x1b[0;{bg};{fg}m ", r.row as usize + i + 1, r.col + 1);
         if l.icon_w > 0 {
-            let (glyph, color) = icon(s.kind, &ui.icons);
-            let color = if sel { fg.as_str() } else { color };
+            let (glyph, color) = crate::icons::glyph(s.kind, s.icon, &s.label, nerd);
             let _ = write!(out, "\x1b[{color}m{}\x1b[{fg}m", fit(glyph, l.icon_w as usize));
         }
         // Label, with the typed prefix highlighted.
@@ -231,6 +193,7 @@ mod tests {
                 label: format!("item{i}"),
                 description: String::new(),
                 kind: Kind::Arg,
+                icon: None,
                 insert: String::new(),
                 delete: 0,
                 back: 0,

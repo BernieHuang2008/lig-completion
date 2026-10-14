@@ -214,6 +214,25 @@ fn builtin_for(cmd: &str, post_src: &str) -> Option<String> {
     rules.iter().find(|(m, _)| *m).map(|(_, id)| id.to_string())
 }
 
+/// Fig icons (`fig://icon?type=git`, emoji) → lig icon names.
+fn icon_name(fig: &str) -> Option<&'static str> {
+    let kind = fig.strip_prefix("fig://icon?type=").map(|t| t.split('&').next().unwrap_or(t));
+    Some(match (kind, fig) {
+        (Some("npm" | "yarn" | "node"), _) => "npm",
+        (Some("package" | "box"), _) | (_, "📦" | "🍺") => "package",
+        (Some("docker"), _) | (_, "🐳") => "docker",
+        (Some("git"), _) | (_, "🌿" | "🌱") => "git-branch",
+        (Some("aws" | "kubernetes" | "gcloud" | "azure" | "heroku" | "netlify" | "vercel"), _) | (_, "🌐") => "cloud",
+        (Some("folder"), _) | (_, "📁" | "📂") => "folder",
+        (Some("user"), _) | (_, "👤") => "user",
+        (Some("python"), _) | (_, "🐍") => "python",
+        (Some("rust"), _) | (_, "🦀") => "rust",
+        (Some("command" | "commandkey"), _) | (_, "💻") => "terminal",
+        (_, "🏷" | "🏷️") => "git-tag",
+        _ => return None,
+    })
+}
+
 fn cmdline(v: &Value) -> Option<String> {
     match v {
         Value::String(s) => Some(s.clone()),
@@ -293,7 +312,7 @@ struct Conv<'a> {
 }
 
 const DROP_KEYS: &[&str] = &[
-    "icon", "generateSpec", "filterStrategy", "isDangerous", "requiresSubcommand", "previewComponent", "isModule",
+    "generateSpec", "filterStrategy", "isDangerous", "requiresSubcommand", "previewComponent", "isModule",
     "isScript", "suggestCurrentToken", "deprecated", "debounce", "isSticky",
 ];
 
@@ -327,6 +346,11 @@ impl Conv<'_> {
                             }
                             _ => {}
                         },
+                        "icon" => {
+                            if let Some(i) = val.as_str().and_then(icon_name) {
+                                out.insert(k, Value::String(i.into()));
+                            }
+                        }
                         "description" => {
                             if let Some(d) = val.as_str() {
                                 let d = short(d);

@@ -30,8 +30,73 @@ pub enum Kind {
     Info,
 }
 
+/// What a suggestion is, for its icon (falls back to its [`Kind`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Icon {
+    Alias,
+    Function,
+    Builtin,
+    Package,
+    Npm,
+    Rust,
+    Python,
+    Docker,
+    Container,
+    GitBranch,
+    GitTag,
+    GitCommit,
+    GitRemote,
+    GitStash,
+    Process,
+    Service,
+    Host,
+    User,
+    Version,
+    Script,
+    Folder,
+    Volume,
+    Network,
+    Cloud,
+    Terminal,
+}
+
+impl Icon {
+    /// Icon names usable in spec files (`"icon": "git-branch"`).
+    pub fn from_name(n: &str) -> Option<Icon> {
+        Some(match n {
+            "alias" => Icon::Alias,
+            "function" => Icon::Function,
+            "builtin" => Icon::Builtin,
+            "package" => Icon::Package,
+            "npm" => Icon::Npm,
+            "rust" => Icon::Rust,
+            "python" => Icon::Python,
+            "docker" => Icon::Docker,
+            "container" => Icon::Container,
+            "git-branch" => Icon::GitBranch,
+            "git-tag" => Icon::GitTag,
+            "git-commit" => Icon::GitCommit,
+            "git-remote" => Icon::GitRemote,
+            "git-stash" => Icon::GitStash,
+            "process" => Icon::Process,
+            "service" => Icon::Service,
+            "host" => Icon::Host,
+            "user" => Icon::User,
+            "version" => Icon::Version,
+            "script" => Icon::Script,
+            "folder" => Icon::Folder,
+            "volume" => Icon::Volume,
+            "network" => Icon::Network,
+            "cloud" => Icon::Cloud,
+            "terminal" => Icon::Terminal,
+            _ => return None,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Meta {
+    pub icon: Option<Icon>,
     pub names: Vec<String>,
     pub display_name: Option<String>,
     pub description: Option<String>,
@@ -414,6 +479,10 @@ impl SuggestionDef {
         self.meta.insert_value = Some(v.into());
         self
     }
+    pub fn icon(mut self, i: Icon) -> Self {
+        self.meta.icon = Some(i);
+        self
+    }
 }
 
 impl Subcommand {
@@ -580,6 +649,7 @@ fn names(v: Option<&Value>) -> Vec<String> {
 
 fn meta(v: &Value) -> Meta {
     Meta {
+        icon: v.get("icon").and_then(Value::as_str).and_then(Icon::from_name),
         names: names(v.get("name")),
         display_name: string(v, "displayName"),
         description: string(v, "description"),

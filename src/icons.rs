@@ -1,0 +1,192 @@
+//! Popup icons: Nerd Font glyphs when available, plain Unicode otherwise.
+//!
+//! `icons = "auto"` uses Nerd Font glyphs when the terminal bundles them
+//! (Ghostty, WezTerm) or a Nerd Font is installed (`fc-list`, checked once in
+//! the background).
+
+use std::sync::atomic::{AtomicU8, Ordering};
+
+use crate::spec::{Icon, Kind};
+
+const UNKNOWN: u8 = 0;
+const YES: u8 = 1;
+const NO: u8 = 2;
+static NERD: AtomicU8 = AtomicU8::new(UNKNOWN);
+
+/// Start detecting Nerd Font support (call once at startup).
+pub fn detect_in_background() {
+    let term = std::env::var("TERM_PROGRAM").unwrap_or_default().to_lowercase();
+    if term.contains("ghostty") || term.contains("wezterm") || std::env::var_os("GHOSTTY_RESOURCES_DIR").is_some() {
+        NERD.store(YES, Ordering::Relaxed);
+        return;
+    }
+    std::thread::spawn(|| {
+        let out = std::process::Command::new("fc-list").args([":", "family"]).output();
+        let found = out.is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains("Nerd Font"));
+        NERD.store(if found { YES } else { NO }, Ordering::Relaxed);
+    });
+}
+
+/// Which glyph set to use for the configured `icons` style.
+pub fn use_nerd(style: &str) -> bool {
+    match style {
+        "nerd" => true,
+        "auto" => NERD.load(Ordering::Relaxed) == YES,
+        _ => false,
+    }
+}
+
+const GREY: &str = "38;5;244";
+
+/// `(glyph, SGR color)` for a suggestion.
+pub fn glyph(kind: Kind, icon: Option<Icon>, label: &str, nerd: bool) -> (&'static str, &'static str) {
+    if nerd {
+        if let Some(i) = icon {
+            return nerd_icon(i);
+        }
+        if kind == Kind::File {
+            return file_icon(label);
+        }
+    } else if let Some(i) = icon {
+        return unicode_icon(i);
+    }
+    let color = match kind {
+        Kind::Command => "38;5;213",
+        Kind::Subcommand => "38;5;81",
+        Kind::Option => "38;5;221",
+        Kind::Arg => "38;5;114",
+        Kind::File => "38;5;250",
+        Kind::Folder => "38;5;75",
+        Kind::Shortcut => "38;5;209",
+        Kind::Info => GREY,
+    };
+    let g = if nerd {
+        match kind {
+            Kind::Command => "\u{f120}",    // terminal
+            Kind::Subcommand => "\u{ea8c}", // symbol-method
+            Kind::Option => "\u{f024}",     // flag
+            Kind::Arg => "\u{ea88}",        // symbol-variable
+            Kind::File => "\u{f15b}",       // file
+            Kind::Folder => "\u{f07b}",     // folder
+            Kind::Shortcut => "\u{f0e7}",   // bolt
+            Kind::Info => "\u{f110}",       // spinner
+        }
+    } else {
+        match kind {
+            Kind::Command => "❯",
+            Kind::Subcommand => "▸",
+            Kind::Option => "◆",
+            Kind::Arg => "•",
+            Kind::File => "▫",
+            Kind::Folder => "▪",
+            Kind::Shortcut => "★",
+            Kind::Info => "…",
+        }
+    };
+    (g, color)
+}
+
+fn nerd_icon(i: Icon) -> (&'static str, &'static str) {
+    match i {
+        Icon::Alias => ("\u{f44c}", "38;5;213"),    // link
+        Icon::Function => ("\u{f121}", "38;5;213"), // code
+        Icon::Builtin => ("\u{f489}", "38;5;213"),  // terminal
+        Icon::Package => ("\u{f487}", "38;5;179"),  // package
+        Icon::Npm => ("\u{e71e}", "38;5;167"),
+        Icon::Rust => ("\u{e7a8}", "38;5;173"),
+        Icon::Python => ("\u{e73c}", "38;5;221"),
+        Icon::Docker => ("\u{f308}", "38;5;39"),
+        Icon::Container => ("\u{f1b2}", "38;5;39"), // cube
+        Icon::GitBranch => ("\u{e725}", "38;5;208"),
+        Icon::GitTag => ("\u{f412}", "38;5;208"),
+        Icon::GitCommit => ("\u{f417}", "38;5;208"),
+        Icon::GitRemote => ("\u{f401}", "38;5;208"), // repo
+        Icon::GitStash => ("\u{f411}", "38;5;208"),  // archive
+        Icon::Process => ("\u{f423}", "38;5;114"),   // gear
+        Icon::Service => ("\u{f085}", "38;5;114"),   // cogs
+        Icon::Host => ("\u{f233}", "38;5;75"),       // server
+        Icon::User => ("\u{f007}", "38;5;75"),
+        Icon::Version => ("\u{f454}", "38;5;141"), // versions
+        Icon::Script => ("\u{f04b}", "38;5;114"),  // play
+        Icon::Folder => ("\u{f07b}", "38;5;75"),
+        Icon::Volume => ("\u{f0a0}", "38;5;75"),   // hdd
+        Icon::Network => ("\u{f0e8}", "38;5;75"),  // sitemap
+        Icon::Cloud => ("\u{f0c2}", "38;5;75"),
+        Icon::Terminal => ("\u{f120}", "38;5;213"),
+    }
+}
+
+fn unicode_icon(i: Icon) -> (&'static str, &'static str) {
+    match i {
+        Icon::Alias | Icon::Function | Icon::Builtin | Icon::Terminal => ("❯", "38;5;213"),
+        Icon::Package | Icon::Npm | Icon::Rust | Icon::Python => ("◈", "38;5;179"),
+        Icon::Docker | Icon::Container => ("◈", "38;5;39"),
+        Icon::GitBranch | Icon::GitTag | Icon::GitCommit | Icon::GitRemote | Icon::GitStash => ("⎇", "38;5;208"),
+        Icon::Process | Icon::Service | Icon::Script => ("•", "38;5;114"),
+        Icon::Host | Icon::User | Icon::Cloud | Icon::Network | Icon::Volume => ("◆", "38;5;75"),
+        Icon::Version => ("#", "38;5;141"),
+        Icon::Folder => ("▪", "38;5;75"),
+    }
+}
+
+/// File icons by name/extension (Nerd Font only).
+fn file_icon(name: &str) -> (&'static str, &'static str) {
+    let lower = name.to_lowercase();
+    match lower.as_str() {
+        "dockerfile" | "containerfile" => return ("\u{f308}", "38;5;39"),
+        "makefile" | "justfile" | "cmakelists.txt" => return ("\u{e615}", "38;5;250"),
+        "license" | "licence" | "copying" => return ("\u{f0fc}", "38;5;179"),
+        "cargo.lock" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml" | "poetry.lock" => {
+            return ("\u{f023}", "38;5;244");
+        }
+        _ => {}
+    }
+    let ext = lower.rsplit_once('.').map_or("", |(_, e)| e);
+    match ext {
+        "rs" => ("\u{e7a8}", "38;5;173"),
+        "py" | "pyi" => ("\u{e73c}", "38;5;221"),
+        "js" | "mjs" | "cjs" => ("\u{e74e}", "38;5;185"),
+        "ts" | "mts" | "cts" => ("\u{e628}", "38;5;75"),
+        "jsx" | "tsx" => ("\u{e7ba}", "38;5;81"),
+        "json" | "jsonc" => ("\u{e60b}", "38;5;185"),
+        "md" | "markdown" => ("\u{e73e}", "38;5;250"),
+        "toml" | "yaml" | "yml" | "ini" | "conf" | "cfg" | "env" => ("\u{e615}", "38;5;250"),
+        "sh" | "bash" | "zsh" | "fish" => ("\u{e795}", "38;5;114"),
+        "html" | "htm" => ("\u{e736}", "38;5;208"),
+        "css" | "scss" | "sass" => ("\u{e749}", "38;5;75"),
+        "go" => ("\u{e724}", "38;5;81"),
+        "java" | "jar" => ("\u{e738}", "38;5;173"),
+        "c" | "h" => ("\u{e61e}", "38;5;75"),
+        "cpp" | "cc" | "cxx" | "hpp" => ("\u{e61d}", "38;5;75"),
+        "rb" => ("\u{e739}", "38;5;167"),
+        "php" => ("\u{e73d}", "38;5;141"),
+        "lua" => ("\u{e620}", "38;5;75"),
+        "vim" => ("\u{e7c5}", "38;5;114"),
+        "swift" => ("\u{e755}", "38;5;208"),
+        "lock" => ("\u{f023}", "38;5;244"),
+        "png" | "jpg" | "jpeg" | "gif" | "svg" | "webp" | "ico" | "bmp" => ("\u{f1c5}", "38;5;141"),
+        "zip" | "tar" | "gz" | "xz" | "bz2" | "7z" | "zst" | "rar" | "deb" | "rpm" => ("\u{f1c6}", "38;5;179"),
+        "pdf" => ("\u{f1c1}", "38;5;167"),
+        "txt" | "log" => ("\u{f0f6}", "38;5;250"),
+        "csv" | "tsv" | "xls" | "xlsx" => ("\u{f1c3}", "38;5;114"),
+        "mp3" | "wav" | "flac" | "ogg" => ("\u{f1c7}", "38;5;141"),
+        "mp4" | "mkv" | "webm" | "mov" => ("\u{f1c8}", "38;5;141"),
+        _ => ("\u{f15b}", "38;5;250"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn picks_specific_icons() {
+        assert_eq!(glyph(Kind::Arg, Some(Icon::GitBranch), "main", true).0, "\u{e725}");
+        assert_eq!(glyph(Kind::File, None, "main.rs", true).0, "\u{e7a8}");
+        assert_eq!(glyph(Kind::File, None, "Dockerfile", true).0, "\u{f308}");
+        assert_eq!(glyph(Kind::Folder, None, "src/", true).0, "\u{f07b}");
+        assert_eq!(glyph(Kind::Option, None, "-v", false).0, "◆");
+        assert_eq!(glyph(Kind::Arg, Some(Icon::Npm), "react", false).0, "◈");
+        assert!(use_nerd("nerd") && !use_nerd("unicode") && !use_nerd("none"));
+    }
+}
