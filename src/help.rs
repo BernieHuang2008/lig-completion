@@ -316,6 +316,9 @@ pub fn parse(text: &str, argv: &[String]) -> Option<Subcommand> {
     let mut options: Vec<Opt> = vec![];
     let mut subs: Vec<(Vec<String>, String)> = vec![];
     let mut in_commands = false;
+    // Indentation of the items in the current commands section (set by the
+    // first one); prose and wrapped descriptions are indented differently.
+    let mut item_indent: Option<usize> = None;
     for (i, line) in lines.iter().enumerate() {
         let t = line.trim();
         if t.is_empty() {
@@ -325,6 +328,7 @@ pub fn parse(text: &str, argv: &[String]) -> Option<Subcommand> {
         // Section headers: `Commands:`, `COMMANDS`, `Available Commands:` …
         if ind == 0 && (t.ends_with(':') || t.chars().all(|c| !c.is_ascii_lowercase())) && !t.starts_with('-') {
             in_commands = t.to_lowercase().contains("command");
+            item_indent = None;
             continue;
         }
         if t.starts_with('-') {
@@ -332,32 +336,43 @@ pub fn parse(text: &str, argv: &[String]) -> Option<Subcommand> {
             let desc = if desc.is_empty() { next_desc(i, ind) } else { desc.to_string() };
             let desc = desc.split_whitespace().collect::<Vec<_>>().join(" ");
             if let Some(o) = parse_option(spec, &desc)
-                && !options.iter().any(|x| x.meta.names == o.meta.names) {
-                    options.push(o);
-                }
+                && !options.iter().any(|x| x.meta.names == o.meta.names)
+            {
+                options.push(o);
+            }
             continue;
         }
-        if in_commands && ind >= 1 {
-            let (left, desc) = split_gap(t);
-            let left = left.replace(", ", ",");
-            let mut words = left.split_whitespace();
-            let first = words.next().unwrap_or("");
-            // `name`, `name <ARG>`, `name [OPTIONS]`, `name UNIT...`
-            let rest_ok = words
-                .next()
-                .is_none_or(|w| w.starts_with(['<', '[', '{', '-', '.']) || w.starts_with(|c: char| c.is_ascii_uppercase()));
-            let man_style = desc.is_empty() && ind <= 8 && !next_desc(i, ind).is_empty();
-            if !rest_ok || (desc.is_empty() && !man_style && left.contains(' ')) {
-                continue;
-            }
-            let names: Vec<String> =
-                first.split(',').map(|n| n.trim().trim_end_matches(':').to_string()).filter(|n| valid_word(n)).collect();
-            if names.is_empty() || subs.iter().any(|(n, _)| n[0] == names[0]) {
-                continue;
-            }
-            let desc = if desc.is_empty() { next_desc(i, ind) } else { desc.to_string() };
-            subs.push((names, desc.split_whitespace().collect::<Vec<_>>().join(" ")));
+        if !in_commands || ind == 0 || item_indent.is_some_and(|w| w != ind) {
+            continue;
         }
+        let (left, desc) = split_gap(t);
+        let left = left.replace(", ", ",");
+        let mut words = left.split_whitespace();
+        let first = words.next().unwrap_or("");
+        let rest: Vec<&str> = words.collect();
+        // `name  description` on one line (help output), or `name [args]`
+        // with the description on the next, more indented line (man pages).
+        let same_line = !desc.is_empty()
+            && rest.first().is_none_or(|w| w.starts_with(['<', '[', '{', '-', '.']) || w.starts_with(|c: char| c.is_ascii_uppercase()));
+        let man_style = desc.is_empty() && !next_desc(i, ind).is_empty();
+        let bare = desc.is_empty() && rest.is_empty();
+        if !(same_line || man_style || bare) {
+            continue;
+        }
+        let names: Vec<String> = first
+            .split(',')
+            .map(|n| n.trim().trim_end_matches(':').to_string())
+            .filter(|n| valid_word(n) && n.starts_with(|c: char| c.is_ascii_lowercase()))
+            .collect();
+        if names.is_empty() {
+            continue;
+        }
+        item_indent.get_or_insert(ind);
+        if subs.iter().any(|(n, _)| n[0] == names[0]) {
+            continue;
+        }
+        let desc = if desc.is_empty() { next_desc(i, ind) } else { desc.to_string() };
+        subs.push((names, desc.split_whitespace().collect::<Vec<_>>().join(" ")));
     }
     if options.is_empty() && subs.is_empty() {
         return None;
@@ -412,6 +427,15 @@ mod tests {
         assert_eq!(subs, [vec!["build", "b"], vec!["run", "r"], vec!["help"], vec!["completion"]]);
         assert!(s.options[0].takes_arg());
         assert!(matches!(&s.subcommands[0].load_spec, Some(LoadSpec::Help(a)) if a == &["tool", "build"]));
+    }
+
+    #[test]
+    fn man_subcommands_with_justified_prose() {
+        let text = "SUBCOMMANDS\n   search key\n       Searches for a repository  where  the  given  argument  key  (a  regular\n       expression)  matches either the name of the repository, its description,\n       or the URL of the repository in question. The full YAML configuration of\n       all repositories that have a match are printed to standard output.\n\n       To search for all repositories, don't provide any search key.\n\n   enable repository_name\n       Enable the repository named repository_name.\n\n       •   If the repository had not yet been created before, this creates  its\n           configuration from the current metadata.\n\n   disable repository_name\n       This simply adds a line \"Enabled: no\" to the apt configuration file,  so\n       that the repository is not enabled.\n\n   update repository_name\n       Re-writes the apt configuration file for this repository.\n\nFILES\n       /etc/extrepo/config.yaml Extrepo configuration file.\n";
+        let s = parse(text, &["extrepo".into()]).unwrap();
+        let subs: Vec<&str> = s.subcommands.iter().map(|c| c.meta.names[0].as_str()).collect();
+        assert_eq!(subs, ["search", "enable", "disable", "update"]);
+        assert!(s.subcommands[0].meta.description.as_deref().unwrap().starts_with("Searches for a repository"));
     }
 
     #[test]

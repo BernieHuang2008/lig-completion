@@ -23,7 +23,7 @@ pub const NAMES: &[&str] = &[
     "git", "docker", "cargo", "rustup", "npm", "npx", "pnpm", "yarn", "bun", "pip", "pip3", "systemctl", "journalctl",
     "apt", "apt-get", "kill", "killall", "pkill", "pgrep", "ssh", "scp", "make", "tmux", "kubectl", "sudo", "doas",
     "cd", "pushd", "time", "nohup", "exec", "command", "builtin", "nice", "ionice", "timeout", "watch", "xargs", "env",
-    "strace", "flatpak-spawn", "which", "whereis", "type", "man", "tldr", "z", "zi", "source", ".", "snap",
+    "strace", "flatpak-spawn", "which", "whereis", "type", "man", "tldr", "z", "zi", "source", ".", "snap", "extrepo",
 ];
 
 pub fn builtin(name: &str) -> Option<Subcommand> {
@@ -50,6 +50,7 @@ pub fn builtin(name: &str) -> Option<Subcommand> {
         "cd" | "pushd" => system::cd(name),
         "z" | "zi" => system::z(name),
         "snap" => system::snap(),
+        "extrepo" => system::extrepo(),
         _ => return system::wrappers().into_iter().find(|s| s.meta.names[0] == name),
     })
 }

@@ -381,6 +381,36 @@ pub fn snap() -> Subcommand {
     ])
 }
 
+/// Debian's external repository manager.
+pub fn extrepo() -> Subcommand {
+    cmd("extrepo", "Manage external Debian repositories")
+        .opts([
+            opt("--url", "URL to fetch the repository metadata from").persistent().arg(arg("url").suggest(&[
+                "https://extrepo-team.pages.debian.net/extrepo-data",
+                "file:///usr/share/extrepo/offline-data",
+            ])),
+            opt("--offlinedata", "Use the data from the extrepo-offline-data package").persistent(),
+            opt("--mirror", "Use this mirror of the repository (enable, update)").persistent().arg(arg("url")),
+            opt("--tor", "Tor mode for the repository").persistent().arg(arg("mode").suggest_desc(&[
+                ("off", "No tor configuration (default)"),
+                ("auto", "The .onion URL if there is one, else tunnel through tor"),
+                ("onion", "Use the .onion URL; fail if there is none"),
+                ("tunnel", "Tunnel the regular URL through tor"),
+                ("if-onion", "The .onion URL if there is one, else no tor"),
+            ])),
+        ])
+        .subs([
+            cmd("search", "Search repositories by name, description or URL (a regex)")
+                .arg(arg("key").optional().generator(gens::extrepo_available())),
+            cmd("enable", "Enable a repository (re-enables a disabled one without updating it)")
+                .arg(arg("repository").generator(gens::extrepo_available())),
+            cmd("disable", "Disable a repository (adds Enabled: no to its apt sources)")
+                .arg(arg("repository").generator(gens::extrepo_installed(Some(true)))),
+            cmd("update", "Rewrite a repository's apt sources and keyring from the current metadata (all, without a name)")
+                .arg(arg("repository").optional().generator(gens::extrepo_installed(None))),
+        ])
+}
+
 /// zoxide's `z` / `zi` (shell functions), also rupa/z.
 pub fn z(name: &str) -> Subcommand {
     let desc = if name == "zi" { "Pick a frecent directory interactively" } else { "Jump to a frecent directory" };

@@ -1027,3 +1027,112 @@ mod online_tests {
         assert_eq!(l.iter().map(|x| x.0.as_str()).collect::<Vec<_>>(), ["1.10.0", "1.9.0", "0.9.9", "1.10.0-rc.1"]);
     }
 }
+
+// ---------------------------------------------------------------- extrepo
+
+/// Run a command and cache its stdout in `~/.cache/lig/<file>` for `max_age`
+/// (falling back to the stale copy when it fails).
+fn cached_output(cx: &GenCtx, argv: &[&str], file: &str, max_age: std::time::Duration) -> Option<String> {
+    let path = dirs::cache_dir()?.join("lig").join(file);
+    let age = std::fs::metadata(&path).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok());
+    if age.is_none_or(|a| a >= max_age)
+        && let Some(out) = cx.run(argv).filter(|o| !o.trim().is_empty()) {
+            let _ = std::fs::create_dir_all(path.parent()?);
+            let _ = std::fs::write(&path, &out);
+            return Some(out);
+        }
+    std::fs::read_to_string(path).ok()
+}
+
+/// `(name, description, policy)` for every repository `extrepo search` knows.
+fn extrepo_index(cx: &GenCtx) -> Vec<(String, String, String)> {
+    let Some(out) = cached_output(cx, &["extrepo", "search"], "extrepo-search.txt", std::time::Duration::from_secs(86400)) else {
+        return vec![];
+    };
+    let mut repos = vec![];
+    let mut lines = out.lines().peekable();
+    while let Some(line) = lines.next() {
+        let Some(name) = line.strip_prefix("Found ").and_then(|n| n.strip_suffix(':')) else { continue };
+        let (mut desc, mut policy) = (String::new(), String::new());
+        while let Some(l) = lines.peek() {
+            if l.starts_with("Found ") {
+                break;
+            }
+            let l = lines.next().unwrap();
+            if let Some(d) = l.strip_prefix("description:") {
+                desc = d.trim().to_string();
+                if desc == "|" || desc == ">" || desc.is_empty() {
+                    // YAML block: the next indented line.
+                    desc = lines.peek().map(|n| n.trim().to_string()).unwrap_or_default();
+                }
+            } else if let Some(p) = l.strip_prefix("policy:") {
+                policy = p.trim().to_string();
+            }
+        }
+        repos.push((name.to_string(), desc, policy));
+    }
+    repos
+}
+
+/// Repositories set up on this machine: name → enabled.
+fn extrepo_local() -> Vec<(String, bool)> {
+    let mut v: Vec<(String, bool)> = std::fs::read_dir("/etc/apt/sources.list.d")
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let file = e.file_name().to_string_lossy().into_owned();
+            let name = file.strip_prefix("extrepo_")?.strip_suffix(".sources")?.to_string();
+            let text = std::fs::read_to_string(e.path()).unwrap_or_default();
+            let disabled = text.lines().any(|l| l.trim().eq_ignore_ascii_case("enabled: no"));
+            Some((name, !disabled))
+        })
+        .collect();
+    v.sort();
+    v
+}
+
+/// All repositories in the extrepo index; disabled local ones first.
+pub fn extrepo_available() -> Generator {
+    gen_fn("extrepo:available", |cx| {
+        let local = extrepo_local();
+        let mut out: Vec<SuggestionDef> = extrepo_index(cx)
+            .into_iter()
+            .map(|(name, desc, policy)| {
+                let state = local.iter().find(|(n, _)| *n == name).map(|(_, enabled)| *enabled);
+                let (prio, tag) = match state {
+                    Some(false) => (60.0, "disabled · "),
+                    Some(true) => (40.0, "enabled · "),
+                    None => (50.0, ""),
+                };
+                let policy = if policy.is_empty() || policy == "main" { String::new() } else { format!("[{policy}] ") };
+                sug(name).desc(format!("{tag}{policy}{desc}")).priority(prio)
+            })
+            .collect();
+        // Local ones the index no longer has.
+        for (name, enabled) in local {
+            if !out.iter().any(|s| s.meta.names[0] == name) {
+                out.push(sug(name).desc(if enabled { "enabled" } else { "disabled" }).priority(55.0));
+            }
+        }
+        out.sort_by(|a, b| a.meta.names[0].cmp(&b.meta.names[0]));
+        out
+    })
+    .ttl(3_600_000)
+}
+
+/// Repositories configured here: `Some(true)` enabled only, `Some(false)` disabled only.
+pub fn extrepo_installed(which: Option<bool>) -> Generator {
+    let id = match which {
+        Some(true) => "extrepo:enabled",
+        Some(false) => "extrepo:disabled",
+        None => "extrepo:installed",
+    };
+    gen_fn(id, move |_| {
+        extrepo_local()
+            .into_iter()
+            .filter(|(_, enabled)| which.is_none_or(|w| w == *enabled))
+            .map(|(name, enabled)| sug(name).desc(if enabled { "enabled" } else { "disabled" }))
+            .collect()
+    })
+}

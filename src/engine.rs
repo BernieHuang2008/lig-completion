@@ -715,7 +715,7 @@ fn generator_icon(id: &str) -> Option<Icon> {
         ("sys", "pids" | "process-names") => Icon::Process,
         ("sys", "users") => Icon::User,
         ("systemd", _) => Icon::Service,
-        ("apt", _) | ("snap", _) | ("online", "snap") => Icon::Package,
+        ("apt", _) | ("snap", _) | ("extrepo", _) | ("online", "snap") => Icon::Package,
         ("ssh", _) => Icon::Host,
         ("tmux", _) => Icon::Terminal,
         ("pip", _) | ("online", "pypi" | "pypi-top") => Icon::Python,
@@ -736,6 +736,7 @@ fn loading_label(id: &str) -> String {
         "online:pypi-top" => "Fetching popular PyPI packages",
         "online:snap" => "Searching the Snap Store",
         "apt:available" => "Searching apt packages",
+        "extrepo:available" => "Fetching the extrepo index",
         _ => "Loading suggestions",
     }
     .to_string()

@@ -22,11 +22,13 @@ Everything runs locally. There is no daemon, no account and no telemetry.
 2. **Hand-written specs in Rust** (`src/specs/`): `git`, `docker` (+ `compose`),
    `cargo`, `rustup`, `npm`, `npx`, `pnpm`, `yarn`, `bun`, `pip`, `systemctl`,
    `journalctl`, `apt`, `apt-get`, `kill`, `killall`, `pkill`, `ssh`, `scp`, `make`,
-   `tmux`, `kubectl`, `sudo`, `cd`, `which`, `man`, `time`, `watch`, `xargs`, ….
+   `tmux`, `kubectl`, `snap`, `extrepo`, `sudo`, `cd`, `z`, `which`, `man`, `time`,
+   `watch`, `xargs`, ….
    Their dynamic values are native Rust generators: git branches, tags, commits,
    stashes and changed files, docker containers, images and compose services, systemd
    units, PIDs and signals, ssh hosts, Makefile targets, `package.json` scripts, cargo
-   bins/examples/features, apt packages, kube resources, and more. When a command also
+   bins/examples/features, apt packages, extrepo repositories (the index is cached for a
+   day), kube resources, and more. When a command also
    has a converted spec, the two are merged: the Rust spec wins, and the converted one
    adds the options and subcommands it's missing.
 3. **Every other command**: lig parses its `--help` output or man page and caches the
