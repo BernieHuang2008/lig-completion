@@ -210,9 +210,19 @@ or the command after `sudo`, `time`, `env`, `watch`, `xargs`, …. So `ls`, `hto
 `exit` or `sudo ls` can be typed and run with one `Enter`. Press `Ctrl+Space` to see command names, aliases,
 functions and builtins. (Set `complete_commands = true` to get them automatically.)
 
-`Enter` still runs the line, unless you moved the selection, when nothing is typed for
-the current word (`ls ` + `Enter`) or when the word is already complete (`git log` +
-`Enter`). Set `enter_runs_on_empty_word = false` to always accept.
+What `Enter` does while the popup is showing:
+
+* **The line ends with a space** (`z `, `git checkout `, `npm run `): it picks the
+  highlighted suggestion (the first one unless you moved).
+* **You're in the middle of a word** (`go bui`, `git chec`): it completes the word with
+  the highlighted suggestion (`go build `).
+* **The word is already complete** (`git status`, `go build`): it runs the line. With no
+  matches, the popup isn't shown and `Enter` runs anyway.
+
+After a pick, the next `Enter` runs: `Enter` `Enter` means "pick, then run". If you move
+the highlight with `Tab` or the arrows, `Enter` picks that item. If suggestions are
+still loading, lig waits for them (up to 1.5 s). Set `enter_accepts` to
+`"after-space"` (pick only after a space), `"always"` or `"never"` to change this.
 
 When the popup isn't showing, keys go straight to zsh, so normal Tab completion still
 works. `Ctrl+Space` is taken from zsh's `set-mark-command` while you edit a command line.
@@ -250,7 +260,7 @@ toggle = ["ctrl-space"]
 
 [behavior]
 fuzzy = true                 # subsequence matching when nothing matches by prefix
-enter_runs_on_empty_word = true   # `ls ` + Enter runs instead of accepting
+enter_accepts = "auto"            # pick/complete unless the word is complete ("after-space", "always", "never")
 files_first = false          # list files before options/subcommands
 show_on_empty_token = true   # suggest right after a space
 complete_commands = false    # pop up for the first word too (Ctrl+Space always does)

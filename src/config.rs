@@ -134,9 +134,12 @@ pub struct Keys {
 pub struct Behavior {
     /// Also match suggestions by subsequence (`gco` → `git-checkout`).
     pub fuzzy: bool,
-    /// Enter (when bound to accept) right after a space, with the selection
-    /// untouched, runs the line instead of accepting.
-    pub enter_runs_on_empty_word: bool,
+    /// When Enter picks the selected suggestion instead of running the line:
+    /// `"auto"` (unless the word typed is already complete: `git status`),
+    /// `"after-space"` (only when the line ends in a space), `"always"` or
+    /// `"never"`. A selection moved with Tab/arrows is always picked; the
+    /// Enter right after a pick runs the line.
+    pub enter_accepts: String,
     /// List files before options and subcommands.
     pub files_first: bool,
     /// Show suggestions right after a space (empty current token).
@@ -200,7 +203,7 @@ impl Default for Behavior {
     fn default() -> Self {
         Behavior {
             fuzzy: true,
-            enter_runs_on_empty_word: true,
+            enter_accepts: "auto".into(),
             files_first: false,
             show_on_empty_token: true,
             complete_commands: false,

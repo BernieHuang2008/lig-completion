@@ -23,6 +23,8 @@ use crate::store::Store;
 const DEBOUNCE: Duration = Duration::from_millis(4);
 /// …but never longer than this.
 const MAX_DELAY: Duration = Duration::from_millis(40);
+/// How long Enter waits for suggestions that are still loading.
+const ENTER_WAIT: Duration = Duration::from_millis(1500);
 /// Show "Searching…" only when results take longer than this.
 const LOADING_DELAY: Duration = Duration::from_millis(150);
 /// Key sequence bound to the `_lig_insert` ZLE widget.
@@ -193,8 +195,11 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
         items_line: String::new(),
         selected: 0,
         navigated: false,
+        just_accepted: false,
         manual: false,
         loading: None,
+        pending_enter: None,
+        deferred: vec![],
         scroll: 0,
         dismissed: None,
         drawn: None,
@@ -209,6 +214,23 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
     drop(raw);
     let code = child.wait().map(|st| st.exit_code() as i32).unwrap_or(0);
     Ok(code)
+}
+
+/// Whether Enter picks the selected suggestion (instead of running the line).
+///
+/// `"auto"`: pick, unless the word typed is already complete (equals a
+/// suggestion: `git status`); `"after-space"`: only when the line ends in a
+/// space; `"always"`; `"never"`. A selection moved with Tab/arrows is always
+/// picked, and the Enter right after a pick runs the line.
+fn enter_accepts(mode: &str, word_empty: bool, complete: bool, navigated: bool, just_accepted: bool) -> bool {
+    match mode {
+        "never" => false,
+        _ if navigated => true,
+        _ if just_accepted => false,
+        "always" => true,
+        "after-space" => word_empty,
+        _ => word_empty || !complete,
+    }
 }
 
 fn worker(rx: Receiver<Request>, tx: Sender<Event>, behavior: crate::config::Behavior) {
@@ -251,10 +273,15 @@ struct Session {
     selected: usize,
     /// The user moved the selection on the current line.
     navigated: bool,
+    /// A suggestion was just accepted and nothing typed since: Enter runs.
+    just_accepted: bool,
     /// The popup was asked for with the toggle key (until the line is run).
     manual: bool,
     /// (line, message, since) while slower suggestions are being fetched.
     loading: Option<(String, String, Instant)>,
+    /// Enter pressed while loading: when, and the input from it on.
+    pending_enter: Option<Instant>,
+    deferred: Vec<u8>,
     scroll: usize,
     dismissed: Option<String>,
     drawn: Option<Rect>,
@@ -271,10 +298,17 @@ impl Session {
             if let Some(w) = self.loading_wake() {
                 deadline = Some(deadline.map_or(w, |d| d.min(w)));
             }
+            if let Some(t) = self.pending_enter {
+                let w = t + ENTER_WAIT;
+                deadline = Some(deadline.map_or(w, |d| d.min(w)));
+            }
             let ev = if let Some(due) = deadline {
                 match rx.recv_deadline(due) {
                     Ok(ev) => ev,
                     Err(RecvTimeoutError::Timeout) => {
+                        if self.pending_enter.is_some_and(|t| t.elapsed() >= ENTER_WAIT) {
+                            self.resolve_pending_enter();
+                        }
                         self.render();
                         continue;
                     }
@@ -398,8 +432,13 @@ impl Session {
             Msg::Hide => self.hidden = true,
             Msg::Finish => {
                 self.editing = false;
+                self.just_accepted = false;
                 self.manual = false;
                 self.loading = None;
+                if self.pending_enter.take().is_some() {
+                    let data = std::mem::take(&mut self.deferred);
+                    self.write_pty(&data);
+                }
                 self.items.clear();
                 self.items_line.clear();
                 self.line.clear();
@@ -456,8 +495,13 @@ impl Session {
         }
     }
 
-    /// The word being completed already equals one of the suggestions.
-    fn typed_exact_match(&self) -> bool {
+    /// Nothing typed for the current word: the line ends in a space.
+    fn word_empty(&self) -> bool {
+        self.line.is_empty() || self.line.ends_with(char::is_whitespace)
+    }
+
+    /// The word being typed already equals one of the suggestions (`git status`).
+    fn word_complete(&self) -> bool {
         let chars: Vec<char> = self.line.chars().collect();
         self.items.iter().any(|s| {
             let typed: String = chars[chars.len().saturating_sub(s.delete)..].iter().collect();
@@ -465,10 +509,40 @@ impl Session {
         })
     }
 
+    fn enter_picks(&self) -> bool {
+        enter_accepts(
+            &self.cfg.behavior.enter_accepts,
+            self.word_empty(),
+            self.word_complete(),
+            self.navigated,
+            self.just_accepted,
+        )
+    }
+
+    /// Replay a deferred Enter (and the keys after it) now that the
+    /// suggestions are final, or loading took too long.
+    fn resolve_pending_enter(&mut self) {
+        if self.pending_enter.take().is_none() {
+            return;
+        }
+        self.loading = None;
+        let data = std::mem::take(&mut self.deferred);
+        self.on_input(&data);
+    }
+
     fn on_done(&mut self, line: String, items: Vec<Suggestion>, loading: Option<String>) {
         if line != self.line {
             return; // stale
         }
+        let fin = loading.is_none();
+        self.apply_done(line, items, loading);
+        if fin && self.pending_enter.is_some() {
+            self.render();
+            self.resolve_pending_enter();
+        }
+    }
+
+    fn apply_done(&mut self, line: String, items: Vec<Suggestion>, loading: Option<String>) {
         self.loading = match (loading, self.loading.take()) {
             // Still loading the same line: keep the original start time.
             (Some(label), Some((l, _, since))) if l == line => Some((line.clone(), label, since)),
@@ -496,9 +570,40 @@ impl Session {
     }
 
     fn on_input(&mut self, data: &[u8]) {
+        // Keys typed while a deferred Enter waits go after it, in order.
+        if self.pending_enter.is_some() {
+            self.deferred.extend_from_slice(data);
+            return;
+        }
         let mut fwd: Vec<u8> = vec![];
         let mut redraw = false;
-        for (raw, key) in keys::split(data) {
+        let keys = keys::split(data);
+        // Once a key in this chunk has gone to the shell, the popup state is
+        // stale until the shell redraws: the rest of the chunk goes through as is
+        // (pastes, fast macros).
+        let mut passthrough = false;
+        for (n, (raw, key)) in keys.iter().enumerate() {
+            let (raw, key) = (*raw, key.clone());
+            if passthrough {
+                fwd.extend_from_slice(raw);
+                continue;
+            }
+            // Enter while this line's suggestions are still loading: wait for
+            // them (briefly) so Enter acts on the final list, not a partial one.
+            if key == Key::Enter
+                && self.pending_enter.is_none()
+                && self.bindings.action(&Key::Enter) == Some(Action::Accept)
+                && self.cfg.behavior.enter_accepts != "never"
+                && !self.just_accepted
+                && self.editing
+                && !self.hidden
+                && self.dismissed.as_deref() != Some(self.line.as_str())
+                && self.loading.as_ref().is_some_and(|(l, _, _)| *l == self.line)
+            {
+                self.pending_enter = Some(Instant::now());
+                self.deferred = data[data.len() - keys[n..].iter().map(|(r, _)| r.len()).sum::<usize>()..].to_vec();
+                break;
+            }
             let toggle = self.bindings.action(&key) == Some(Action::Toggle);
             if toggle && self.editing && !self.hidden && !self.parser.screen().alternate_screen() {
                 if self.visible() {
@@ -515,7 +620,11 @@ impl Session {
                 continue;
             }
             if !self.visible() {
+                if key != Key::Enter {
+                    self.just_accepted = false;
+                }
                 fwd.extend_from_slice(raw);
+                passthrough = true;
                 continue;
             }
             let mut action = self.bindings.action(&key);
@@ -523,14 +632,9 @@ impl Session {
             if action == Some(Action::Next) && self.items.len() == 1 {
                 action = Some(Action::Accept);
             }
-            // Enter runs the line unless a suggestion was picked, when nothing
-            // is typed for the word (`ls `) or it's already complete (`git log`).
-            if action == Some(Action::Accept)
-                && key == Key::Enter
-                && self.cfg.behavior.enter_runs_on_empty_word
-                && !self.navigated
-                && (self.items[self.selected].delete == 0 || self.typed_exact_match())
-            {
+            // Enter completes (`go bui` → build) or picks after a space, but
+            // runs a word that's already complete; the Enter after a pick runs.
+            if action == Some(Action::Accept) && key == Key::Enter && !self.enter_picks() {
                 action = None;
             }
             match action {
@@ -550,6 +654,8 @@ impl Session {
                     redraw = true;
                 }
                 Some(Action::Accept) => {
+                    self.just_accepted = true;
+                    passthrough = true;
                     let s = &self.items[self.selected];
                     let payload = format!("{INSERT_KEY}{};{};{}\x07", s.delete, s.back, s.insert);
                     fwd.extend_from_slice(payload.as_bytes());
@@ -558,6 +664,10 @@ impl Session {
                     redraw = true;
                 }
                 None => {
+                    if key != Key::Enter {
+                        self.just_accepted = false;
+                    }
+                    passthrough = true;
                     if key == Key::Enter {
                         self.dismissed = Some(self.line.clone());
                         redraw = true;
@@ -639,5 +749,26 @@ impl Session {
         }
         self.end_sync(&mut w);
         self.write_out(&w);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn enter_rule() {
+        // (word_empty, complete, navigated, just_accepted)
+        // `z ` → pick; `go bui` → complete it; `git status` → run.
+        assert!(enter_accepts("auto", true, false, false, false));
+        assert!(enter_accepts("auto", false, false, false, false));
+        assert!(!enter_accepts("auto", false, true, false, false));
+        // Enter, Enter: pick, then run. Tab to an item, then Enter: picked.
+        assert!(!enter_accepts("auto", true, false, false, true));
+        assert!(enter_accepts("auto", false, true, true, false));
+        // Other modes.
+        assert!(!enter_accepts("after-space", false, false, false, false));
+        assert!(enter_accepts("always", false, true, false, false));
+        assert!(!enter_accepts("never", true, false, true, false));
     }
 }
