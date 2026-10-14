@@ -592,3 +592,75 @@ mod tests {
         assert_eq!(relative_to("README.md", "src/specs/"), "../../README.md");
     }
 }
+
+/// `<prefix>` followed by local paths (`file://…`, `fileb://…`).
+pub fn prefixed_files(prefix: String) -> Generator {
+    gen_fn(&format!("files:{prefix}"), move |cx| {
+        let cur = cx.current();
+        let Some(rest) = cur.strip_prefix(prefix.as_str()) else {
+            return vec![sug(prefix.clone()).desc("local file").insert(prefix.clone())];
+        };
+        let dir_part = rest.rfind('/').map_or("", |i| &rest[..=i]);
+        let dir = if let Some(r) = dir_part.strip_prefix("~/") {
+            dirs::home_dir().unwrap_or_default().join(r)
+        } else {
+            cx.cwd.join(dir_part)
+        };
+        let mut v: Vec<SuggestionDef> = std::fs::read_dir(dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| {
+                let name = e.file_name().to_string_lossy().into_owned();
+                if e.path().is_dir() { sug(format!("{name}/")).kind(Kind::Folder) } else { sug(name).kind(Kind::File) }
+            })
+            .collect();
+        v.sort_by(|a, b| a.meta.names[0].cmp(&b.meta.names[0]));
+        v
+    })
+    .trigger(Trigger::Chars("/".into()))
+    .query_after("/")
+}
+
+/// Native generators referenced by id from spec files (`{"builtin": "git:branches"}`).
+pub fn builtin(id: &str) -> Option<Generator> {
+    if let Some(prefix) = id.strip_prefix("files:") {
+        return Some(prefixed_files(prefix.to_string()));
+    }
+    Some(match id {
+        "git:branches" => git_branches(),
+        "git:local-branches" => git_local_branches(),
+        "git:remotes" => git_remotes(),
+        "git:tags" => git_tags(),
+        "git:commits" => git_commits(),
+        "git:stashes" => git_stashes(),
+        "git:unstaged" => git_changed(Changes::Unstaged),
+        "git:staged" => git_changed(Changes::Staged),
+        "git:modified" => git_changed(Changes::Modified),
+        "docker:containers" => docker_containers(true),
+        "docker:running" => docker_containers(false),
+        "docker:images" => docker_images(),
+        "docker:networks" => docker_list("docker:networks", "network"),
+        "docker:volumes" => docker_list("docker:volumes", "volume"),
+        "docker:compose-services" => compose_services(),
+        "npm:scripts" => npm_scripts(),
+        "npm:deps" => npm_deps(),
+        "make:targets" => make_targets(),
+        "sys:pids" => processes(),
+        "sys:process-names" => process_names(),
+        "systemd:units" => systemd_units(),
+        "apt:installed" => apt_installed(),
+        "apt:available" => apt_available(),
+        "ssh:hosts" => ssh_hosts(),
+        "tmux:sessions" => tmux_sessions(),
+        "pip:installed" => pip_installed(),
+        "rustup:toolchains" => rustup_toolchains(),
+        "kube:contexts" => kube_contexts(),
+        "kube:namespaces" => kube_namespaces(),
+        "kube:pods" => kube_names(Some("pods")),
+        "cargo:packages" => cargo_packages(),
+        "cargo:installed" => cargo_installed(),
+        "cargo:features" => cargo_features(),
+        _ => return None,
+    })
+}

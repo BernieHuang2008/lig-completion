@@ -14,21 +14,28 @@ Everything runs locally. There is no daemon, no account and no telemetry.
 
 ## Where suggestions come from
 
-1. **Built-in specs, written in Rust** (`src/specs/`): `git`, `docker` (+ `compose`),
+1. **All ~730 commands from [withfig/autocomplete](https://github.com/withfig/autocomplete/tree/master/src)**
+   (1,478 spec files, including git, docker, aws, gcloud, az, kubectl, gh, terraform,
+   brew, npm, cargo, ffmpeg, heroku, deno, go…). They are converted to plain JSON in
+   `specs/fig/`, compressed into the binary at build time, and inflated one at a time
+   on first use. lig contains no JavaScript; see [Converted specs](#converted-specs).
+2. **Hand-written specs in Rust** (`src/specs/`): `git`, `docker` (+ `compose`),
    `cargo`, `rustup`, `npm`, `npx`, `pnpm`, `yarn`, `bun`, `pip`, `systemctl`,
    `journalctl`, `apt`, `apt-get`, `kill`, `killall`, `pkill`, `ssh`, `scp`, `make`,
    `tmux`, `kubectl`, `sudo`, `cd`, `which`, `man`, `time`, `watch`, `xargs`, ….
-   Their dynamic values are Rust functions: git branches, tags, commits, stashes and
-   changed files, docker containers, images and compose services, systemd units, PIDs
-   and signals, ssh hosts, Makefile targets, `package.json` scripts, cargo
-   bins/examples/features, apt packages, kube resources, and more.
-2. **Every other command**: lig parses its `--help` output or man page and caches the
+   Their dynamic values are native Rust generators: git branches, tags, commits,
+   stashes and changed files, docker containers, images and compose services, systemd
+   units, PIDs and signals, ssh hosts, Makefile targets, `package.json` scripts, cargo
+   bins/examples/features, apt packages, kube resources, and more. When a command also
+   has a converted spec, the two are merged: the Rust spec wins, and the converted one
+   adds the options and subcommands it's missing.
+3. **Every other command**: lig parses its `--help` output or man page and caches the
    result per executable version. This covers GNU/uutils tools, clap, cobra, click and
    argparse CLIs, and anything with a man page. Subcommands are expanded lazily
    (`foo bar --help`).
-3. **Your own specs** in `~/.config/lig/specs/` (JSON or TOML) override both.
+4. **Your own specs** in `~/.config/lig/specs/` (JSON or TOML) override all of the above.
 
-`lig specs list` shows the built-in and user specs.
+`lig specs list` shows every command with a spec and where it comes from.
 
 ## How it works
 
@@ -202,6 +209,35 @@ lig specs clear-cache            # forget cached --help results
 LIG_LOG=1 zsh                    # log errors to ~/.local/state/lig/lig.log
 ```
 
+## Converted specs
+
+`specs/fig/` is generated from the withfig/autocomplete TypeScript sources by
+`tools/update-fig-specs.sh`:
+
+```bash
+tools/update-fig-specs.sh            # or: tools/update-fig-specs.sh <git ref>
+```
+
+The script compiles the sources with esbuild, then runs `tools/figconv`, a Rust dev
+tool that isn't part of lig. figconv evaluates each spec once, in an embedded QuickJS,
+and writes static JSON. Fig specs contain JavaScript functions, and lig doesn't run
+JavaScript, so each generator is translated by probing what it does:
+
+| Generator in the Fig spec | In lig |
+| --- | --- |
+| runs a command lig has a native generator for (git branches, docker ps, systemctl units, …) | `{"builtin": "git:branches"}` (Rust) |
+| `postProcess` that turns lines into suggestions | `{"script": […]}` |
+| `postProcess` that picks a column, optionally skipping a header | `{"script": […], "field": 0, "skipLines": 1}` |
+| `postProcess` / `custom` that reads JSON output (learned by running it against a recording proxy instead of `JSON.parse`) | `{"script": […], "json": {"name": "…", "description": "…"}}` |
+| file listings | `{"template": "filepaths"}` |
+| a fixed list | `{"suggestions": […]}` |
+
+At revision `aef52ac` this converts 3,908 of 5,094 generators. The other 1,186 depend
+on token-specific logic, and only those values are lost: the options and subcommands
+around them are kept. Descriptions are shortened to their first line.
+The specs are © Hercules Labs Inc. and the withfig contributors, MIT licensed; see
+`specs/fig/LICENSE`.
+
 ## Limitations
 
 * zsh only for now. The PTY side doesn't depend on the shell, so bash or fish only need
@@ -210,6 +246,7 @@ LIG_LOG=1 zsh                    # log errors to ~/.local/state/lig/lig.log
   (alternate screen) and while a command is running.
 * Specs parsed from `--help` contain options and subcommands, but they can't know about
   dynamic values; arguments fall back to file paths.
+* Some converted generators could not be translated (see above).
 
 ## Layout
 
@@ -223,10 +260,14 @@ src/
   parser.rs    shell command-line tokenizer
   engine.rs    spec walker, generators, ranking, insertion text
   spec.rs      spec model + builder DSL + JSON/TOML loading
-  specs/       built-in specs (git, docker, cargo, node, system) and generators
+  specs/       hand-written specs (git, docker, cargo, node, system), generators,
+               fig.rs (reader for the embedded converted specs)
   help.rs      --help / man page parser and cache
   exec.rs      running commands with timeouts
   store.rs     user spec files
   config.rs    configuration
 shell/         zsh integration (pre/post)
+specs/fig/     converted withfig/autocomplete specs (generated, JSON)
+build.rs       packs specs/fig into a compressed archive embedded in the binary
+tools/         figconv (spec converter) and update-fig-specs.sh
 ```

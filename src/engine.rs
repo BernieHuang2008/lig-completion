@@ -317,7 +317,10 @@ impl Engine {
                     crate::log(&format!("spec {e}"));
                     None
                 }
-                None => specs::builtin(name).map(Arc::new),
+                None => match (specs::builtin(name), specs::fig::load(name)) {
+                    (Some(b), Some(f)) => Some(Arc::new(specs::merge(&b, &f))),
+                    (b, f) => b.or(f).map(Arc::new),
+                },
             };
             self.specs.insert(name.to_string(), s.clone());
             if s.is_some() || !self.cfg.help_parsing {
@@ -417,13 +420,14 @@ impl Engine {
         let timeout = Duration::from_millis(self.cfg.generator_timeout_ms);
         match &g.source {
             GenSource::Rust(f) => f(&GenCtx { cwd: &cx.env.cwd, env: &vars, tokens: &cx.tokens, timeout }),
-            GenSource::Script { argv, shell, split_on } => {
+            GenSource::Script { argv, shell, output } => {
                 let out = match shell {
                     Some(s) => exec::run(Cmd::Shell(s), &cx.env.cwd, &vars, timeout),
                     None => exec::run(Cmd::Argv(argv), &cx.env.cwd, &vars, timeout),
                 };
-                out.stdout.split(split_on.as_str()).map(str::trim).filter(|s| !s.is_empty()).map(spec::sug).collect()
+                output.suggestions(&out.stdout)
             }
+            GenSource::Static(list) => list.clone(),
         }
     }
 
@@ -478,6 +482,7 @@ impl Engine {
             .spec_cmds
             .get_or_insert_with(|| {
                 let mut s: HashSet<String> = specs::NAMES.iter().map(|s| s.to_string()).collect();
+                s.extend(specs::fig::names().map(str::to_string));
                 s.extend(store.commands());
                 Arc::new(s)
             })
@@ -806,6 +811,28 @@ mod tests {
         // `tool run <command …>` switches to the other command's spec.
         let r = labels(&mut e, &env, "tool run mytool he");
         assert_eq!(r[0].0, "hello");
+    }
+
+    #[test]
+    fn every_embedded_spec_loads() {
+        let names: Vec<&str> = specs::fig::names().collect();
+        assert!(names.len() > 700, "only {} specs", names.len());
+        for n in names {
+            assert!(specs::fig::load(n).is_some_and(|s| !s.meta.names.is_empty()), "{n}");
+        }
+    }
+
+    #[test]
+    fn converted_and_merged_specs() {
+        let (mut e, env) = engine();
+        assert_eq!(labels(&mut e, &env, "brew ins")[0].0, "install");
+        // aws → loadSpec "aws/s3"; heroku → newest versioned spec.
+        assert!(labels(&mut e, &env, "aws s3 ").iter().any(|r| r.0 == "cp"));
+        assert!(!labels(&mut e, &env, "heroku ").is_empty());
+        // git: Rust spec merged with the converted one.
+        let r = labels(&mut e, &env, "git rebase --");
+        assert!(r.iter().any(|x| x.0 == "--autosquash"));
+        assert!(r.iter().any(|x| x.0 == "--keep-base"), "{r:?}");
     }
 
     #[test]

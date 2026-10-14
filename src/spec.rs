@@ -172,8 +172,32 @@ pub type GenFn = dyn Fn(&GenCtx) -> Vec<SuggestionDef> + Send + Sync;
 
 pub enum GenSource {
     Rust(Box<GenFn>),
-    /// From user specs: run a command and split its output.
-    Script { argv: Vec<String>, shell: Option<String>, split_on: String },
+    /// Run a command (argv, or a shell string) and shape its output.
+    Script { argv: Vec<String>, shell: Option<String>, output: Output },
+    /// A fixed list.
+    Static(Vec<SuggestionDef>),
+}
+
+/// How command output becomes suggestions.
+#[derive(Debug, Clone)]
+pub enum Output {
+    /// Split on `split_on`, drop `skip` header lines, optionally keep one
+    /// whitespace-separated column.
+    Lines { split_on: String, skip: usize, field: Option<usize> },
+    /// Fill templates from JSON output.
+    Json(JsonTemplate),
+}
+
+/// `name` / `description` are templates: literal text with JSON paths between
+/// `\u{1}` markers, e.g. `"\u{1}$.apps[*].name\u{1}"`. Paths start at `$` and
+/// use `.field`, `[N]`, `[*]` (array items), `{*}` (object values) and
+/// `{key}` (object keys); all paths iterate the same collection.
+#[derive(Debug, Clone)]
+pub struct JsonTemplate {
+    pub name: String,
+    pub description: Option<String>,
+    /// One JSON document per line.
+    pub lines: bool,
 }
 
 pub struct Generator {
@@ -205,6 +229,130 @@ impl Subcommand {
 impl Opt {
     pub fn takes_arg(&self) -> bool {
         self.args.first().is_some_and(|a| !a.is_optional)
+    }
+}
+
+// ---------------------------------------------------------------- output shaping
+
+impl Output {
+    pub fn suggestions(&self, out: &str) -> Vec<SuggestionDef> {
+        match self {
+            Output::Lines { split_on, skip, field } => out
+                .split(split_on.as_str())
+                .skip(*skip)
+                .filter_map(|l| match field {
+                    Some(f) => l.split_whitespace().nth(*f),
+                    None => Some(l.trim()),
+                })
+                .filter(|s| !s.is_empty())
+                .map(sug)
+                .collect(),
+            Output::Json(t) => t.suggestions(out),
+        }
+    }
+}
+
+const TAG: char = '\u{1}';
+const MARKERS: [&str; 3] = ["[*]", "{*}", "{key}"];
+
+/// `(start, end)` of the first iteration marker in a path.
+fn marker(p: &str) -> Option<(usize, usize)> {
+    MARKERS.iter().filter_map(|m| p.find(m).map(|i| (i, i + m.len()))).min()
+}
+
+/// Walk `$.a.b[0].c` from `v`.
+fn json_get<'a>(v: &'a Value, path: &str) -> Option<&'a Value> {
+    let mut cur = v;
+    let mut rest = path.strip_prefix('$').unwrap_or(path);
+    while !rest.is_empty() {
+        if let Some(r) = rest.strip_prefix('.') {
+            let end = r.find(['.', '[']).unwrap_or(r.len());
+            cur = cur.get(&r[..end])?;
+            rest = &r[end..];
+        } else {
+            let r = rest.strip_prefix('[')?;
+            let end = r.find(']')?;
+            let idx = &r[..end];
+            cur = if idx == "*" { cur.get(0)? } else { cur.get(idx.parse::<usize>().ok()?)? };
+            rest = &r[end + 1..];
+        }
+    }
+    Some(cur)
+}
+
+fn json_text(v: Option<&Value>) -> String {
+    match v {
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Number(n)) => n.to_string(),
+        Some(Value::Bool(b)) => b.to_string(),
+        _ => String::new(),
+    }
+}
+
+impl JsonTemplate {
+    fn render(t: &str, root: &Value, base: &str, key: Option<&str>, item: &Value) -> String {
+        let mut out = String::new();
+        for (i, part) in t.split(TAG).enumerate() {
+            if i % 2 == 0 {
+                out.push_str(part);
+                continue;
+            }
+            let text = if !base.is_empty() && part == format!("{base}{{key}}") {
+                key.unwrap_or("").to_string()
+            } else if let Some(rest) = MARKERS.iter().find_map(|m| part.strip_prefix(&format!("{base}{m}")).filter(|_| !base.is_empty())) {
+                json_text(json_get(item, &format!("${rest}")))
+            } else {
+                json_text(json_get(root, part))
+            };
+            out.push_str(&text);
+        }
+        out.trim().to_string()
+    }
+
+    fn items(&self, root: &Value, out: &mut Vec<SuggestionDef>) {
+        // The collection being iterated, from the first path that iterates.
+        let base = self
+            .name
+            .split(TAG)
+            .skip(1)
+            .step_by(2)
+            .chain(self.description.iter().flat_map(|d| d.split(TAG).skip(1).step_by(2)))
+            .find_map(|p| marker(p).map(|(s, _)| p[..s].to_string()))
+            .unwrap_or_default();
+        let mut push = |key: Option<&str>, item: &Value| {
+            let name = Self::render(&self.name, root, &base, key, item);
+            if name.is_empty() {
+                return;
+            }
+            let mut s = sug(name);
+            if let Some(d) = &self.description {
+                s = s.desc(Self::render(d, root, &base, key, item));
+            }
+            out.push(s);
+        };
+        if base.is_empty() {
+            push(None, root);
+            return;
+        }
+        match json_get(root, &base) {
+            Some(Value::Array(a)) => a.iter().for_each(|x| push(None, x)),
+            Some(Value::Object(o)) => o.iter().for_each(|(k, x)| push(Some(k), x)),
+            _ => {}
+        }
+    }
+
+    pub fn suggestions(&self, out: &str) -> Vec<SuggestionDef> {
+        let mut v = vec![];
+        if self.lines {
+            for line in out.lines().filter(|l| !l.trim().is_empty()) {
+                if let Ok(root) = serde_json::from_str::<Value>(line) {
+                    self.items(&root, &mut v);
+                }
+            }
+        } else if let Ok(root) = serde_json::from_str::<Value>(out.trim()) {
+            self.items(&root, &mut v);
+        }
+        v
     }
 }
 
@@ -509,24 +657,98 @@ fn arg_from(v: &Value) -> Arg {
         is_command: flag(v, "isCommand"),
         command_names: false,
         suggestions: one_or_many(v.get("suggestions")).into_iter().filter_map(suggestion).collect(),
-        template: templates(v.get("template")),
+        template: templates(v.get("template"))
+            .into_iter()
+            .chain(one_or_many(v.get("generators")).into_iter().flat_map(|g| templates(g.get("template"))))
+            .collect(),
         generators: one_or_many(v.get("generators")).into_iter().filter_map(generator_from).map(Arc::new).collect(),
     }
 }
 
 fn generator_from(v: &Value) -> Option<Generator> {
-    let (argv, shell) = match v.get("script")? {
-        Value::String(s) => (vec![], Some(s.clone())),
-        Value::Array(a) => (a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect(), None),
-        _ => return None,
+    if let Some(id) = v.get("builtin").and_then(Value::as_str) {
+        return crate::specs::gens::builtin(id);
+    }
+    let (source, id) = if let Some(list) = v.get("suggestions") {
+        let list = one_or_many(Some(list)).into_iter().filter_map(suggestion).collect();
+        (GenSource::Static(list), format!("static:{}", fnv(&list_key(v))))
+    } else {
+        let (argv, shell) = match v.get("script")? {
+            Value::String(s) => (vec![], Some(s.clone())),
+            Value::Array(a) => (a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect(), None),
+            _ => return None,
+        };
+        let output = match v.get("json") {
+            Some(j) => Output::Json(JsonTemplate {
+                name: string(j, "name")?,
+                description: string(j, "description"),
+                lines: flag(j, "lines"),
+            }),
+            None => Output::Lines {
+                split_on: string(v, "splitOn").unwrap_or_else(|| "\n".into()),
+                skip: v.get("skipLines").and_then(Value::as_u64).unwrap_or(0) as usize,
+                field: v.get("field").and_then(Value::as_u64).map(|f| f as usize),
+            },
+        };
+        (GenSource::Script { argv, shell, output }, format!("script:{:x}", fnv(&list_key(v))))
     };
-    let id = format!("user:{}", v.get("script")?);
-    let split_on = string(v, "splitOn").unwrap_or_else(|| "\n".into());
     Some(Generator {
         id,
-        source: GenSource::Script { argv, shell, split_on },
+        source,
         trigger: v.get("trigger").and_then(Value::as_str).map(|s| Trigger::Chars(s.into())),
         query_term: string(v, "getQueryTerm"),
         cache_ttl: v.get("cache").and_then(|c| c.get("ttl")).and_then(Value::as_u64).map(Duration::from_millis),
     })
+}
+
+fn list_key(v: &Value) -> String {
+    v.to_string()
+}
+
+/// FNV-1a: stable ids for generators from files.
+fn fnv(s: &str) -> u64 {
+    s.bytes().fold(0xcbf29ce484222325, |h, b| (h ^ b as u64).wrapping_mul(0x100000001b3))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn names(v: Vec<SuggestionDef>) -> Vec<(String, Option<String>)> {
+        v.into_iter().map(|s| (s.meta.names[0].clone(), s.meta.description)).collect()
+    }
+
+    #[test]
+    fn json_templates() {
+        let t = |name: &str, desc: Option<&str>, lines| JsonTemplate { name: name.into(), description: desc.map(Into::into), lines };
+        let out = r#"{"Buckets":[{"Name":"a","Region":"eu"},{"Name":"b","Region":"us"}],"Owner":{"ID":"me"}}"#;
+        let r = t("\u{1}$.Buckets[*].Name\u{1}", Some("in \u{1}$.Buckets[*].Region\u{1} of \u{1}$.Owner.ID\u{1}"), false).suggestions(out);
+        assert_eq!(names(r), [("a".into(), Some("in eu of me".into())), ("b".into(), Some("in us of me".into()))]);
+        // Arrays of strings, object keys/values, JSON lines.
+        assert_eq!(names(t("\u{1}$.ids[*]\u{1}", None, false).suggestions(r#"{"ids":["x",2]}"#)), [("x".into(), None), ("2".into(), None)]);
+        let r = t("\u{1}${key}\u{1}", Some("\u{1}${*}\u{1}"), false).suggestions(r#"{"build":"tsc","test":"jest"}"#);
+        assert_eq!(names(r), [("build".into(), Some("tsc".into())), ("test".into(), Some("jest".into()))]);
+        let r = t("\u{1}$.Names\u{1}", None, true).suggestions("{\"Names\":\"web\"}\n{\"Names\":\"db\"}\n");
+        assert_eq!(names(r), [("web".into(), None), ("db".into(), None)]);
+    }
+
+    #[test]
+    fn line_outputs() {
+        let o = Output::Lines { split_on: "\n".into(), skip: 1, field: Some(0) };
+        assert_eq!(names(o.suggestions("NAME  STATUS\nweb   up\ndb    down\n")), [("web".into(), None), ("db".into(), None)]);
+    }
+
+    #[test]
+    fn generator_kinds_from_json() {
+        let a = arg_from(&serde_json::json!({"name": "x", "generators": [
+            {"template": "folders"},
+            {"builtin": "git:branches"},
+            {"suggestions": ["one", {"name": "two"}]},
+            {"script": ["echo", "hi"], "json": {"name": "\u{1}$\u{1}"}},
+            {"builtin": "no-such-generator"},
+        ]}));
+        assert_eq!(a.template, [Template::Folders]);
+        assert_eq!(a.generators.len(), 3);
+        assert!(matches!(&a.generators[1].source, GenSource::Static(l) if l.len() == 2));
+    }
 }

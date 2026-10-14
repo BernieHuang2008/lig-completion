@@ -1,0 +1,12 @@
+[package]
+name = "figconv"
+version = "0.1.0"
+edition = "2024"
+description = "Dev tool: converts the withfig/autocomplete TypeScript specs into lig's JSON spec format"
+license = "MIT"
+publish = false
+
+[dependencies]
+anyhow = "1"
+rquickjs = "0.14"
+serde_json = { version = "1", features = ["preserve_order"] }

@@ -246,12 +246,21 @@ fn main() -> Result<()> {
         Cmd::Uninstall => uninstall()?,
         Cmd::Specs { cmd: SpecsCmd::List } => {
             let user = store::Store::default().commands();
+            let mut all: std::collections::BTreeMap<String, &str> = std::collections::BTreeMap::new();
+            for c in specs::fig::names() {
+                all.insert(c.to_string(), "withfig");
+            }
             for c in specs::NAMES {
-                println!("{c}{}", if user.contains(*c) { "  (overridden by user spec)" } else { "" });
+                let src = if all.contains_key(*c) { "rust + withfig" } else { "rust" };
+                all.insert(c.to_string(), src);
             }
-            for c in user.iter().filter(|c| !specs::NAMES.contains(&c.as_str())) {
-                println!("{c}  (user)");
+            for c in &user {
+                all.insert(c.clone(), "user");
             }
+            for (c, src) in &all {
+                println!("{c:<32} {src}");
+            }
+            eprintln!("{} commands ({} spec files embedded)", all.len(), specs::fig::count());
         }
         Cmd::Specs { cmd: SpecsCmd::Path } => {
             println!("user specs: {}", store::user_dir().display());
