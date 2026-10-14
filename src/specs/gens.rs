@@ -785,7 +785,7 @@ pub fn npm_registry() -> Generator {
             let Some(v) = http_json(cx, &url, Some("application/vnd.npm.install-v1+json")) else { return vec![] };
             let mut list: Vec<(String, String)> = v["dist-tags"]
                 .as_object()
-                .map(|o| o.iter().map(|(t, ver)| (t.clone(), format!("→ {}", ver.as_str().unwrap_or("")))).collect())
+                .map(|o| o.iter().map(|(t, ver)| (t.clone(), format!("tag for {}", ver.as_str().unwrap_or("")))).collect())
                 .unwrap_or_default();
             let mut versions: Vec<(String, String)> =
                 v["versions"].as_object().map(|o| o.keys().map(|k| (k.clone(), String::new())).collect()).unwrap_or_default();
@@ -886,8 +886,9 @@ pub fn docker_hub() -> Generator {
         // Official images first, then by stars.
         repos.sort_by_key(|r| (r["is_official"] != true, std::cmp::Reverse(r["star_count"].as_u64().unwrap_or(0))));
         let list = repos.into_iter().filter_map(|r| {
-            let official = if r["is_official"] == true { "official · " } else { "" };
-            let desc = format!("{official}★{} · {}", r["star_count"], r["short_description"].as_str().unwrap_or(""));
+            let official = if r["is_official"] == true { "official, " } else { "" };
+            let stars = human_count(r["star_count"].as_u64().unwrap_or(0));
+            let desc = format!("{official}{stars} stars · {}", r["short_description"].as_str().unwrap_or(""));
             Some(sug(r["repo_name"].as_str()?).desc(desc).priority(40.0))
         });
         rank_by_prefix(q, list.collect())

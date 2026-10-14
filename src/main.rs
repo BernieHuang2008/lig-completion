@@ -70,6 +70,8 @@ enum Cmd {
     },
     /// Check the installation
     Doctor,
+    /// List every icon (in the mode you use, next to its Unicode fallback)
+    Icons,
     /// Show a sample popup with your settings (or try others)
     Preview {
         /// Theme: default, catppuccin, nord, dracula, gruvbox, tokyonight, light, terminal
@@ -308,6 +310,17 @@ fn main() -> Result<()> {
         }
         Cmd::Complete { cwd, aliases, line } => complete(&line, cwd, aliases)?,
         Cmd::Doctor => doctor()?,
+        Cmd::Icons => {
+            icons::detect();
+            let style = config::Config::load().ui.icons;
+            let nerd = icons::use_nerd(&style);
+            println!("icons = \"{style}\" → using {}\n", if nerd { "Nerd Font glyphs" } else { "Unicode symbols" });
+            let fallback = icons::legend(false);
+            for (i, (g, c, what)) in icons::legend(nerd).into_iter().enumerate() {
+                let alt = fallback.get(i).filter(|_| nerd).map_or(String::new(), |(ug, _, _)| format!("   (unicode: {ug})"));
+                println!("  \x1b[{c}m{g}\x1b[0m  {what}{alt}");
+            }
+        }
         Cmd::Preview { theme, border, density, icons: icon_style, width, height, all, densities: density_all } => {
             icons::detect();
             let mut ui = config::Config::load().ui;

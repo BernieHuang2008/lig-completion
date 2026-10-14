@@ -201,3 +201,61 @@ mod tests {
         assert!(use_nerd("nerd") && !use_nerd("unicode") && !use_nerd("none"));
     }
 }
+
+/// Every icon, for `lig icons`: `(glyph, color, what)`.
+pub fn legend(nerd: bool) -> Vec<(&'static str, &'static str, String)> {
+    let kinds = [
+        (Kind::Command, "command"),
+        (Kind::Subcommand, "subcommand"),
+        (Kind::Option, "option / flag"),
+        (Kind::Arg, "argument value"),
+        (Kind::Folder, "folder"),
+        (Kind::File, "file (generic)"),
+        (Kind::Shortcut, "shortcut"),
+        (Kind::Info, "loading message"),
+    ];
+    let icons = [
+        (Icon::Alias, "alias"),
+        (Icon::Function, "shell function"),
+        (Icon::Builtin, "shell builtin"),
+        (Icon::Package, "package (apt, snap, brew, pip list)"),
+        (Icon::Npm, "npm package"),
+        (Icon::Rust, "crate"),
+        (Icon::Python, "PyPI package"),
+        (Icon::Docker, "docker image"),
+        (Icon::Container, "container"),
+        (Icon::GitBranch, "git branch"),
+        (Icon::GitTag, "git tag"),
+        (Icon::GitCommit, "git commit"),
+        (Icon::GitRemote, "git remote"),
+        (Icon::GitStash, "git stash"),
+        (Icon::Process, "process"),
+        (Icon::Service, "systemd unit"),
+        (Icon::Host, "ssh host"),
+        (Icon::User, "user"),
+        (Icon::Version, "version"),
+        (Icon::Script, "script / make target"),
+        (Icon::Folder, "directory (zoxide)"),
+        (Icon::Volume, "volume"),
+        (Icon::Network, "network"),
+        (Icon::Cloud, "cloud / kubernetes"),
+        (Icon::Terminal, "terminal session"),
+    ];
+    let mut out = vec![];
+    for (k, what) in kinds {
+        let label = if k == Kind::File { "x" } else { "" };
+        let (g, c) = glyph(k, None, label, nerd);
+        out.push((g, c, what.to_string()));
+    }
+    for (i, what) in icons {
+        let (g, c) = glyph(Kind::Arg, Some(i), "", nerd);
+        out.push((g, c, what.to_string()));
+    }
+    if nerd {
+        for f in ["main.rs", "app.py", "index.js", "app.ts", "data.json", "README.md", "config.toml", "run.sh", "Dockerfile", "photo.png", "backup.tar.gz", "Cargo.lock"] {
+            let (g, c) = glyph(Kind::File, None, f, true);
+            out.push((g, c, format!("file: {f}")));
+        }
+    }
+    out
+}

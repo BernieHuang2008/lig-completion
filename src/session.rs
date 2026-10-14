@@ -449,7 +449,7 @@ impl Session {
         let first_word = !self.line.trim_start().contains(char::is_whitespace);
         if !first_word || self.manual {
             if !self.loading.as_ref().is_some_and(|(l, _, _)| *l == self.line) {
-                self.loading = Some((self.line.clone(), "Loading suggestions…".into(), Instant::now()));
+                self.loading = Some((self.line.clone(), "Loading suggestions".into(), Instant::now()));
             }
         } else {
             self.loading = None;

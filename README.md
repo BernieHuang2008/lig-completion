@@ -181,6 +181,8 @@ Unicode symbols. The icon depends on what the suggestion is:
 * git branches, tags, commits, remotes and stashes
 * containers, processes, services, hosts, users, versions, scripts and make targets
 
+Run `lig icons` to see every icon lig uses, with its name and Unicode fallback.
+
 Spec files can set one with `"icon"`: `package`, `npm`, `rust`, `python`, `docker`,
 `container`, `git-branch`, `git-tag`, `git-commit`, `git-remote`, `git-stash`,
 `process`, `service`, `host`, `user`, `version`, `script`, `folder`, `volume`,

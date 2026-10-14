@@ -373,7 +373,7 @@ impl Engine {
         match self.help.lookup(argv, &cx.env.cwd, &exec_vars(cx.env), cx.run_generators) {
             Lookup::Found(s) => s,
             Lookup::NeedsRun => {
-                cx.wait(format!("Reading `{} --help`…", argv.join(" ")));
+                cx.wait(format!("Reading `{} --help`", argv.join(" ")));
                 None
             }
         }
@@ -550,7 +550,7 @@ impl Engine {
         for (name, value) in cx.env.aliases.iter() {
             let meta = spec::Meta {
                 names: vec![name.clone()],
-                description: Some(format!("alias → {value}")),
+                description: Some(format!("alias for {value}")),
                 priority: Some(56.0),
                 icon: Some(Icon::Alias),
                 ..Default::default()
@@ -729,14 +729,14 @@ fn generator_icon(id: &str) -> Option<Icon> {
 /// The message shown while a generator runs.
 fn loading_label(id: &str) -> String {
     match id {
-        "online:npm" => "Searching npm…",
-        "online:crates" => "Searching crates.io…",
-        "online:dockerhub" => "Searching Docker Hub…",
-        "online:pypi" => "Fetching versions from PyPI…",
-        "online:pypi-top" => "Fetching popular PyPI packages…",
-        "online:snap" => "Searching the Snap Store…",
-        "apt:available" => "Searching apt packages…",
-        _ => "Loading suggestions…",
+        "online:npm" => "Searching npm",
+        "online:crates" => "Searching crates.io",
+        "online:dockerhub" => "Searching Docker Hub",
+        "online:pypi" => "Fetching versions from PyPI",
+        "online:pypi-top" => "Fetching popular PyPI packages",
+        "online:snap" => "Searching the Snap Store",
+        "apt:available" => "Searching apt packages",
+        _ => "Loading suggestions",
     }
     .to_string()
 }
@@ -961,7 +961,7 @@ mod tests {
         let (mut e, env) = engine();
         let c = e.complete("tool build ", &env, false, false);
         assert!(c.incomplete && c.items.is_empty());
-        assert_eq!(c.loading.as_deref(), Some("Loading suggestions…"));
+        assert_eq!(c.loading.as_deref(), Some("Loading suggestions"));
         assert_eq!(e.complete("tool build ", &env, true, false).items.len(), 2);
         let c = e.complete("tool build a", &env, false, false);
         assert!(!c.incomplete);
