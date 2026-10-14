@@ -135,6 +135,38 @@ shape and titles keep working.
 LIG_DISABLE=1 zsh
 ```
 
+## Look
+
+The popup is a rounded box by default. When the list scrolls, the
+scrollbar runs along its right edge and the bottom edge shows the position (`3/27`).
+Change it in `[ui]`:
+
+* `border`: `rounded`, `square` or `none`
+* `density`:
+  * `compact`: tight padding, narrow descriptions, most rows on screen
+  * `normal`: the default
+  * `relaxed`: wide padding and gaps, and a blank row above and below the list
+* `theme`: `default`, `catppuccin`, `nord`, `dracula`, `gruvbox`, `tokyonight`,
+  `light`, or `terminal` (follows your terminal's color scheme)
+* `[ui.colors]`: override any single color of the theme
+* `width`: `"auto"` fits the content (between `min_width` and `max_width`), or set a
+  number of columns (`60`) or a share of the terminal (`"50%"`). With a fixed width the
+  description column takes the extra space. When space is short the description
+  shrinks first and is dropped before the name gets cut.
+* `height`: the most suggestions listed at once (`8`), or a share of the terminal
+  height (`"30%"`). The list scrolls beyond that. `min_height` keeps the popup at least
+  that tall even with fewer suggestions.
+
+Try them without editing anything:
+
+```bash
+lig preview                          # your current settings
+lig preview --theme nord --density compact --border square
+lig preview --all                    # every theme
+lig preview --densities              # compact / normal / relaxed side by side
+lig preview --width 60 --height 5    # try sizes ("50%" works too)
+```
+
 ## Icons
 
 With `icons = "auto"` (the default), lig uses [Nerd Font](https://www.nerdfonts.com)
@@ -182,17 +214,21 @@ works. `Ctrl+Space` is taken from zsh's `set-mark-command` while you edit a comm
 
 ```toml
 [ui]
-max_rows = 8
-max_width = 90
+width = "auto"           # "auto" (fit content), columns (60), or "50%" of the terminal
+min_width = 30           # bounds for width = "auto"
+max_width = 100          #   (columns or "80%")
+height = 8               # suggestion rows at most, or "30%" of the terminal height
+min_height = 0           # keep at least this many rows (padded) for a steadier popup
 descriptions = true
 icons = "auto"           # "nerd", "unicode" or "none"
-bg = "236"               # 0-255 palette index or "#rrggbb"
-fg = "252"
-selected_bg = "25"
-selected_fg = "231"
-description_fg = "244"
-match_fg = "117"
-scrollbar_fg = "240"
+border = "rounded"       # "square" or "none"
+density = "normal"       # "compact", "normal" or "relaxed"
+theme = "default"        # catppuccin, nord, dracula, gruvbox, tokyonight, light, terminal
+
+[ui.colors]              # optional: override any theme color
+# bg = "#1e1e2e"         # 0-255 palette index, "#rrggbb", or "default" (terminal's own)
+# fg, selected_bg, selected_fg, description_fg, selected_description_fg,
+# match_fg, border_fg, border_bg, scrollbar_fg, scrollbar_thumb, info_fg
 
 [keys]
 accept = ["enter"]

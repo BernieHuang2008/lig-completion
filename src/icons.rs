@@ -13,18 +13,29 @@ const YES: u8 = 1;
 const NO: u8 = 2;
 static NERD: AtomicU8 = AtomicU8::new(UNKNOWN);
 
+fn terminal_bundles_nerd_font() -> bool {
+    let term = std::env::var("TERM_PROGRAM").unwrap_or_default().to_lowercase();
+    term.contains("ghostty") || term.contains("wezterm") || std::env::var_os("GHOSTTY_RESOURCES_DIR").is_some()
+}
+
+fn nerd_font_installed() -> bool {
+    let out = std::process::Command::new("fc-list").args([":", "family"]).output();
+    out.is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains("Nerd Font"))
+}
+
 /// Start detecting Nerd Font support (call once at startup).
 pub fn detect_in_background() {
-    let term = std::env::var("TERM_PROGRAM").unwrap_or_default().to_lowercase();
-    if term.contains("ghostty") || term.contains("wezterm") || std::env::var_os("GHOSTTY_RESOURCES_DIR").is_some() {
+    if terminal_bundles_nerd_font() {
         NERD.store(YES, Ordering::Relaxed);
         return;
     }
-    std::thread::spawn(|| {
-        let out = std::process::Command::new("fc-list").args([":", "family"]).output();
-        let found = out.is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains("Nerd Font"));
-        NERD.store(if found { YES } else { NO }, Ordering::Relaxed);
-    });
+    std::thread::spawn(|| NERD.store(if nerd_font_installed() { YES } else { NO }, Ordering::Relaxed));
+}
+
+/// Detect Nerd Font support now.
+pub fn detect() {
+    let yes = terminal_bundles_nerd_font() || nerd_font_installed();
+    NERD.store(if yes { YES } else { NO }, Ordering::Relaxed);
 }
 
 /// Which glyph set to use for the configured `icons` style.

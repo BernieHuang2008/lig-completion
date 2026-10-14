@@ -3,6 +3,7 @@ mod engine;
 mod exec;
 mod help;
 mod icons;
+mod theme;
 mod keys;
 mod osc;
 mod parser;
@@ -69,6 +70,33 @@ enum Cmd {
     },
     /// Check the installation
     Doctor,
+    /// Show a sample popup with your settings (or try others)
+    Preview {
+        /// Theme: default, catppuccin, nord, dracula, gruvbox, tokyonight, light, terminal
+        #[arg(long)]
+        theme: Option<String>,
+        /// rounded, square or none
+        #[arg(long)]
+        border: Option<String>,
+        /// compact, normal or relaxed
+        #[arg(long)]
+        density: Option<String>,
+        /// auto, nerd, unicode or none
+        #[arg(long)]
+        icons: Option<String>,
+        /// auto, columns (60) or percent ("50%")
+        #[arg(long)]
+        width: Option<String>,
+        /// rows (8) or percent ("30%")
+        #[arg(long)]
+        height: Option<String>,
+        /// Show every theme
+        #[arg(long)]
+        all: bool,
+        /// Show every density
+        #[arg(long)]
+        densities: bool,
+    },
     /// Print the default configuration (save it to `lig config path`)
     Config {
         #[arg(value_enum, default_value_t = ConfigCmd::Default)]
@@ -280,6 +308,38 @@ fn main() -> Result<()> {
         }
         Cmd::Complete { cwd, aliases, line } => complete(&line, cwd, aliases)?,
         Cmd::Doctor => doctor()?,
+        Cmd::Preview { theme, border, density, icons: icon_style, width, height, all, densities: density_all } => {
+            icons::detect();
+            let mut ui = config::Config::load().ui;
+            ui.theme = theme.unwrap_or(ui.theme);
+            ui.border = border.unwrap_or(ui.border);
+            ui.density = density.unwrap_or(ui.density);
+            ui.icons = icon_style.unwrap_or(ui.icons);
+            if let Some(w) = width {
+                ui.width = config::Size::Text(w);
+            }
+            if let Some(h) = height {
+                ui.height = config::Size::Text(h);
+            }
+            let cols = unsafe {
+                let mut ws: libc::winsize = std::mem::zeroed();
+                if libc::ioctl(1, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0 { ws.ws_col } else { 100 }
+            };
+            if density_all {
+                for d in ["compact", "normal", "relaxed"] {
+                    ui.density = d.into();
+                    println!("\x1b[1m{d}\x1b[0m");
+                    println!("{}", popup::preview(&ui, cols));
+                }
+                return Ok(());
+            }
+            let names: Vec<String> = if all { theme::NAMES.iter().map(|s| s.to_string()).collect() } else { vec![ui.theme.clone()] };
+            for name in names {
+                ui.theme = name.clone();
+                println!("\x1b[1m{name}\x1b[0m  (border = {}, density = {}, icons = {})", ui.border, ui.density, ui.icons);
+                println!("{}", popup::preview(&ui, cols));
+            }
+        }
         Cmd::Config { what: ConfigCmd::Path } => println!("{}", config::config_path().display()),
         Cmd::Config { what: ConfigCmd::Default } => {
             print!("{}", toml::to_string_pretty(&config::Config::default())?);

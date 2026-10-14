@@ -24,23 +24,93 @@ pub struct Config {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Ui {
-    /// Maximum number of rows in the popup.
-    pub max_rows: u16,
-    /// Maximum width of the popup, in columns.
-    pub max_width: u16,
+    /// Popup width: `"auto"` (fit the content), columns (`60`), or a
+    /// percentage of the terminal (`"50%"`).
+    pub width: Size,
+    /// Narrowest popup with `width = "auto"`.
+    pub min_width: u16,
+    /// Widest popup with `width = "auto"`: columns or `"80%"`.
+    pub max_width: Size,
+    /// How many suggestions are listed at most: rows (`8`), or a percentage
+    /// of the terminal height (`"30%"`, border included).
+    #[serde(alias = "max_rows")]
+    pub height: Size,
+    /// Keep at least this many rows (padded), so the popup's size is steadier.
+    pub min_height: u16,
     /// Show descriptions next to suggestions.
     pub descriptions: bool,
     /// `"auto"` (Nerd Font glyphs when the terminal/fonts have them),
     /// `"nerd"`, `"unicode"` or `"none"`.
     pub icons: String,
-    /// Colors: 0-255 palette index or `"#rrggbb"`.
-    pub bg: String,
-    pub fg: String,
-    pub selected_bg: String,
-    pub selected_fg: String,
-    pub description_fg: String,
-    pub match_fg: String,
-    pub scrollbar_fg: String,
+    /// `"rounded"`, `"square"` or `"none"`.
+    pub border: String,
+    /// `"compact"`, `"normal"` or `"relaxed"` (most space).
+    pub density: String,
+    /// `default`, `catppuccin`, `nord`, `dracula`, `gruvbox`, `tokyonight`,
+    /// `light` or `terminal` (your terminal's own colors).
+    pub theme: String,
+    /// Override any color of the theme.
+    pub colors: Colors,
+}
+
+/// A size: a number of cells, a percentage of the terminal (`"50%"`), or `"auto"`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Size {
+    Cells(u16),
+    Text(String),
+}
+
+impl Size {
+    /// The size in cells for a terminal dimension of `total`; `None` for
+    /// `"auto"` (or anything unrecognised).
+    pub fn resolve(&self, total: u16) -> Option<u16> {
+        match self {
+            Size::Cells(n) => Some(*n),
+            Size::Text(t) => {
+                let t = t.trim();
+                match t.strip_suffix('%') {
+                    Some(p) => p.trim().parse::<f32>().ok().map(|p| (f32::from(total) * p / 100.0).round() as u16),
+                    None => t.parse().ok(),
+                }
+            }
+        }
+    }
+
+    pub fn is_percent(&self) -> bool {
+        matches!(self, Size::Text(t) if t.trim().ends_with('%'))
+    }
+}
+
+/// Colors: a 0-255 palette index, `"#rrggbb"`, or `"default"` (the
+/// terminal's own). Unset ones come from the theme.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Colors {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected_bg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected_fg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description_fg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected_description_fg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_fg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub border_fg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub border_bg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scrollbar_fg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scrollbar_thumb: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub info_fg: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -91,17 +161,17 @@ pub struct Behavior {
 impl Default for Ui {
     fn default() -> Self {
         Ui {
-            max_rows: 8,
-            max_width: 90,
+            width: Size::Text("auto".into()),
+            min_width: 30,
+            max_width: Size::Cells(100),
+            height: Size::Cells(8),
+            min_height: 0,
             descriptions: true,
             icons: "auto".into(),
-            bg: "236".into(),
-            fg: "252".into(),
-            selected_bg: "25".into(),
-            selected_fg: "231".into(),
-            description_fg: "244".into(),
-            match_fg: "117".into(),
-            scrollbar_fg: "240".into(),
+            border: "rounded".into(),
+            density: "normal".into(),
+            theme: "default".into(),
+            colors: Colors::default(),
         }
     }
 }
@@ -166,6 +236,6 @@ pub fn sgr_color(spec: &str, base: u8) -> String {
             }
     match s.parse::<u8>() {
         Ok(n) => format!("{base};5;{n}"),
-        Err(_) => format!("{}", base + 1), // default color
+        Err(_) => format!("{}", base + 1), // "default": the terminal's color
     }
 }

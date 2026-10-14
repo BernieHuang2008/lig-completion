@@ -624,7 +624,7 @@ impl Session {
             _ => self.erase(&mut w),
         }
         if let Some(l) = layout {
-            let h = l.rect.height as usize;
+            let h = l.visible();
             if self.selected < self.scroll {
                 self.scroll = self.selected;
             } else if self.selected >= self.scroll + h {
