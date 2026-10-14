@@ -246,6 +246,8 @@ fn parse_option(spec: &str, desc: &str) -> Option<Opt> {
     let mut eq = false;
     for tok in spec.split(|c: char| c.is_whitespace() || c == ',').filter(|t| !t.is_empty()) {
         if tok.starts_with('-') {
+            // `--verbose...` (clap: repeatable)
+            let tok = tok.trim_end_matches("...");
             let (name, rest) = match tok.find(['=', '[']) {
                 Some(i) => (&tok[..i], &tok[i..]),
                 None => (tok, ""),

@@ -42,6 +42,8 @@ pub struct Completion {
 pub struct ShellEnv {
     pub cwd: PathBuf,
     pub path: Option<String>,
+    pub aliases: Arc<HashMap<String, String>>,
+    pub functions: Arc<Vec<String>>,
 }
 
 struct Cand {
@@ -55,6 +57,8 @@ struct Cand {
     query: String,
     delete: usize,
     suffix: String,
+    /// Already matched by the generator itself; keep as is.
+    unfiltered: bool,
 }
 
 struct Cx<'a> {
@@ -96,6 +100,7 @@ fn cand(m: &spec::Meta, kind: Kind, suffix: &str) -> Cand {
         query: String::new(),
         delete: 0,
         suffix: suffix.to_string(),
+        unfiltered: false,
     }
 }
 
@@ -132,7 +137,8 @@ impl Engine {
     /// and `--help` results are used) and `incomplete` tells whether running
     /// them could add more.
     pub fn complete(&mut self, line: &str, env: &ShellEnv, run_generators: bool) -> Completion {
-        let cl = parser::parse(line);
+        let mut cl = parser::parse(line);
+        expand_aliases(&mut cl, env);
         let mut cx = Cx { tokens: cl.values(), cl: &cl, env, cands: vec![], run_generators, incomplete: false };
 
         if cl.current.redirect {
@@ -279,7 +285,12 @@ impl Engine {
                 self.arg_suggestions(a, cx, &q, d);
             }
         }
-        if cx.cands.is_empty() && !cx.incomplete && arg.is_none_or(|a| a.is_optional) {
+        // Options are offered when nothing else is, and next to plain file
+        // arguments (`java ` → `-jar`, `-cp`, … then files).
+        let files_only = arg.as_ref().is_some_and(|a| {
+            a.suggestions.is_empty() && a.generators.is_empty() && !a.is_command && !a.command_names && !a.template.is_empty()
+        });
+        if !cx.incomplete && (files_only || (cx.cands.is_empty() && arg.is_none_or(|a| a.is_optional))) {
             self.options(&node, &persistent, &used, cx);
         }
     }
@@ -412,6 +423,9 @@ impl Engine {
         };
         for d in &defs {
             cx.push_def(d, Kind::Arg, &query, delete);
+            if !g.filter {
+                cx.cands.last_mut().unwrap().unfiltered = true;
+            }
         }
     }
 
@@ -488,6 +502,30 @@ impl Engine {
             })
             .clone();
         let (q, d) = cx.default_query();
+        for (name, value) in cx.env.aliases.iter() {
+            let meta = spec::Meta {
+                names: vec![name.clone()],
+                description: Some(format!("alias → {value}")),
+                priority: Some(56.0),
+                ..Default::default()
+            };
+            let mut c = cand(&meta, Kind::Command, " ");
+            c.query = q.clone();
+            c.delete = d;
+            cx.cands.push(c);
+        }
+        for name in cx.env.functions.iter() {
+            let meta = spec::Meta {
+                names: vec![name.clone()],
+                description: Some("shell function".into()),
+                priority: Some(54.0),
+                ..Default::default()
+            };
+            let mut c = cand(&meta, Kind::Command, " ");
+            c.query = q.clone();
+            c.delete = d;
+            cx.cands.push(c);
+        }
         for name in path.iter() {
             let meta = spec::Meta {
                 names: vec![name.clone()],
@@ -536,7 +574,11 @@ impl Engine {
             }
             // Rank by the best-matching name, but insert the first name (in
             // spec order) that matches as a prefix: `b` → `build`, not `b`.
-            let tiers: Vec<Option<u8>> = c.names.iter().map(|n| match_tier(n, &c.query, self.cfg.fuzzy)).collect();
+            let tiers: Vec<Option<u8>> = if c.unfiltered {
+                vec![Some(1); c.names.len()]
+            } else {
+                c.names.iter().map(|n| match_tier(n, &c.query, self.cfg.fuzzy)).collect()
+            };
             let Some(tier) = tiers.iter().flatten().min().copied() else { continue };
             let pick = if tier <= 1 {
                 tiers.iter().position(|t| matches!(t, Some(0 | 1)))
@@ -554,10 +596,18 @@ impl Engine {
         if scored.iter().any(|s| s.0 < 2) {
             scored.retain(|s| s.0 < 2);
         }
+        // Subcommands and values first, then options, then files.
+        let files_first = self.cfg.files_first;
+        let kind_tier = |idx: usize| match cx.cands[idx].kind {
+            Kind::Option => 1,
+            Kind::File | Kind::Folder if !files_first => 2,
+            _ => 0,
+        };
         scored.sort_by(|a, b| {
             let bucket = |t: u8| (t == 2) as u8;
             bucket(a.0)
                 .cmp(&bucket(b.0))
+                .then(kind_tier(a.2).cmp(&kind_tier(b.2)))
                 .then(b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal))
                 .then(a.0.cmp(&b.0))
                 .then(a.2.cmp(&b.2))
@@ -589,6 +639,22 @@ impl Engine {
             out.clear();
         }
         out
+    }
+}
+
+/// Replace a leading alias (`gco` → `git checkout`), as zsh would.
+fn expand_aliases(cl: &mut CommandLine, env: &ShellEnv) {
+    let mut seen = HashSet::new();
+    while let Some(first) = cl.tokens.first() {
+        let Some(value) = env.aliases.get(&first.value) else { break };
+        if !seen.insert(first.value.clone()) {
+            break;
+        }
+        let expanded = parser::parse(&format!("{value} ")).tokens;
+        if expanded.is_empty() {
+            break;
+        }
+        cl.tokens.splice(0..1, expanded);
     }
 }
 
@@ -731,6 +797,7 @@ mod tests {
                 cmd("commit", "").opt(opt("-m", "").insert("-m '{cursor}'").arg(arg("msg"))),
                 cmd("hidden-cmd", "").hidden(),
                 cmd("run", "").arg(arg("cmd").command()),
+                cmd("edit", "").opt(opt("--force", "")).arg(arg("file").files()),
             ])
     }
 
@@ -747,7 +814,7 @@ mod tests {
         let cfg = Behavior { help_parsing: false, ..Behavior::default() };
         let mut e = Engine::new(Store::with_dirs(vec![dir.join("specs")]), cfg);
         e.insert_spec(tool());
-        (e, ShellEnv { cwd: dir.join("work"), path: None })
+        (e, ShellEnv { cwd: dir.join("work"), ..Default::default() })
     }
 
     fn labels(e: &mut Engine, env: &ShellEnv, line: &str) -> Vec<(String, String, usize)> {
@@ -833,6 +900,32 @@ mod tests {
         let r = labels(&mut e, &env, "git rebase --");
         assert!(r.iter().any(|x| x.0 == "--autosquash"));
         assert!(r.iter().any(|x| x.0 == "--keep-base"), "{r:?}");
+    }
+
+    #[test]
+    fn aliases_functions_and_ranking() {
+        let (mut e, mut env) = engine();
+        env.aliases = Arc::new(HashMap::from([
+            ("t".to_string(), "tool -v".to_string()),
+            ("loop".to_string(), "loop x".to_string()),
+        ]));
+        env.functions = Arc::new(vec!["toolfn".to_string()]);
+        // An alias expands to its command (and its flags count as used).
+        let r = labels(&mut e, &env, "t b");
+        assert_eq!(r[0].0, "build");
+        assert!(!labels(&mut e, &env, "t build -").iter().any(|x| x.0 == "-v, --verbose"));
+        // Self-referencing aliases don't loop.
+        assert!(labels(&mut e, &env, "loop ").is_empty());
+        // Aliases and functions are command names.
+        let r = labels(&mut e, &env, "t");
+        assert!(r.iter().any(|x| x.0 == "t") && r.iter().any(|x| x.0 == "toolfn"));
+        // Options come before files for a plain file argument.
+        let r = labels(&mut e, &env, "mytool hello ");
+        assert_eq!(r[0].0, "world");
+        let r = labels(&mut e, &env, "tool edit ");
+        let opt = r.iter().position(|x| x.0 == "--force").unwrap();
+        let file = r.iter().position(|x| x.0 == "file.txt").unwrap();
+        assert!(opt < file, "{r:?}");
     }
 
     #[test]

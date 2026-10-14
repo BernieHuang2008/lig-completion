@@ -661,6 +661,47 @@ pub fn builtin(id: &str) -> Option<Generator> {
         "cargo:packages" => cargo_packages(),
         "cargo:installed" => cargo_installed(),
         "cargo:features" => cargo_features(),
+        "zoxide:dirs" => zoxide_dirs(),
         _ => return None,
     })
+}
+
+fn home_abbrev(p: &str) -> String {
+    match dirs::home_dir().map(|h| h.to_string_lossy().into_owned()) {
+        Some(h) if p == h => "~".into(),
+        Some(h) => p.strip_prefix(&format!("{h}/")).map_or_else(|| p.to_string(), |r| format!("~/{r}")),
+        None => p.to_string(),
+    }
+}
+
+/// Directories from zoxide (or rupa/z's `~/.z`), ranked and matched by the
+/// tool itself using every keyword typed so far.
+pub fn zoxide_dirs() -> Generator {
+    gen_fn("zoxide:dirs", |cx| {
+        let words: Vec<&str> = cx.tokens[1..].iter().map(String::as_str).filter(|t| !t.is_empty() && !t.starts_with('-')).collect();
+        let mut argv = vec!["zoxide", "query", "--list", "--"];
+        argv.extend(&words);
+        let mut paths = cx.lines(&argv);
+        if paths.is_empty() && cx.run(&["zoxide", "--version"]).is_none() {
+            // rupa/z: `path|rank|time` lines.
+            let data = std::env::var("_Z_DATA").map(PathBuf::from).unwrap_or_else(|_| dirs::home_dir().unwrap_or_default().join(".z"));
+            let mut entries: Vec<(f64, String)> = std::fs::read_to_string(data)
+                .unwrap_or_default()
+                .lines()
+                .filter_map(|l| {
+                    let mut p = l.split('|');
+                    let path = p.next()?.to_string();
+                    let rank = p.next()?.parse().ok()?;
+                    let lower = path.to_lowercase();
+                    words.iter().all(|w| lower.contains(&w.to_lowercase())).then_some((rank, path))
+                })
+                .collect();
+            entries.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+            paths = entries.into_iter().map(|e| e.1).collect();
+        }
+        paths.iter().take(40).map(|p| sug(home_abbrev(p)).desc("frecent directory")).collect()
+    })
+    .trigger(Trigger::Change)
+    .unfiltered()
+    .ttl(10_000)
 }

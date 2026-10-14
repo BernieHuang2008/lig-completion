@@ -23,7 +23,7 @@ pub const NAMES: &[&str] = &[
     "git", "docker", "cargo", "rustup", "npm", "npx", "pnpm", "yarn", "bun", "pip", "pip3", "systemctl", "journalctl",
     "apt", "apt-get", "kill", "killall", "pkill", "pgrep", "ssh", "scp", "make", "tmux", "kubectl", "sudo", "doas",
     "cd", "pushd", "time", "nohup", "exec", "command", "builtin", "nice", "ionice", "timeout", "watch", "xargs", "env",
-    "strace", "flatpak-spawn", "which", "whereis", "type", "man", "tldr",
+    "strace", "flatpak-spawn", "which", "whereis", "type", "man", "tldr", "z", "zi",
 ];
 
 pub fn builtin(name: &str) -> Option<Subcommand> {
@@ -48,6 +48,7 @@ pub fn builtin(name: &str) -> Option<Subcommand> {
         "kubectl" => system::kubectl(),
         "sudo" | "doas" => system::sudo(name),
         "cd" | "pushd" => system::cd(name),
+        "z" | "zi" => system::z(name),
         _ => return system::wrappers().into_iter().find(|s| s.meta.names[0] == name),
     })
 }

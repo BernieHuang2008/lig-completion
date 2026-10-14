@@ -60,6 +60,9 @@ enum Cmd {
         /// Working directory to complete in
         #[arg(long)]
         cwd: Option<PathBuf>,
+        /// Pretend this shell alias exists (`--alias gco='git checkout'`)
+        #[arg(long = "alias", value_name = "NAME=VALUE")]
+        aliases: Vec<String>,
         /// Text left of the cursor, e.g. "git checkout "
         line: String,
     },
@@ -205,7 +208,7 @@ fn doctor() -> Result<()> {
         println!("[ok  ] config: defaults ({} not present)", cfg.display());
     }
     let mut e = engine::Engine::new(store::Store::default(), config::Config::load().behavior);
-    let env = engine::ShellEnv { cwd: std::env::current_dir()?, path: std::env::var("PATH").ok() };
+    let env = engine::ShellEnv { cwd: std::env::current_dir()?, path: std::env::var("PATH").ok(), ..Default::default() };
     let n = e.complete("git ", &env, false).items.len();
     println!("[{}] engine: `git ` → {n} suggestions", ok(n > 0));
     let n = e.complete("ls --", &env, true).items.len();
@@ -213,13 +216,13 @@ fn doctor() -> Result<()> {
     Ok(())
 }
 
-fn complete(line: &str, cwd: Option<PathBuf>) -> Result<()> {
+fn complete(line: &str, cwd: Option<PathBuf>, aliases: Vec<String>) -> Result<()> {
     let cwd = match cwd {
         Some(c) => c,
         None => std::env::current_dir()?,
     };
     let mut e = engine::Engine::new(store::Store::default(), config::Config::load().behavior);
-    let env = engine::ShellEnv { cwd, path: std::env::var("PATH").ok() };
+    let env = engine::ShellEnv { cwd, path: std::env::var("PATH").ok(), aliases: std::sync::Arc::new(aliases.into_iter().filter_map(|a| a.split_once('=').map(|(k, v)| (k.to_string(), v.to_string()))).collect()), ..Default::default() };
     let t = std::time::Instant::now();
     let c = e.complete(line, &env, true);
     let elapsed = t.elapsed();
@@ -273,7 +276,7 @@ fn main() -> Result<()> {
             }
             println!("lig: cleared {}", dir.display());
         }
-        Cmd::Complete { cwd, line } => complete(&line, cwd)?,
+        Cmd::Complete { cwd, aliases, line } => complete(&line, cwd, aliases)?,
         Cmd::Doctor => doctor()?,
         Cmd::Config { what: ConfigCmd::Path } => println!("{}", config::config_path().display()),
         Cmd::Config { what: ConfigCmd::Default } => {

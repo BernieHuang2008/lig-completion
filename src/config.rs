@@ -58,6 +58,8 @@ pub struct Behavior {
     pub fuzzy: bool,
     /// Pressing Enter while the popup is open accepts instead of running.
     pub enter_accepts: bool,
+    /// List files before options and subcommands.
+    pub files_first: bool,
     /// Show suggestions right after a space (empty current token).
     pub show_on_empty_token: bool,
     /// Suggest command names for the first word.
@@ -111,6 +113,7 @@ impl Default for Behavior {
         Behavior {
             fuzzy: true,
             enter_accepts: false,
+            files_first: false,
             show_on_empty_token: true,
             complete_commands: true,
             generator_timeout_ms: 3000,

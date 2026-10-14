@@ -35,6 +35,17 @@ Everything runs locally. There is no daemon, no account and no telemetry.
    (`foo bar --help`).
 4. **Your own specs** in `~/.config/lig/specs/` (JSON or TOML) override all of the above.
 
+Your shell's **aliases and functions** are known too: the zsh hook reports them when
+they change. Typing `gco ` completes like `git checkout `, and `ls -` gives `lsd`'s
+options if `ls` is aliased to `lsd`. Both appear in the command-name suggestions.
+zoxide's `z`/`zi` complete with zoxide's own frecent directory ranking (rupa/z's `~/.z`
+also works).
+
+Order in the popup: subcommands and values first (branches, scripts, units…), then
+options, then files. When an argument is just a file path, the options are listed too,
+so `java ` offers `-jar`, `-cp`… before files. Type a letter and only matching files
+remain. Set `files_first = true` to put files first.
+
 `lig specs list` shows every command with a spec and where it comes from.
 
 ## How it works
@@ -143,6 +154,7 @@ dismiss = ["esc"]
 [behavior]
 fuzzy = true                 # subsequence matching when nothing matches by prefix
 enter_accepts = false
+files_first = false          # list files before options/subcommands
 show_on_empty_token = true   # suggest right after a space
 complete_commands = true     # suggest command names for the first word
 generator_timeout_ms = 3000
@@ -205,6 +217,7 @@ pub fn spec() -> Subcommand {
 
 ```bash
 lig complete "git checkout "     # what the engine suggests
+lig complete --alias "gco=git checkout" "gco "
 lig specs clear-cache            # forget cached --help results
 LIG_LOG=1 zsh                    # log errors to ~/.local/state/lig/lig.log
 ```

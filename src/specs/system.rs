@@ -347,6 +347,12 @@ pub fn cd(name: &str) -> Subcommand {
     cmd(name, "Change the working directory").arg(arg("dir").optional().folders().suggest_desc(&[("-", "Previous directory")]))
 }
 
+/// zoxide's `z` / `zi` (shell functions), also rupa/z.
+pub fn z(name: &str) -> Subcommand {
+    let desc = if name == "zi" { "Pick a frecent directory interactively" } else { "Jump to a frecent directory" };
+    cmd(name, desc).arg(arg("keywords").optional().variadic().folders().generator(gens::zoxide_dirs()))
+}
+
 /// `which`, `man`, `type`, …: arguments are command names.
 pub fn command_lookup(name: &str, desc: &str) -> Subcommand {
     cmd(name, desc).arg(arg("command").variadic().command_names())

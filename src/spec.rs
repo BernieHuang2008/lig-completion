@@ -208,6 +208,8 @@ pub struct Generator {
     /// Match only the text after the last of these characters (`/`, `,`, `:`).
     pub query_term: Option<String>,
     pub cache_ttl: Option<Duration>,
+    /// Match results against what's typed (off when the command already did).
+    pub filter: bool,
 }
 
 impl std::fmt::Debug for Generator {
@@ -389,7 +391,7 @@ pub fn sug(name: impl Into<String>) -> SuggestionDef {
 
 /// A generator backed by a Rust function.
 pub fn gen_fn(id: &str, f: impl Fn(&GenCtx) -> Vec<SuggestionDef> + Send + Sync + 'static) -> Generator {
-    Generator { id: id.into(), source: GenSource::Rust(Box::new(f)), trigger: None, query_term: None, cache_ttl: None }
+    Generator { id: id.into(), source: GenSource::Rust(Box::new(f)), trigger: None, query_term: None, cache_ttl: None, filter: true }
 }
 
 impl SuggestionDef {
@@ -539,6 +541,11 @@ impl Generator {
     }
     pub fn query_after(mut self, chars: &str) -> Self {
         self.query_term = Some(chars.into());
+        self
+    }
+    /// The generator matches against the current token itself.
+    pub fn unfiltered(mut self) -> Self {
+        self.filter = false;
         self
     }
     pub fn ttl(mut self, ms: u64) -> Self {
@@ -698,6 +705,7 @@ fn generator_from(v: &Value) -> Option<Generator> {
         trigger: v.get("trigger").and_then(Value::as_str).map(|s| Trigger::Chars(s.into())),
         query_term: string(v, "getQueryTerm"),
         cache_ttl: v.get("cache").and_then(|c| c.get("ttl")).and_then(Value::as_u64).map(Duration::from_millis),
+        filter: true,
     })
 }
 

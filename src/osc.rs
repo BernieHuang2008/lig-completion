@@ -6,6 +6,8 @@
 //!   `F`                    line finished (command about to run)
 //!   `P;<PATH>`             the shell's PATH
 //!   `C;<cwd>`              the shell's working directory
+//!   `A;<k=v>\x1e<k=v>…`    the shell's aliases
+//!   `N;<name>\x1e<name>…`  the shell's function names
 
 const PREFIX: &[u8] = b"\x1b]6973;";
 const MAX_PENDING: usize = 1 << 20;
@@ -17,6 +19,8 @@ pub enum Msg {
     Finish,
     Path(String),
     Cwd(String),
+    Aliases(Vec<(String, String)>),
+    Functions(Vec<String>),
 }
 
 #[derive(Default)]
@@ -83,6 +87,10 @@ fn parse(payload: &[u8]) -> Option<Msg> {
         "F" => Some(Msg::Finish),
         "P" => Some(Msg::Path(rest.to_string())),
         "C" => Some(Msg::Cwd(rest.to_string())),
+        "A" => Some(Msg::Aliases(
+            rest.split('\x1e').filter_map(|p| p.split_once('=')).map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+        )),
+        "N" => Some(Msg::Functions(rest.split('\x1e').filter(|f| !f.is_empty()).map(str::to_string).collect())),
         _ => None,
     }
 }
@@ -110,6 +118,20 @@ mod tests {
         }
         assert_eq!(out, b"xy");
         assert_eq!(msgs, vec![Msg::Buffer { cursor: 1, text: "a;b".into() }, Msg::Finish]);
+    }
+
+    #[test]
+    fn aliases_and_functions() {
+        let mut f = OscFilter::default();
+        let (mut out, mut msgs) = (vec![], vec![]);
+        f.feed("\x1b]6973;A;gco=git checkout\x1ell=ls -l\x07\x1b]6973;N;z\x1ezi\x07".as_bytes(), &mut out, &mut msgs);
+        assert_eq!(
+            msgs,
+            vec![
+                Msg::Aliases(vec![("gco".into(), "git checkout".into()), ("ll".into(), "ls -l".into())]),
+                Msg::Functions(vec!["z".into(), "zi".into()]),
+            ]
+        );
     }
 
     #[test]

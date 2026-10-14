@@ -396,6 +396,8 @@ impl Session {
             }
             Msg::Path(p) => self.env.path = Some(p),
             Msg::Cwd(c) => self.env.cwd = PathBuf::from(c),
+            Msg::Aliases(a) => self.env.aliases = std::sync::Arc::new(a.into_iter().collect()),
+            Msg::Functions(f) => self.env.functions = std::sync::Arc::new(f),
         }
         self.mark_dirty();
     }

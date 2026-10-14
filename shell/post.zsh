@@ -47,9 +47,26 @@ if [[ -o interactive && -z "$LIG_DISABLE" && -n "$LIG_TTY" && "$LIG_TTY" == "$TT
     _lig_last=
   }
 
-  # Generators run in the shell's directory with the shell's PATH.
+  # Generators run in the shell's directory with the shell's PATH. Aliases
+  # and function names are sent when they change (records split by \x1e).
+  typeset -g _lig_aliases= _lig_functions=
   _lig_precmd() {
+    builtin emulate -L zsh
     builtin print -rn -- $'\e]6973;C;'"${PWD//[$'\a\e']/}"$'\a'$'\e]6973;P;'"${PATH//[$'\a\e']/}"$'\a' >$TTY
+    local k
+    local -a pairs
+    for k in ${(k)aliases}; do pairs+=("$k=${aliases[$k]}"); done
+    local a=${(pj:\x1e:)pairs}
+    a=${a//[$'\a\e']/}
+    if [[ $a != $_lig_aliases ]]; then
+      _lig_aliases=$a
+      builtin print -rn -- $'\e]6973;A;'"$a"$'\a' >$TTY
+    fi
+    local f=${(pj:\x1e:)${(k)functions:#[_+.-]*}}
+    if [[ $f != $_lig_functions ]]; then
+      _lig_functions=$f
+      builtin print -rn -- $'\e]6973;N;'"${f//[$'\a\e']/}"$'\a' >$TTY
+    fi
   }
   builtin autoload -Uz add-zsh-hook
   add-zsh-hook precmd _lig_precmd
