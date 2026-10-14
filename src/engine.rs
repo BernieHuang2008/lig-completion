@@ -72,6 +72,8 @@ struct Cx<'a> {
     run_generators: bool,
     incomplete: bool,
     loading: Option<String>,
+    /// The popup was asked for (Ctrl+Space).
+    manual: bool,
 }
 
 impl Cx<'_> {
@@ -156,13 +158,13 @@ impl Engine {
         let mut cl = parser::parse(line);
         expand_aliases(&mut cl, env);
         let mut cx =
-            Cx { tokens: cl.values(), cl: &cl, env, cands: vec![], run_generators, incomplete: false, loading: None };
+            Cx { tokens: cl.values(), cl: &cl, env, cands: vec![], run_generators, incomplete: false, loading: None, manual };
 
         if cl.current.redirect {
             self.files(&mut cx, false);
         } else if cl.tokens.is_empty() {
             let v = &cl.current.value;
-            if (self.cfg.complete_commands && !v.is_empty()) || manual {
+            if (self.cfg.complete_commands && !v.is_empty()) || cx.manual {
                 if v.contains('/') {
                     self.files(&mut cx, false);
                 } else {
@@ -295,7 +297,12 @@ impl Engine {
         }
         let arg = current_arg(&node, arg_idx);
         if let Some(a) = &arg {
-            if a.is_command || a.command_names {
+            if a.is_command {
+                // A command name (`sudo ls`): like the first word, only on demand.
+                if (self.cfg.complete_commands && !cur.value.is_empty()) || cx.manual {
+                    self.commands(cx);
+                }
+            } else if a.command_names {
                 self.commands(cx);
             } else {
                 let (q, d) = cx.default_query();
@@ -964,9 +971,12 @@ mod tests {
         ]));
         env.functions = Arc::new(vec!["toolfn".to_string()]);
         env.builtins = Arc::new(vec!["exit".to_string()]);
-        // Command names only when asked for (Ctrl+Space).
+        // Command names only when asked for (Ctrl+Space), also after `sudo`.
         assert!(labels(&mut e, &env, "exi").is_empty());
         assert_eq!(e.complete("exi", &env, true, true).items[0].label, "exit");
+        assert!(labels(&mut e, &env, "sudo exi").is_empty());
+        assert!(labels(&mut e, &env, "sudo -u root exi").is_empty());
+        assert_eq!(e.complete("sudo exi", &env, true, true).items[0].label, "exit");
         // An alias expands to its command (and its flags count as used).
         let r = labels(&mut e, &env, "t b");
         assert_eq!(r[0].0, "build");

@@ -145,8 +145,9 @@ LIG_DISABLE=1 zsh
 | `Enter` | accept the selected suggestion |
 | `Esc` | dismiss (until the line changes) |
 
-The popup doesn't open by itself for the first word, so `ls`, `htop` or `exit` can be
-typed and run with one `Enter`. Press `Ctrl+Space` to see command names, aliases,
+The popup doesn't open by itself while you type a command name, either the first word
+or the command after `sudo`, `time`, `env`, `watch`, `xargs`, …. So `ls`, `htop`,
+`exit` or `sudo ls` can be typed and run with one `Enter`. Press `Ctrl+Space` to see command names, aliases,
 functions and builtins. (Set `complete_commands = true` to get them automatically.)
 
 `Enter` still runs the line, unless you moved the selection, when nothing is typed for
