@@ -28,6 +28,8 @@ pub enum Kind {
     Shortcut,
     /// Not a suggestion: a status message ("Searching npm…").
     Info,
+    /// Run the command line as it is (the "Enter" item on top of folders).
+    Execute,
 }
 
 /// What a suggestion is, for its icon (falls back to its [`Kind`]).

@@ -70,6 +70,7 @@ pub fn glyph(kind: Kind, icon: Option<Icon>, label: &str, nerd: bool) -> (&'stat
         Kind::Folder => "38;5;75",
         Kind::Shortcut => "38;5;209",
         Kind::Info => GREY,
+        Kind::Execute => "38;5;114",
     };
     let g = if nerd {
         match kind {
@@ -81,6 +82,7 @@ pub fn glyph(kind: Kind, icon: Option<Icon>, label: &str, nerd: bool) -> (&'stat
             Kind::Folder => "\u{f07b}",     // folder
             Kind::Shortcut => "\u{f0e7}",   // bolt
             Kind::Info => "\u{f110}",       // spinner
+            Kind::Execute => "↵",
         }
     } else {
         match kind {
@@ -92,6 +94,7 @@ pub fn glyph(kind: Kind, icon: Option<Icon>, label: &str, nerd: bool) -> (&'stat
             Kind::Folder => "▪",
             Kind::Shortcut => "★",
             Kind::Info => "…",
+            Kind::Execute => "↵",
         }
     };
     (g, color)
@@ -213,6 +216,7 @@ pub fn legend(nerd: bool) -> Vec<(&'static str, &'static str, String)> {
         (Kind::File, "file (generic)"),
         (Kind::Shortcut, "shortcut"),
         (Kind::Info, "loading message"),
+        (Kind::Execute, "run the command (folders)"),
     ];
     let icons = [
         (Icon::Alias, "alias"),

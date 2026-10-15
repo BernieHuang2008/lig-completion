@@ -680,11 +680,17 @@ impl Session {
                     self.just_accepted = true;
                     passthrough = true;
                     let s = &self.items[self.selected];
-                    // A completed word needs no popup until the next keystroke;
-                    // after `--option ` the next suggestions show right away.
-                    self.close_after_insert = !s.insert.ends_with(char::is_whitespace);
-                    let payload = format!("{INSERT_KEY}{};{};{}\x07", s.delete, s.back, s.insert);
-                    fwd.extend_from_slice(payload.as_bytes());
+                    if s.kind == Kind::Execute {
+                        // The "Enter" item: run the line.
+                        fwd.push(b'\r');
+                    } else {
+                        // A completed word needs no popup until the next keystroke;
+                        // after `--option ` or a folder (`src/`) the next
+                        // suggestions show right away.
+                        self.close_after_insert = !s.insert.ends_with(|c: char| c.is_whitespace() || c == '/');
+                        let payload = format!("{INSERT_KEY}{};{};{}\x07", s.delete, s.back, s.insert);
+                        fwd.extend_from_slice(payload.as_bytes());
+                    }
                     self.items.clear();
                     self.items_line.clear();
                     redraw = true;

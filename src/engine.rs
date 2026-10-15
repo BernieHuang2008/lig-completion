@@ -489,6 +489,21 @@ impl Engine {
 
     fn files(&mut self, cx: &mut Cx<'_>, folders_only: bool) {
         let cur = &cx.cl.current;
+        // `cd src/`: a complete directory is typed; offer running the command
+        // first, then what's inside (like Fig).
+        if folders_only && cur.value.ends_with('/') && !cx.cands.iter().any(|c| c.kind == Kind::Execute) {
+            let line = cx.cl.tokens.iter().map(|t| t.raw.as_str()).chain([cur.raw.as_str()]).collect::<Vec<_>>().join(" ");
+            let meta = spec::Meta {
+                names: vec![String::new()],
+                display_name: Some("Enter".into()),
+                description: Some(format!("Run `{line}`")),
+                priority: Some(1000.0),
+                ..Default::default()
+            };
+            let mut c = cand(&meta, Kind::Execute, "");
+            c.unfiltered = true;
+            cx.cands.push(c);
+        }
         let (dir_part, base) = match cur.value.rfind('/') {
             Some(i) => (&cur.value[..=i], &cur.value[i + 1..]),
             None => ("", cur.value.as_str()),
@@ -619,7 +634,7 @@ impl Engine {
         let cur = &cx.cl.current;
         let mut scored: Vec<(u8, f64, usize, String)> = vec![];
         for (idx, c) in cx.cands.iter().enumerate() {
-            if c.names.iter().all(|n| n.trim().is_empty()) && c.insert_value.is_none() {
+            if c.names.iter().all(|n| n.trim().is_empty()) && c.insert_value.is_none() && c.kind != Kind::Execute {
                 continue;
             }
             // Rank by the best-matching name, but insert the first name (in
@@ -1060,6 +1075,19 @@ mod tests {
         assert!(labels(&mut e, &env, "tool bench").is_empty());
         assert_eq!(labels(&mut e, &env, "tool -o su")[0].1, "sub\\ dir/");
         assert_eq!(labels(&mut e, &env, "tool -o \"fi")[0].1, "\"file.txt\"");
+    }
+
+    #[test]
+    fn enter_item_on_top_of_folders() {
+        let (mut e, env) = engine();
+        e.insert_spec(cmd("go-to", "").arg(arg("dir").folders()));
+        let c = e.complete("go-to sub\\ dir/", &env, true, false);
+        assert_eq!(c.items[0].kind, Kind::Execute);
+        assert_eq!(c.items[0].label, "Enter");
+        assert_eq!(c.items[0].description, "Run `go-to sub\\ dir/`");
+        // Not before a directory is complete, and not for file arguments.
+        assert!(e.complete("go-to su", &env, true, false).items.iter().all(|s| s.kind != Kind::Execute));
+        assert!(e.complete("tool -o sub\\ dir/", &env, true, false).items.iter().all(|s| s.kind != Kind::Execute));
     }
 
     #[test]

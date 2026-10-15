@@ -73,10 +73,10 @@ fn merge_arg(base: &crate::spec::Arg, extra: &crate::spec::Arg) -> crate::spec::
             out.suggestions.push(s.clone());
         }
     }
-    for t in &extra.template {
-        if !out.template.contains(t) {
-            out.template.push(*t);
-        }
+    // Our templates say exactly which paths fit (`cd`: folders only); theirs
+    // only count when we have none.
+    if out.template.is_empty() {
+        out.template = extra.template.clone();
     }
     for g in &extra.generators {
         if !out.generators.iter().any(|b| b.id == g.id) {
@@ -99,6 +99,10 @@ mod tests {
         let install = m.find_subcommand("install").unwrap();
         assert_eq!(install.args[0].suggestions.len(), 2);
         assert_eq!(install.args[0].template.len(), 1);
+        // Folders only stays folders only.
+        let cd = cmd("cd", "").arg(arg("dir").folders());
+        let fig_cd = cmd("cd", "").arg(arg("dir").files());
+        assert_eq!(super::merge(&cd, &fig_cd).args[0].template, [crate::spec::Template::Folders]);
         assert_eq!(install.meta.description.as_deref(), Some("Install packages"));
         assert!(m.find_subcommand("freeze").is_some());
     }

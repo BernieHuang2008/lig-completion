@@ -232,6 +232,12 @@ the highlight with `Tab` or the arrows, `Enter` picks that item. If suggestions 
 still loading, lig waits for them (up to 1.5 s). Set `enter_accepts` to
 `"after-space"` (pick only after a space), `"always"` or `"never"` to change this.
 
+For folder arguments (`cd`, `pushd`, `mkdir`, …), picking a folder keeps the popup
+open with what's inside, so you can walk down the tree: `cd s` `Enter` → `cd src/`
+with its subfolders listed. Once a folder is on the line, the first entry is
+**↵ Enter**, which runs the command, as Fig did. `Enter` `Enter` picks a folder and then
+`cd`s into it.
+
 While you browse history (`↑`/`↓`, history search, `Ctrl-R`, fzf), the recalled lines
 don't open the popup, so the arrows keep moving through history. Typing brings it back.
 
