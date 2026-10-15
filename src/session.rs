@@ -104,6 +104,11 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
         cmd.env("LIG_TTY", tty);
     }
     cmd.env("LIG_PID", std::process::id().to_string());
+    // bash reads accepted completions from this file (see shell/post.bash).
+    let insert_file = dirs::runtime_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join(format!("lig-{}.insert", std::process::id()));
+    cmd.env("LIG_INSERT_FILE", &insert_file);
     let mut child = match pair.slave.spawn_command(cmd) {
         Ok(c) => c,
         Err(e) => {
@@ -177,6 +182,9 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
     }
 
     let mut s = Session {
+        insert_file,
+        prompt_end: None,
+        history_recall: false,
         cwd_fallback: std::env::current_dir().unwrap_or_else(|_| "/".into()),
         bindings: Bindings::new(&cfg.keys),
         cfg,
@@ -213,6 +221,7 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
     s.event_loop(&rx);
 
     s.clear_popup();
+    let _ = std::fs::remove_file(&s.insert_file);
     drop(raw);
     let code = child.wait().map(|st| st.exit_code() as i32).unwrap_or(0);
     Ok(code)
@@ -250,8 +259,22 @@ fn worker(rx: Receiver<Request>, tx: Sender<Event>, behavior: crate::config::Beh
     }
 }
 
+/// Where the input starts on screen (bash: right after the prompt marker).
+struct PromptEnd {
+    row: u16,
+    col: u16,
+    /// The prompt text on that row, to find it again after scrolling.
+    prefix: String,
+}
+
 struct Session {
     cfg: Config,
+    insert_file: PathBuf,
+    /// Set by bash's prompt marker: the line is read off the screen.
+    prompt_end: Option<PromptEnd>,
+    /// The last key sent to the shell browses history (Up/Down): the line it
+    /// recalls gets no popup, so the arrows keep going.
+    history_recall: bool,
     bindings: Bindings,
     out: std::io::Stdout,
     pty: Box<dyn Write + Send>,
@@ -416,14 +439,71 @@ impl Session {
             // screen is exactly what the shell (and our vt100 model) expects.
             self.erase(&mut w);
             w.extend_from_slice(&fwd);
-            self.parser.process(&fwd);
         }
         self.write_out(&w);
-        for m in msgs {
+        // Each message sees the screen as it was where it appeared (bash's
+        // prompt marker records the cursor there).
+        let mut at = 0;
+        for (pos, m) in msgs {
+            self.parser.process(&fwd[at..pos]);
+            at = pos;
             self.on_msg(m);
+        }
+        self.parser.process(&fwd[at..]);
+        if self.editing && self.prompt_end.is_some() {
+            self.read_line_from_screen();
         }
         self.last_output = Instant::now();
         self.mark_dirty();
+    }
+
+    /// The text left of the cursor changed (reported by zsh, or read off the
+    /// screen for bash).
+    fn set_line(&mut self, line: String) {
+        if line != self.line {
+            if std::mem::take(&mut self.close_after_insert) {
+                self.dismissed = Some(line.clone());
+            }
+            if std::mem::take(&mut self.history_recall) {
+                self.dismissed = Some(line.clone());
+            }
+        }
+        if line != self.line || self.items_line != line {
+            if self.dismissed.as_deref() != Some(line.as_str()) {
+                self.dismissed = None;
+            }
+            self.line = line;
+            self.request();
+        }
+    }
+
+    /// bash: the input is whatever is on screen between the prompt marker
+    /// and the cursor.
+    fn read_line_from_screen(&mut self) {
+        let screen = self.parser.screen();
+        let (rows, cols) = screen.size();
+        let Some(pe) = self.prompt_end.as_mut() else { return };
+        // Long lines at the bottom scroll the screen: find the prompt again.
+        if screen.contents_between(pe.row, 0, pe.row, pe.col) != pe.prefix {
+            let Some(r) = (0..=pe.row.min(rows - 1)).rev().find(|&r| screen.contents_between(r, 0, r, pe.col) == pe.prefix)
+            else {
+                return;
+            };
+            pe.row = r;
+        }
+        let (cr, cc) = screen.cursor_position();
+        if (cr, cc) < (pe.row, pe.col) {
+            return;
+        }
+        let row_text = screen.contents_between(cr, 0, cr, cols);
+        // Readline's incremental search and numeric arguments replace the prompt.
+        if ["(reverse-i-search)", "(i-search)", "(arg: "].iter().any(|m| row_text.contains(m)) {
+            self.hidden = true;
+            return;
+        }
+        self.hidden = false;
+        let line = screen.contents_between(pe.row, pe.col, cr, cc);
+        self.set_line(line);
     }
 
     fn on_msg(&mut self, m: Msg) {
@@ -431,17 +511,15 @@ impl Session {
             Msg::Buffer { cursor, text } => {
                 self.editing = true;
                 self.hidden = false;
-                let line: String = text.chars().take(cursor).collect();
-                if std::mem::take(&mut self.close_after_insert) && line != self.line {
-                    self.dismissed = Some(line.clone());
-                }
-                if line != self.line || self.items_line != line {
-                    if self.dismissed.as_deref() != Some(line.as_str()) {
-                        self.dismissed = None;
-                    }
-                    self.line = line;
-                    self.request();
-                }
+                self.set_line(text.chars().take(cursor).collect());
+            }
+            Msg::PromptEnd => {
+                let screen = self.parser.screen();
+                let (row, col) = screen.cursor_position();
+                let prefix = screen.contents_between(row, 0, row, col);
+                self.prompt_end = Some(PromptEnd { row, col, prefix });
+                self.editing = true;
+                self.hidden = false;
             }
             Msg::Hide => self.hidden = true,
             Msg::Finish => {
@@ -639,6 +717,7 @@ impl Session {
                 if key != Key::Enter {
                     self.just_accepted = false;
                 }
+                self.history_recall = matches!(key, Key::Up | Key::Down | Key::Ctrl('p') | Key::Ctrl('n'));
                 fwd.extend_from_slice(raw);
                 passthrough = true;
                 continue;
@@ -688,8 +767,14 @@ impl Session {
                         // after `--option ` or a folder (`src/`) the next
                         // suggestions show right away.
                         self.close_after_insert = !s.insert.ends_with(|c: char| c.is_whitespace() || c == '/');
-                        let payload = format!("{INSERT_KEY}{};{};{}\x07", s.delete, s.back, s.insert);
-                        fwd.extend_from_slice(payload.as_bytes());
+                        if self.prompt_end.is_some() {
+                            // bash: the bound function reads it from a file.
+                            let _ = std::fs::write(&self.insert_file, format!("{};{};{}", s.delete, s.back, s.insert));
+                            fwd.extend_from_slice(INSERT_KEY.as_bytes());
+                        } else {
+                            let payload = format!("{INSERT_KEY}{};{};{}\x07", s.delete, s.back, s.insert);
+                            fwd.extend_from_slice(payload.as_bytes());
+                        }
                     }
                     self.items.clear();
                     self.items_line.clear();
@@ -759,7 +844,14 @@ impl Session {
                 let n = self.line.chars().count();
                 self.line.chars().skip(n.saturating_sub(delete)).collect()
             };
-            popup::layout(&self.cfg.ui, &shown, screen.size(), screen.cursor_position(), tail.width() as u16)
+            // Where the command starts: wrapped rows above the cursor row
+            // belong to it too.
+            let (crow, _) = screen.cursor_position();
+            let mut top = crow;
+            while top > 0 && screen.row_wrapped(top - 1) {
+                top -= 1;
+            }
+            popup::layout_at(&self.cfg.ui, &shown, screen.size(), screen.cursor_position(), top, tail.width() as u16)
         };
         // What the user sees; it stays set across the brief erase/redraw
         // around shell output.

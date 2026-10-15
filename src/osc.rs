@@ -1,7 +1,8 @@
 //! Extracts lig's private OSC 6973 messages from the shell's output stream.
 //!
-//! The zsh integration writes `ESC ] 6973 ; <kind> [; payload] BEL`:
-//!   `B;<cursor>;<buffer>`  edit buffer changed
+//! The shell integration writes `ESC ] 6973 ; <kind> [; payload] BEL`:
+//!   `B;<cursor>;<buffer>`  edit buffer changed (zsh)
+//!   `S`                    the prompt ends here; input starts (bash)
 //!   `H`                    hide (isearch, vi command mode, …)
 //!   `F`                    line finished (command about to run)
 //!   `P;<PATH>`             the shell's PATH
@@ -16,6 +17,7 @@ const MAX_PENDING: usize = 1 << 20;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Msg {
     Buffer { cursor: usize, text: String },
+    PromptEnd,
     Hide,
     Finish,
     Path(String),
@@ -36,8 +38,9 @@ impl OscFilter {
         std::mem::take(&mut self.pending)
     }
 
-    /// Append the bytes meant for the terminal to `out`, and our messages to `msgs`.
-    pub fn feed(&mut self, data: &[u8], out: &mut Vec<u8>, msgs: &mut Vec<Msg>) {
+    /// Append the bytes meant for the terminal to `out`, and our messages to
+    /// `msgs`, each with its position in `out`.
+    pub fn feed(&mut self, data: &[u8], out: &mut Vec<u8>, msgs: &mut Vec<(usize, Msg)>) {
         let mut buf = std::mem::take(&mut self.pending);
         buf.extend_from_slice(data);
         let mut i = 0;
@@ -67,7 +70,7 @@ impl OscFilter {
                 None => break,
                 Some(k) => {
                     if let Some(m) = parse(&body[..k]) {
-                        msgs.push(m);
+                        msgs.push((out.len(), m));
                     }
                     // A stray ESC ends the sequence but stays in the stream.
                     i = j + PREFIX.len() + k + usize::from(body[k] == 0x07);
@@ -86,6 +89,7 @@ fn parse(payload: &[u8]) -> Option<Msg> {
             Some(Msg::Buffer { cursor: cursor.parse().ok()?, text: text.to_string() })
         }
         "H" => Some(Msg::Hide),
+        "S" => Some(Msg::PromptEnd),
         "F" => Some(Msg::Finish),
         "P" => Some(Msg::Path(rest.to_string())),
         "C" => Some(Msg::Cwd(rest.to_string())),
@@ -108,7 +112,11 @@ mod tests {
         let (mut out, mut msgs) = (vec![], vec![]);
         f.feed(b"a\x1b[1mb\x1b]6973;B;3;git st\x07c\x1b]0;title\x07", &mut out, &mut msgs);
         assert_eq!(out, b"a\x1b[1mbc\x1b]0;title\x07");
-        assert_eq!(msgs, vec![Msg::Buffer { cursor: 3, text: "git st".into() }]);
+        assert_eq!(msgs, vec![(6, Msg::Buffer { cursor: 3, text: "git st".into() })]);
+        // The position says where in the output the message was.
+        let (mut out, mut msgs) = (vec![], vec![]);
+        f.feed(b"$ \x1b]6973;S\x07ls", &mut out, &mut msgs);
+        assert_eq!((out.as_slice(), msgs), (b"$ ls".as_slice(), vec![(2, Msg::PromptEnd)]));
     }
 
     #[test]
@@ -120,6 +128,7 @@ mod tests {
             f.feed(std::slice::from_ref(b), &mut out, &mut msgs);
         }
         assert_eq!(out, b"xy");
+        let msgs: Vec<Msg> = msgs.into_iter().map(|m| m.1).collect();
         assert_eq!(msgs, vec![Msg::Buffer { cursor: 1, text: "a;b".into() }, Msg::Finish]);
     }
 
@@ -128,6 +137,7 @@ mod tests {
         let mut f = OscFilter::default();
         let (mut out, mut msgs) = (vec![], vec![]);
         f.feed("\x1b]6973;A;gco=git checkout\x1ell=ls -l\x07\x1b]6973;N;z\x1ezi\x07".as_bytes(), &mut out, &mut msgs);
+        let msgs: Vec<Msg> = msgs.into_iter().map(|m| m.1).collect();
         assert_eq!(
             msgs,
             vec![

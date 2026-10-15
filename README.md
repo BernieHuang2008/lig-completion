@@ -77,19 +77,25 @@ Wayland (GNOME) doesn't let an app put a floating window at the terminal cursor,
 lig draws the popup **inside the terminal**, the way an editor draws a completion menu:
 
 ```
-terminal ⇄ lig shell (PTY proxy + vt100 screen model + popup) ⇄ zsh (+ ZLE hooks)
+terminal ⇄ lig shell (PTY proxy + vt100 screen model + popup) ⇄ zsh or bash (+ hooks)
                          │
                          └─ worker thread: completion engine (specs, --help parser, generators)
 ```
 
-* `lig shell` runs zsh in a pseudo-terminal and passes everything through. It keeps a
-  vt100 model of the screen, so after it draws the popup it can restore the exact
-  cells that were underneath. Redraws use synchronized output (`?2026`) to avoid flicker.
-* The zsh integration reports the edit buffer and cursor on every redraw
-  (`zle-line-pre-redraw` → a private `OSC 6973`). lig removes these messages from the
-  stream before they reach the terminal.
-* When you accept a suggestion, lig sends a private key sequence bound to a ZLE widget.
-  The widget edits `$LBUFFER` directly, so the insert is exact in emacs and vi modes.
+* `lig shell` runs your shell (zsh or bash) in a pseudo-terminal and passes everything
+  through. It keeps a vt100 model of the screen, so after it draws the popup it can
+  restore the exact cells that were underneath. Redraws use synchronized output
+  (`?2026`) to avoid flicker.
+* **zsh** reports the edit buffer and cursor on every redraw (`zle-line-pre-redraw` →
+  a private `OSC 6973`). When you accept a suggestion, lig sends a private key sequence
+  bound to a ZLE widget, which edits `$LBUFFER` directly.
+* **bash** has no "line changed" hook, so its prompt ends with an invisible marker and
+  lig reads the line off its screen model, from the marker to the cursor. This also
+  works with prompts rebuilt every time (starship) and multi-line prompts. `PS0`
+  reports that a command was submitted, `PROMPT_COMMAND` reports the directory,
+  `PATH`, aliases, functions and builtins, and an accepted suggestion is applied by a
+  `bind -x` function that edits `READLINE_LINE`.
+* lig removes its private messages from the stream before they reach the terminal.
 * Anything that runs a command (generators, `--help`) is done in a second pass.
   Static suggestions appear immediately, and the popup updates when those results arrive.
 
@@ -105,7 +111,7 @@ To opt a command out, add it to `help_skip`, or turn the feature off with
 
 ## Install
 
-Requirements: Rust 1.85+ and zsh ≥ 5.3.
+Requirements: Rust 1.85+, and zsh ≥ 5.3 or bash ≥ 4.4.
 
 ```bash
 cargo install --path .
@@ -115,21 +121,33 @@ cargo install --path .
 lig install
 ```
 
-`lig install` adds a small block at the top and at the bottom of `~/.zshrc`, and saves
-the original as `~/.zshrc.lig-backup`. Then open a new terminal. To check the setup,
-run `lig doctor`.
+`lig install` sets up the shell in your `$SHELL`. Name one to choose (`lig install zsh`,
+`lig install bash`), or run it twice to set up both. It adds a small block at the top
+and at the bottom of `~/.zshrc` / `~/.bashrc`, and saves the original as
+`~/.zshrc.lig-backup` / `~/.bashrc.lig-backup`. Then open a new terminal. To check the
+setup, run `lig doctor`.
 
-If you'd rather edit `.zshrc` yourself, put the first line at the very top and the second at the very bottom:
+If you'd rather edit the rc file yourself, put the first line at the very top and the
+second at the very bottom:
 
 ```zsh
-eval "$(lig init zsh pre)"    # top: re-execs the shell inside lig
-eval "$(lig init zsh post)"   # bottom: ZLE hooks
+eval "$(lig init zsh pre)"    # ~/.zshrc, top: re-execs the shell inside lig
+eval "$(lig init zsh post)"   # ~/.zshrc, bottom: ZLE hooks
+```
+
+```bash
+eval "$(lig init bash pre)"   # ~/.bashrc, top
+eval "$(lig init bash post)"  # ~/.bashrc, bottom: after anything that sets PS1/PROMPT_COMMAND
 ```
 
 ### Disable temporarily
 
 ```bash
 LIG_DISABLE=1 zsh
+```
+
+```bash
+LIG_DISABLE=1 bash
 ```
 
 ## Look
@@ -235,7 +253,7 @@ with its subfolders listed. Once a folder is on the line, the first entry is
 While you browse history (`↑`/`↓`, history search, `Ctrl-R`, fzf), the recalled lines
 don't open the popup, so the arrows keep moving through history. Typing brings it back.
 
-When the popup isn't showing, keys go straight to zsh, so normal Tab completion still
+When the popup isn't showing, keys go straight to the shell, so normal Tab completion still
 works. `Ctrl+Space` is taken from zsh's `set-mark-command` while you edit a command line.
 
 ## Configuration
@@ -349,7 +367,7 @@ only keys lig understands, and only refers to generators that exist.
 lig complete "git checkout "     # what the engine suggests
 lig complete --alias "gco=git checkout" "gco "
 lig specs clear-cache            # forget cached --help results
-LIG_LOG=1 zsh                    # log errors to ~/.local/state/lig/lig.log
+LIG_LOG=1 zsh                    # (or bash) log errors to ~/.local/state/lig/lig.log
 ```
 
 ## Converted specs
@@ -383,8 +401,11 @@ The specs are © Hercules Labs Inc. and the withfig contributors, MIT licensed; 
 
 ## Limitations
 
-* zsh only for now. The PTY side doesn't depend on the shell, so bash or fish only need
-  their own hook scripts.
+* zsh and bash. fish would only need its own hook script; the PTY side doesn't depend
+  on the shell.
+* In bash the line is read from the screen. A cursor in the middle of a wrapped line
+  near the bottom of a full screen can occasionally confuse it; typing another key
+  fixes it.
 * The popup is drawn into the terminal grid. It hides inside full-screen apps
   (alternate screen) and while a command is running.
 * Specs parsed from `--help` contain options and subcommands, but they can't know about
@@ -408,7 +429,7 @@ src/
   exec.rs      running commands with timeouts
   store.rs     user spec files
   config.rs    configuration
-shell/         zsh integration (pre/post)
+shell/         zsh and bash integration (pre/post)
 specs/lig/     hand-written specs (JSON)
 specs/fig/     converted withfig/autocomplete specs (generated, JSON)
 build.rs       packs specs/lig and specs/fig into compressed archives in the binary

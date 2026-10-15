@@ -21,6 +21,8 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 const PRE_ZSH: &str = include_str!("../shell/pre.zsh");
 const POST_ZSH: &str = include_str!("../shell/post.zsh");
+const PRE_BASH: &str = include_str!("../shell/pre.bash");
+const POST_BASH: &str = include_str!("../shell/post.bash");
 
 #[derive(Parser)]
 #[command(name = "lig", version, about = "Fig-style IDE autocomplete for your Linux terminal")]
@@ -40,18 +42,24 @@ enum Cmd {
         #[arg(long)]
         login: bool,
     },
-    /// Print shell integration code: eval "$(lig init zsh)"
+    /// Print shell integration code: eval "$(lig init zsh)" / eval "$(lig init bash)"
     Init {
         #[arg(value_enum)]
         shell: ShellKind,
-        /// `pre` goes at the top of .zshrc, `post` at the bottom; `all` does both
+        /// `pre` goes at the top of the rc file, `post` at the bottom; `all` does both
         #[arg(value_enum, default_value_t = Part::All)]
         part: Part,
     },
-    /// Add lig to ~/.zshrc
-    Install,
-    /// Remove lig from ~/.zshrc
-    Uninstall,
+    /// Add lig to ~/.zshrc or ~/.bashrc (default: your $SHELL)
+    Install {
+        #[arg(value_enum)]
+        shell: Option<ShellKind>,
+    },
+    /// Remove lig from ~/.zshrc or ~/.bashrc (default: your $SHELL)
+    Uninstall {
+        #[arg(value_enum)]
+        shell: Option<ShellKind>,
+    },
     /// Manage completion specs
     Specs {
         #[command(subcommand)]
@@ -112,6 +120,32 @@ enum Cmd {
 #[derive(Clone, Copy, ValueEnum)]
 enum ShellKind {
     Zsh,
+    Bash,
+}
+
+impl ShellKind {
+    /// From `$SHELL`, zsh unless it's bash.
+    fn current() -> ShellKind {
+        let shell = std::env::var("SHELL").unwrap_or_default();
+        if shell.ends_with("/bash") || shell == "bash" { ShellKind::Bash } else { ShellKind::Zsh }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            ShellKind::Zsh => "zsh",
+            ShellKind::Bash => "bash",
+        }
+    }
+
+    fn rc(self) -> PathBuf {
+        match self {
+            ShellKind::Zsh => {
+                let dir = std::env::var_os("ZDOTDIR").map(PathBuf::from).or_else(dirs::home_dir).unwrap_or_default();
+                dir.join(".zshrc")
+            }
+            ShellKind::Bash => dirs::home_dir().unwrap_or_default().join(".bashrc"),
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -159,20 +193,19 @@ fn exe() -> String {
         .unwrap_or_else(|| "lig".into())
 }
 
-fn init_script(part: Part) -> String {
+fn init_script(shell: ShellKind, part: Part) -> String {
+    let (pre, post) = match shell {
+        ShellKind::Zsh => (PRE_ZSH, POST_ZSH),
+        ShellKind::Bash => (PRE_BASH, POST_BASH),
+    };
     let mut s = String::new();
     if part != Part::Post {
-        s.push_str(PRE_ZSH);
+        s.push_str(pre);
     }
     if part != Part::Pre {
-        s.push_str(POST_ZSH);
+        s.push_str(post);
     }
     s.replace("@LIG_BIN@", &exe())
-}
-
-fn zshrc() -> PathBuf {
-    let dir = std::env::var_os("ZDOTDIR").map(PathBuf::from).or_else(dirs::home_dir).unwrap_or_default();
-    dir.join(".zshrc")
 }
 
 const PRE_BEGIN: &str = "# >>> lig pre >>>";
@@ -196,10 +229,11 @@ fn strip_block(text: &str, begin: &str, end: &str) -> String {
     out
 }
 
-fn install() -> Result<()> {
-    let rc = zshrc();
+fn install(shell: ShellKind) -> Result<()> {
+    let rc = shell.rc();
+    let sh = shell.name();
     let old = std::fs::read_to_string(&rc).unwrap_or_default();
-    let backup = rc.with_file_name(".zshrc.lig-backup");
+    let backup = rc.with_file_name(format!(".{sh}rc.lig-backup"));
     if !old.is_empty() && !backup.exists() {
         std::fs::write(&backup, &old)?;
     }
@@ -207,17 +241,17 @@ fn install() -> Result<()> {
     let body = body.trim_end();
     let bin = exe();
     let new = format!(
-        "{PRE_BEGIN}\neval \"$(\"{bin}\" init zsh pre)\"\n{PRE_END}\n{body}{}{POST_BEGIN}\neval \"$(\"{bin}\" init zsh post)\"\n{POST_END}\n",
+        "{PRE_BEGIN}\neval \"$(\"{bin}\" init {sh} pre)\"\n{PRE_END}\n{body}{}{POST_BEGIN}\neval \"$(\"{bin}\" init {sh} post)\"\n{POST_END}\n",
         if body.is_empty() { "" } else { "\n\n" },
     );
     std::fs::write(&rc, new).with_context(|| format!("writing {}", rc.display()))?;
     println!("lig: updated {}", rc.display());
-    println!("lig: done. Open a new terminal (or run `exec zsh`) to start using it.");
+    println!("lig: done. Open a new terminal (or run `exec {sh}`) to start using it.");
     Ok(())
 }
 
-fn uninstall() -> Result<()> {
-    let rc = zshrc();
+fn uninstall(shell: ShellKind) -> Result<()> {
+    let rc = shell.rc();
     let old = std::fs::read_to_string(&rc)?;
     let new = strip_block(&strip_block(&old, PRE_BEGIN, PRE_END), POST_BEGIN, POST_END);
     std::fs::write(&rc, format!("{}\n", new.trim_end()))?;
@@ -227,9 +261,14 @@ fn uninstall() -> Result<()> {
 
 fn doctor() -> Result<()> {
     let ok = |b: bool| if b { "ok  " } else { "FAIL" };
-    let rc = std::fs::read_to_string(zshrc()).unwrap_or_default();
-    let has = rc.contains(PRE_BEGIN) && rc.contains(POST_BEGIN);
-    println!("[{}] {} integration", ok(has), zshrc().display());
+    for shell in [ShellKind::Zsh, ShellKind::Bash] {
+        let path = shell.rc();
+        let rc = std::fs::read_to_string(&path).unwrap_or_default();
+        let has = rc.contains(PRE_BEGIN) && rc.contains(POST_BEGIN);
+        if has || shell.name() == ShellKind::current().name() {
+            println!("[{}] {} integration", ok(has), path.display());
+        }
+    }
     let tty = unsafe {
         let p = libc::ttyname(0);
         (!p.is_null()).then(|| std::ffi::CStr::from_ptr(p).to_string_lossy().into_owned())
@@ -281,9 +320,9 @@ fn main() -> Result<()> {
             let code = session::run(shell.unwrap_or_else(default_shell), login)?;
             std::process::exit(code);
         }
-        Cmd::Init { shell: ShellKind::Zsh, part } => print!("{}", init_script(part)),
-        Cmd::Install => install()?,
-        Cmd::Uninstall => uninstall()?,
+        Cmd::Init { shell, part } => print!("{}", init_script(shell, part)),
+        Cmd::Install { shell } => install(shell.unwrap_or_else(ShellKind::current))?,
+        Cmd::Uninstall { shell } => uninstall(shell.unwrap_or_else(ShellKind::current))?,
         Cmd::Specs { cmd: SpecsCmd::List } => {
             let user = store::Store::default().commands();
             let mut all: std::collections::BTreeMap<String, &str> = std::collections::BTreeMap::new();

@@ -173,11 +173,18 @@ const BOTTOM_DESC_W: u16 = 56;
 const MIN_DESC: u16 = 8;
 
 /// Where the popup goes for this screen/cursor, or `None` if it can't fit.
-pub fn layout(
+pub fn layout(ui: &Ui, items: &[Suggestion], size: (u16, u16), cursor: (u16, u16), token_width: u16) -> Option<Layout> {
+    layout_at(ui, items, size, cursor, cursor.0, token_width)
+}
+
+/// Like [`layout`], for input that starts on row `input_top` (a command
+/// wrapping over several rows): placed above, the popup goes above all of it.
+pub fn layout_at(
     ui: &Ui,
     items: &[Suggestion],
     (rows, cols): (u16, u16),
     (crow, ccol): (u16, u16),
+    input_top: u16,
     token_width: u16,
 ) -> Option<Layout> {
     if items.is_empty() || rows < 3 || cols < 12 {
@@ -237,14 +244,14 @@ pub fn layout(
     let frame_h = frame_height(frame_lines, b);
     let want = (items.len() as u16).min(max_items).max(ui.min_height.min(max_items)) + chrome_h + frame_h;
     let below = rows.saturating_sub(crow + 1);
-    let above = crow;
+    let above = input_top.min(crow);
     // Prefer below the cursor, shrinking (the list scrolls); only flip above
     // when there's hardly any room below.
     let (row, height) = if below >= want || below >= want.min(MIN_BELOW + chrome_h) || below >= above {
         (crow + 1, want.min(below))
     } else {
         let h = want.min(above);
-        (crow - h, h)
+        (above - h, h)
     };
     // Not even one suggestion row next to the frame: drop the frame.
     if height <= chrome_h + frame_h {
@@ -503,6 +510,14 @@ mod tests {
         let ui = Ui { border: "none".into(), ..Ui::default() };
         let r = layout(&ui, &items(20), (24, 80), (2, 4), 0).unwrap().rect;
         assert_eq!(r.height, 8);
+    }
+
+    #[test]
+    fn above_a_wrapped_command() {
+        // Cursor on the last row, the command started two rows up.
+        let ui = Ui::default();
+        let r = layout_at(&ui, &items(20), (24, 80), (23, 4), 21, 0).unwrap().rect;
+        assert_eq!(r.row + r.height, 21);
     }
 
     #[test]
