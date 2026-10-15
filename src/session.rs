@@ -1,5 +1,9 @@
 //! `lig shell`: runs the shell inside a PTY, mirrors its screen with vt100,
-//! listens to the zsh integration and draws the suggestion popup.
+//! listens to the shell integration (`shell/`) and draws the suggestion popup.
+//!
+//! Threads read the keyboard, the shell's output and resizes into one event
+//! loop ([`Session`]); completion runs on a worker thread so typing never
+//! waits for it.
 
 use std::io::{Read, Write};
 use std::os::unix::process::CommandExt;
@@ -27,17 +31,25 @@ const MAX_DELAY: Duration = Duration::from_millis(40);
 const ENTER_WAIT: Duration = Duration::from_millis(1500);
 /// Show "Searching…" only when results take longer than this.
 const LOADING_DELAY: Duration = Duration::from_millis(150);
-/// Key sequence bound to the `_lig_insert` ZLE widget.
+/// Key sequence bound to the insert function (`_lig_insert` in zsh, `__lig_insert` in bash).
 const INSERT_KEY: &str = "\x1b[9147~";
 
 enum Event {
+    /// Keys from the user.
     Input(Vec<u8>),
+    /// Output from the shell.
     Output(Vec<u8>),
     Exit,
     Resize,
-    Done { line: String, items: Vec<Suggestion>, loading: Option<String> },
+    /// Suggestions for `line`; `loading` names what is still being fetched.
+    Done {
+        line: String,
+        items: Vec<Suggestion>,
+        loading: Option<String>,
+    },
 }
 
+/// A completion request for the worker.
 struct Request {
     line: String,
     env: ShellEnv,
@@ -105,9 +117,8 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
     }
     cmd.env("LIG_PID", std::process::id().to_string());
     // bash reads accepted completions from this file (see shell/post.bash).
-    let insert_file = dirs::runtime_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join(format!("lig-{}.insert", std::process::id()));
+    let insert_file =
+        dirs::runtime_dir().unwrap_or_else(std::env::temp_dir).join(format!("lig-{}.insert", std::process::id()));
     cmd.env("LIG_INSERT_FILE", &insert_file);
     let mut child = match pair.slave.spawn_command(cmd) {
         Ok(c) => c,
@@ -119,67 +130,18 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
     drop(pair.slave);
     let shell_pid = child.process_id();
 
-    let mut reader = pair.master.try_clone_reader()?;
+    let reader = pair.master.try_clone_reader()?;
     let writer = pair.master.take_writer()?;
     let raw = RawMode::enable()?;
     let cfg = Config::load();
 
     let (tx, rx) = unbounded::<Event>();
-    {
-        let tx = tx.clone();
-        std::thread::spawn(move || {
-            let mut buf = [0u8; 4096];
-            loop {
-                let n = unsafe { libc::read(0, buf.as_mut_ptr().cast(), buf.len()) };
-                if n <= 0 {
-                    if n < 0 && std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted {
-                        continue;
-                    }
-                    let _ = tx.send(Event::Exit);
-                    break;
-                }
-                if tx.send(Event::Input(buf[..n as usize].to_vec())).is_err() {
-                    break;
-                }
-            }
-        });
-    }
-    {
-        let tx = tx.clone();
-        std::thread::spawn(move || {
-            let mut buf = vec![0u8; 64 * 1024];
-            loop {
-                match reader.read(&mut buf) {
-                    Ok(0) | Err(_) => {
-                        let _ = tx.send(Event::Exit);
-                        break;
-                    }
-                    Ok(n) => {
-                        if tx.send(Event::Output(buf[..n].to_vec())).is_err() {
-                            break;
-                        }
-                    }
-                }
-            }
-        });
-    }
-    {
-        let tx = tx.clone();
-        let mut signals = signal_hook::iterator::Signals::new([libc::SIGWINCH])?;
-        std::thread::spawn(move || {
-            for _ in signals.forever() {
-                if tx.send(Event::Resize).is_err() {
-                    break;
-                }
-            }
-        });
-    }
+    spawn_stdin_reader(tx.clone());
+    spawn_pty_reader(reader, tx.clone());
+    spawn_resize_watcher(tx.clone())?;
     let (req_tx, req_rx) = unbounded::<Request>();
-    {
-        let tx = tx.clone();
-        let behavior = cfg.behavior.clone();
-        std::thread::spawn(move || worker(req_rx, tx, behavior));
-    }
+    let behavior = cfg.behavior.clone();
+    std::thread::spawn(move || worker(req_rx, tx, behavior));
 
     let mut s = Session {
         insert_file,
@@ -202,6 +164,7 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
         items: vec![],
         items_line: String::new(),
         selected: 0,
+        scroll: 0,
         navigated: false,
         just_accepted: false,
         close_after_insert: false,
@@ -210,7 +173,6 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
         loading: None,
         pending_enter: None,
         deferred: vec![],
-        scroll: 0,
         dismissed: None,
         drawn: None,
         sync_open: false,
@@ -225,6 +187,59 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
     drop(raw);
     let code = child.wait().map(|st| st.exit_code() as i32).unwrap_or(0);
     Ok(code)
+}
+
+/// Forward the user's keys (stdin) to the event loop.
+fn spawn_stdin_reader(tx: Sender<Event>) {
+    std::thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        loop {
+            let n = unsafe { libc::read(0, buf.as_mut_ptr().cast(), buf.len()) };
+            if n <= 0 {
+                if n < 0 && std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                let _ = tx.send(Event::Exit);
+                break;
+            }
+            if tx.send(Event::Input(buf[..n as usize].to_vec())).is_err() {
+                break;
+            }
+        }
+    });
+}
+
+/// Forward the shell's output to the event loop.
+fn spawn_pty_reader(mut reader: Box<dyn Read + Send>, tx: Sender<Event>) {
+    std::thread::spawn(move || {
+        let mut buf = vec![0u8; 64 * 1024];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) | Err(_) => {
+                    let _ = tx.send(Event::Exit);
+                    break;
+                }
+                Ok(n) => {
+                    if tx.send(Event::Output(buf[..n].to_vec())).is_err() {
+                        break;
+                    }
+                }
+            }
+        }
+    });
+}
+
+/// Report terminal resizes (SIGWINCH) to the event loop.
+fn spawn_resize_watcher(tx: Sender<Event>) -> Result<()> {
+    let mut signals = signal_hook::iterator::Signals::new([libc::SIGWINCH])?;
+    std::thread::spawn(move || {
+        for _ in signals.forever() {
+            if tx.send(Event::Resize).is_err() {
+                break;
+            }
+        }
+    });
+    Ok(())
 }
 
 /// Whether Enter picks the selected suggestion (instead of running the line).
@@ -244,6 +259,8 @@ fn enter_accepts(mode: &str, word_empty: bool, complete: bool, navigated: bool, 
     }
 }
 
+/// Answer completion requests, newest first: quick results (no commands run)
+/// right away, then again once generators and `--help` have run.
 fn worker(rx: Receiver<Request>, tx: Sender<Event>, behavior: crate::config::Behavior) {
     let mut engine = Engine::new(Store::default(), behavior);
     while let Ok(mut req) = rx.recv() {
@@ -284,7 +301,9 @@ struct Session {
     osc: OscFilter,
 
     // Shell state reported by the integration.
+    /// The shell is editing a command line (from the prompt until Enter).
     editing: bool,
+    /// Something else uses the line (history search, the shell's own menu).
     hidden: bool,
     /// Edit buffer left of the cursor.
     line: String,
@@ -295,8 +314,11 @@ struct Session {
 
     // Popup state.
     items: Vec<Suggestion>,
+    /// The line `items` were computed for.
     items_line: String,
     selected: usize,
+    /// The first item shown (the list scrolls).
+    scroll: usize,
     /// The user moved the selection on the current line.
     navigated: bool,
     /// A suggestion was just accepted and nothing typed since: Enter runs.
@@ -309,13 +331,17 @@ struct Session {
     manual: bool,
     /// (line, message, since) while slower suggestions are being fetched.
     loading: Option<(String, String, Instant)>,
-    /// Enter pressed while loading: when, and the input from it on.
+    /// When Enter was pressed while loading (it waits, see [`ENTER_WAIT`]).
     pending_enter: Option<Instant>,
+    /// That Enter and the input after it, replayed in order.
     deferred: Vec<u8>,
-    scroll: usize,
+    /// The popup was closed for this line; it reopens when the line changes.
     dismissed: Option<String>,
+    /// Where the popup is drawn.
     drawn: Option<Rect>,
+    /// A synchronized-output block is open (see `begin_sync`).
     sync_open: bool,
+    /// A redraw is due, once output settles (see [`DEBOUNCE`]).
     dirty: bool,
     dirty_since: Instant,
     last_output: Instant,
@@ -486,7 +512,8 @@ impl Session {
         let Some(pe) = self.prompt_end.as_mut() else { return };
         // Long lines at the bottom scroll the screen: find the prompt again.
         if screen.contents_between(pe.row, 0, pe.row, pe.col) != pe.prefix {
-            let Some(r) = (0..=pe.row.min(rows - 1)).rev().find(|&r| screen.contents_between(r, 0, r, pe.col) == pe.prefix)
+            let Some(r) =
+                (0..=pe.row.min(rows - 1)).rev().find(|&r| screen.contents_between(r, 0, r, pe.col) == pe.prefix)
             else {
                 return;
             };
@@ -683,34 +710,14 @@ impl Session {
                 fwd.extend_from_slice(raw);
                 continue;
             }
-            // Enter while this line's suggestions are still loading: wait for
-            // them (briefly) so Enter acts on the final list, not a partial one.
-            if key == Key::Enter
-                && self.pending_enter.is_none()
-                && self.bindings.action(&Key::Enter) == Some(Action::Accept)
-                && self.cfg.behavior.enter_accepts != "never"
-                && !self.just_accepted
-                && self.editing
-                && !self.hidden
-                && self.dismissed.as_deref() != Some(self.line.as_str())
-                && self.loading.as_ref().is_some_and(|(l, _, _)| *l == self.line)
-            {
+            if key == Key::Enter && self.enter_should_wait() {
                 self.pending_enter = Some(Instant::now());
-                self.deferred = data[data.len() - keys[n..].iter().map(|(r, _)| r.len()).sum::<usize>()..].to_vec();
+                let rest: usize = keys[n..].iter().map(|(r, _)| r.len()).sum();
+                self.deferred = data[data.len() - rest..].to_vec();
                 break;
             }
-            let toggle = self.bindings.action(&key) == Some(Action::Toggle);
-            if toggle && self.editing && !self.hidden && !self.parser.screen().alternate_screen() {
-                if self.popup_open() {
-                    self.dismissed = Some(self.line.clone());
-                    self.manual = false;
-                } else {
-                    self.manual = true;
-                    self.dismissed = None;
-                    self.navigated = false;
-                    self.items_line.clear();
-                    self.request();
-                }
+            if self.bindings.action(&key) == Some(Action::Toggle) && self.can_show() {
+                self.toggle();
                 redraw = true;
                 continue;
             }
@@ -718,10 +725,8 @@ impl Session {
                 if key != Key::Enter {
                     self.just_accepted = false;
                 }
-                self.shell_nav = matches!(
-                    key,
-                    Key::Up | Key::Down | Key::Ctrl('p') | Key::Ctrl('n') | Key::Tab | Key::ShiftTab
-                );
+                self.shell_nav =
+                    matches!(key, Key::Up | Key::Down | Key::Ctrl('p') | Key::Ctrl('n') | Key::Tab | Key::ShiftTab);
                 fwd.extend_from_slice(raw);
                 passthrough = true;
                 continue;
@@ -745,8 +750,7 @@ impl Session {
                 Some(Action::Prev) if self.selected == 0 => {
                     // Up from the first item closes the popup (and the next Up
                     // goes to the shell's history).
-                    self.dismissed = Some(self.line.clone());
-                    self.manual = false;
+                    self.dismiss();
                     redraw = true;
                 }
                 Some(Action::Prev) => {
@@ -754,53 +758,25 @@ impl Session {
                     self.selected -= 1;
                     redraw = true;
                 }
-                Some(Action::Dismiss) | Some(Action::Toggle) => {
-                    self.dismissed = Some(self.line.clone());
-                    self.manual = false;
+                Some(Action::Dismiss | Action::Toggle) => {
+                    self.dismiss();
                     redraw = true;
                 }
                 Some(Action::Accept) => {
                     self.just_accepted = true;
                     passthrough = true;
-                    let s = &self.items[self.selected];
-                    if s.kind == Kind::Execute {
-                        // The "Enter" item: run the line.
-                        fwd.push(b'\r');
-                    } else {
-                        // A completed word needs no popup until the next keystroke;
-                        // after `--option ` or a folder (`src/`) the next
-                        // suggestions show right away.
-                        // Judged on the resulting line: Back from `Downloads/`
-                        // inserts nothing and leaves `cd `, which keeps it open.
-                        let kept: String = {
-                            let n = self.line.chars().count();
-                            self.line.chars().take(n.saturating_sub(s.delete)).collect()
-                        };
-                        let result = format!("{kept}{}", s.insert);
-                        self.close_after_insert =
-                            !(result.is_empty() || result.ends_with(|c: char| c.is_whitespace() || c == '/'));
-                        if self.prompt_end.is_some() {
-                            // bash: the bound function reads it from a file.
-                            let _ = std::fs::write(&self.insert_file, format!("{};{};{}", s.delete, s.back, s.insert));
-                            fwd.extend_from_slice(INSERT_KEY.as_bytes());
-                        } else {
-                            let payload = format!("{INSERT_KEY}{};{};{}\x07", s.delete, s.back, s.insert);
-                            fwd.extend_from_slice(payload.as_bytes());
-                        }
-                    }
-                    self.items.clear();
-                    self.items_line.clear();
+                    self.accept_selected(&mut fwd);
                     redraw = true;
                 }
                 None => {
-                    if key != Key::Enter {
-                        self.just_accepted = false;
-                    }
-                    passthrough = true;
+                    // Not for the popup: the key goes to the shell.
                     if key == Key::Enter {
                         self.dismissed = Some(self.line.clone());
                         redraw = true;
+                    } else {
+                        self.just_accepted = false;
                     }
+                    passthrough = true;
                     fwd.extend_from_slice(raw);
                 }
             }
@@ -809,6 +785,75 @@ impl Session {
             self.render();
         }
         self.write_pty(&fwd);
+    }
+
+    /// The popup may be shown now (the shell is editing a line, nothing hides it).
+    fn can_show(&self) -> bool {
+        self.editing && !self.hidden && !self.parser.screen().alternate_screen()
+    }
+
+    /// Enter while this line's suggestions are still loading waits for them
+    /// (briefly), so it acts on the final list, not a partial one.
+    fn enter_should_wait(&self) -> bool {
+        self.pending_enter.is_none()
+            && self.bindings.action(&Key::Enter) == Some(Action::Accept)
+            && self.cfg.behavior.enter_accepts != "never"
+            && !self.just_accepted
+            && self.editing
+            && !self.hidden
+            && self.dismissed.as_deref() != Some(self.line.as_str())
+            && self.loading.as_ref().is_some_and(|(l, _, _)| *l == self.line)
+    }
+
+    /// The toggle key (Ctrl+Space): close the popup, or ask for suggestions
+    /// even where it doesn't open by itself (command names).
+    fn toggle(&mut self) {
+        if self.popup_open() {
+            self.dismiss();
+        } else {
+            self.manual = true;
+            self.dismissed = None;
+            self.navigated = false;
+            self.items_line.clear();
+            self.request();
+        }
+    }
+
+    /// Close the popup for this line; it comes back when the line changes.
+    fn dismiss(&mut self) {
+        self.dismissed = Some(self.line.clone());
+        self.manual = false;
+    }
+
+    /// Send the selected suggestion to the shell, to edit the line with.
+    fn accept_selected(&mut self, fwd: &mut Vec<u8>) {
+        let s = &self.items[self.selected];
+        if s.kind == Kind::Execute {
+            // The "Enter" item: run the line.
+            fwd.push(b'\r');
+        } else {
+            // A completed word needs no popup until the next keystroke; after
+            // `--option ` or a folder (`src/`) the next suggestions show right
+            // away. Judged on the resulting line: Back from `Downloads/`
+            // inserts nothing and leaves `cd `, which keeps it open.
+            let kept: String = {
+                let n = self.line.chars().count();
+                self.line.chars().take(n.saturating_sub(s.delete)).collect()
+            };
+            let result = format!("{kept}{}", s.insert);
+            self.close_after_insert = !(result.is_empty() || result.ends_with(|c: char| c.is_whitespace() || c == '/'));
+            // The payload is `<delete>;<back>;<text>`. zsh's widget reads it
+            // after the key, up to BEL; bash's bound function reads a file.
+            let payload = format!("{};{};{}", s.delete, s.back, s.insert);
+            if self.prompt_end.is_some() {
+                let _ = std::fs::write(&self.insert_file, payload);
+                fwd.extend_from_slice(INSERT_KEY.as_bytes());
+            } else {
+                fwd.extend_from_slice(format!("{INSERT_KEY}{payload}\x07").as_bytes());
+            }
+        }
+        self.items.clear();
+        self.items_line.clear();
     }
 
     fn on_resize(&mut self) {
@@ -831,22 +876,22 @@ impl Session {
             self.parser.process(&stuck);
         }
         // Either the suggestions, or a one-line "Searching…" message.
-        let message: Option<Vec<Suggestion>> = self.loading_message().map(|label| {
-            let n = self.line.chars().count();
+        let message = self.loading_message().map(|label| {
+            // Placed like a suggestion for the word being typed.
             let word = self.line.chars().rev().take_while(|c| !c.is_whitespace()).count();
-            vec![Suggestion {
+            Suggestion {
                 label: label.to_string(),
                 description: String::new(),
                 kind: Kind::Info,
                 icon: None,
                 insert: String::new(),
-                delete: word.min(n),
+                delete: word,
                 back: 0,
                 query: String::new(),
-            }]
+            }
         });
         let is_message = message.is_some();
-        let shown: Vec<Suggestion> = if self.visible() { self.items.clone() } else { message.unwrap_or_default() };
+        let shown: Vec<Suggestion> = if self.visible() { self.items.clone() } else { message.into_iter().collect() };
         let layout = if shown.is_empty() {
             None
         } else {

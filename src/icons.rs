@@ -74,7 +74,7 @@ pub fn glyph(kind: Kind, icon: Option<Icon>, label: &str, nerd: bool) -> (&'stat
             Kind::Shortcut => "\u{f0e7}",   // bolt
             Kind::Info => "\u{f110}",       // spinner
             Kind::Execute => "↵",
-            Kind::Back => "\u{f062}",       // arrow-up
+            Kind::Back => "\u{f062}", // arrow-up
         }
     } else {
         match kind {
@@ -116,8 +116,8 @@ fn nerd_icon(i: Icon) -> (&'static str, &'static str) {
         Icon::Version => ("\u{f454}", "38;5;141"), // versions
         Icon::Script => ("\u{f04b}", "38;5;114"),  // play
         Icon::Folder => ("\u{f07b}", "38;5;75"),
-        Icon::Volume => ("\u{f0a0}", "38;5;75"),   // hdd
-        Icon::Network => ("\u{f0e8}", "38;5;75"),  // sitemap
+        Icon::Volume => ("\u{f0a0}", "38;5;75"),  // hdd
+        Icon::Network => ("\u{f0e8}", "38;5;75"), // sitemap
         Icon::Cloud => ("\u{f0c2}", "38;5;75"),
         Icon::Terminal => ("\u{f120}", "38;5;213"),
     }
@@ -182,22 +182,6 @@ fn file_icon(name: &str) -> (&'static str, &'static str) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn picks_specific_icons() {
-        assert_eq!(glyph(Kind::Arg, Some(Icon::GitBranch), "main", true).0, "\u{e725}");
-        assert_eq!(glyph(Kind::File, None, "main.rs", true).0, "\u{e7a8}");
-        assert_eq!(glyph(Kind::File, None, "Dockerfile", true).0, "\u{f308}");
-        assert_eq!(glyph(Kind::Folder, None, "src/", true).0, "\u{f07b}");
-        assert_eq!(glyph(Kind::Option, None, "-v", false).0, "◆");
-        assert_eq!(glyph(Kind::Arg, Some(Icon::Npm), "react", false).0, "◈");
-        assert!(use_nerd("nerd") && !use_nerd("unicode") && !use_nerd("none"));
-    }
-}
-
 /// Every icon, for `lig icons`: `(glyph, color, what)`.
 pub fn legend(nerd: bool) -> Vec<(&'static str, &'static str, String)> {
     let kinds = [
@@ -250,10 +234,39 @@ pub fn legend(nerd: bool) -> Vec<(&'static str, &'static str, String)> {
         out.push((g, c, what.to_string()));
     }
     if nerd {
-        for f in ["main.rs", "app.py", "index.js", "app.ts", "data.json", "README.md", "config.toml", "run.sh", "Dockerfile", "photo.png", "backup.tar.gz", "Cargo.lock"] {
+        for f in [
+            "main.rs",
+            "app.py",
+            "index.js",
+            "app.ts",
+            "data.json",
+            "README.md",
+            "config.toml",
+            "run.sh",
+            "Dockerfile",
+            "photo.png",
+            "backup.tar.gz",
+            "Cargo.lock",
+        ] {
             let (g, c) = glyph(Kind::File, None, f, true);
             out.push((g, c, format!("file: {f}")));
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn picks_specific_icons() {
+        assert_eq!(glyph(Kind::Arg, Some(Icon::GitBranch), "main", true).0, "\u{e725}");
+        assert_eq!(glyph(Kind::File, None, "main.rs", true).0, "\u{e7a8}");
+        assert_eq!(glyph(Kind::File, None, "Dockerfile", true).0, "\u{f308}");
+        assert_eq!(glyph(Kind::Folder, None, "src/", true).0, "\u{f07b}");
+        assert_eq!(glyph(Kind::Option, None, "-v", false).0, "◆");
+        assert_eq!(glyph(Kind::Arg, Some(Icon::Npm), "react", false).0, "◈");
+        assert!(use_nerd("nerd") && !use_nerd("unicode") && !use_nerd("none"));
+    }
 }

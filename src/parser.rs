@@ -27,11 +27,7 @@ pub struct CommandLine {
 impl CommandLine {
     /// All token values, including the current one, Fig style.
     pub fn values(&self) -> Vec<String> {
-        self.tokens
-            .iter()
-            .chain(std::iter::once(&self.current))
-            .map(|t| t.value.clone())
-            .collect()
+        self.tokens.iter().chain(std::iter::once(&self.current)).map(|t| t.value.clone()).collect()
     }
 }
 

@@ -11,8 +11,10 @@ use crate::config::Behavior;
 use crate::exec::{self, Cmd};
 use crate::help::{HelpLoader, Lookup};
 use crate::parser::{self, CommandLine, Token};
+use crate::spec::{
+    self, Arg, GenCtx, GenSource, Generator, LoadSpec, Opt, Subcommand, SuggestionDef, Template, Trigger,
+};
 pub use crate::spec::{Icon, Kind};
-use crate::spec::{self, Arg, GenCtx, GenSource, Generator, LoadSpec, Opt, Subcommand, SuggestionDef, Template, Trigger};
 use crate::specs;
 use crate::store::Store;
 
@@ -51,29 +53,40 @@ pub struct ShellEnv {
     pub builtins: Arc<Vec<String>>,
 }
 
+/// A candidate before filtering and ranking (see [`Engine::finish`]).
 struct Cand {
+    /// Every name it can be typed as (`-v`, `--verbose`); matched against `query`.
     names: Vec<String>,
     label: String,
     description: Option<String>,
+    /// Inserted instead of the name, if set (may contain `{cursor}`).
     insert_value: Option<String>,
     priority: f64,
+    /// Only shown when typed exactly.
     hidden: bool,
     kind: Kind,
     icon: Option<Icon>,
     query: String,
+    /// Characters left of the cursor that accepting it replaces.
     delete: usize,
+    /// Typed after the name: `" "`, an option's `=`, or nothing.
     suffix: String,
     /// Already matched by the generator itself; keep as is.
     unfiltered: bool,
 }
 
+/// The state of one completion request.
 struct Cx<'a> {
     cl: &'a CommandLine,
     env: &'a ShellEnv,
+    /// Token values, the one under the cursor last (what generators see).
     tokens: Vec<String>,
     cands: Vec<Cand>,
+    /// Generators and `--help` may run (second pass); otherwise only caches are used.
     run_generators: bool,
+    /// Something was skipped that the second pass would run.
     incomplete: bool,
+    /// What that is, for the "loading" message.
     loading: Option<String>,
     /// The popup was asked for (Ctrl+Space).
     manual: bool,
@@ -90,11 +103,18 @@ impl Cx<'_> {
         (self.cl.current.value.clone(), self.cl.current.raw.chars().count())
     }
 
-    fn push_def(&mut self, d: &SuggestionDef, fallback: Kind, query: &str, delete: usize) {
-        let mut c = cand(&d.meta, d.kind.unwrap_or(fallback), " ");
+    /// Add a candidate matched against `query`; accepting it replaces the
+    /// last `delete` characters.
+    fn push(&mut self, meta: &spec::Meta, kind: Kind, suffix: &str, query: &str, delete: usize) -> &mut Cand {
+        let mut c = cand(meta, kind, suffix);
         c.query = query.to_string();
         c.delete = delete;
         self.cands.push(c);
+        self.cands.last_mut().expect("just pushed")
+    }
+
+    fn push_def(&mut self, d: &SuggestionDef, fallback: Kind, query: &str, delete: usize) -> &mut Cand {
+        self.push(&d.meta, d.kind.unwrap_or(fallback), " ", query, delete)
     }
 }
 
@@ -120,14 +140,22 @@ fn cand(m: &spec::Meta, kind: Kind, suffix: &str) -> Cand {
     }
 }
 
+/// More than this is never useful in a popup.
+const MAX_SUGGESTIONS: usize = 500;
+
 pub struct Engine {
     store: Store,
     cfg: Behavior,
     help: HelpLoader,
+    /// Loaded specs by command name (`None`: there is none).
     specs: HashMap<String, Option<Arc<Subcommand>>>,
+    /// Generator results by generator, context and trigger state.
     gen_cache: HashMap<String, (Instant, Vec<SuggestionDef>)>,
+    /// The last results per generator and context, shown while fresh ones load.
     last_results: HashMap<String, Vec<SuggestionDef>>,
+    /// Executables on PATH: (when listed, the PATH, names).
     path_cmds: Option<(Instant, String, Arc<BTreeSet<String>>)>,
+    /// Commands that have a spec.
     spec_cmds: Option<Arc<HashSet<String>>>,
 }
 
@@ -161,8 +189,16 @@ impl Engine {
     pub fn complete(&mut self, line: &str, env: &ShellEnv, run_generators: bool, manual: bool) -> Completion {
         let mut cl = parser::parse(line);
         expand_aliases(&mut cl, env);
-        let mut cx =
-            Cx { tokens: cl.values(), cl: &cl, env, cands: vec![], run_generators, incomplete: false, loading: None, manual };
+        let mut cx = Cx {
+            tokens: cl.values(),
+            cl: &cl,
+            env,
+            cands: vec![],
+            run_generators,
+            incomplete: false,
+            loading: None,
+            manual,
+        };
 
         if cl.current.redirect {
             self.files(&mut cx, false);
@@ -190,14 +226,23 @@ impl Engine {
 
     // ------------------------------------------------------------ walking
 
+    /// Follow the typed tokens through the spec (subcommands, options and
+    /// their arguments), then suggest what fits the word under the cursor.
     fn walk(&mut self, root: Arc<Subcommand>, cx: &mut Cx<'_>) {
         let tokens: Vec<Token> = cx.cl.tokens[1..].to_vec();
+        // The (sub)command the tokens have reached.
         let mut node = root;
+        // Options of parent commands that still apply.
         let mut persistent: Vec<Arc<Opt>> = vec![];
+        // Options already on the line.
         let mut used: Vec<Arc<Opt>> = vec![];
+        // The positional argument the next value fills.
         let mut arg_idx = 0usize;
+        // A positional value was typed: no more subcommands.
         let mut saw_positional = false;
+        // After `--` everything is a positional value.
         let mut no_more_opts = false;
+        // An option still waiting for its argument number `k`.
         let mut pending: Option<(Arc<Opt>, usize)> = None;
         let mut directives = node.directives();
 
@@ -228,16 +273,15 @@ impl Engine {
                 }
                 continue;
             }
-            if !saw_positional
-                && let Some(sub) = node.find_subcommand(t).cloned() {
-                    persistent.extend(node.options.iter().filter(|o| o.is_persistent).cloned());
-                    node = self.resolve(&sub, cx);
-                    if let Some(d) = &node.directives {
-                        directives = d.clone();
-                    }
-                    arg_idx = 0;
-                    continue;
+            if !saw_positional && let Some(sub) = node.find_subcommand(t).cloned() {
+                persistent.extend(node.options.iter().filter(|o| o.is_persistent).cloned());
+                node = self.resolve(&sub, cx);
+                if let Some(d) = &node.directives {
+                    directives = d.clone();
                 }
+                arg_idx = 0;
+                continue;
+            }
             saw_positional = true;
             let Some(arg) = current_arg(&node, arg_idx) else { continue };
             if arg.is_command {
@@ -276,27 +320,25 @@ impl Engine {
             };
             for sep in &seps {
                 if let Some((name, value)) = cur.value.split_once(sep.as_str())
-                    && let Some(opt) = find_option(&node, &persistent, name) {
-                        if let Some(a) = opt.args.first().cloned() {
-                            let delete = cur.raw.rsplit_once(sep.as_str()).map_or(0, |(_, r)| r.chars().count());
-                            self.arg_suggestions(&a, cx, value, delete);
-                        }
-                        return;
+                    && let Some(opt) = find_option(&node, &persistent, name)
+                {
+                    if let Some(a) = opt.args.first().cloned() {
+                        let delete = cur.raw.rsplit_once(sep.as_str()).map_or(0, |(_, r)| r.chars().count());
+                        self.arg_suggestions(&a, cx, value, delete);
                     }
+                    return;
+                }
             }
             self.options(&node, &persistent, &used, cx);
             return;
         }
         if !saw_positional {
             let (q, d) = cx.default_query();
-            for s in node.subcommands.clone() {
-                let mut c = cand(&s.meta, Kind::Subcommand, " ");
-                c.query = q.clone();
-                c.delete = d;
-                cx.cands.push(c);
+            for s in &node.subcommands {
+                cx.push(&s.meta, Kind::Subcommand, " ", &q, d);
             }
-            for s in node.additional_suggestions.clone() {
-                cx.push_def(&s, Kind::Shortcut, &q, d);
+            for s in &node.additional_suggestions {
+                cx.push_def(s, Kind::Shortcut, &q, d);
             }
         }
         let arg = current_arg(&node, arg_idx);
@@ -316,7 +358,11 @@ impl Engine {
         // Options are offered when nothing else is, and next to plain file
         // arguments (`java ` → `-jar`, `-cp`, … then files).
         let files_only = arg.as_ref().is_some_and(|a| {
-            a.suggestions.is_empty() && a.generators.is_empty() && !a.is_command && !a.command_names && !a.template.is_empty()
+            a.suggestions.is_empty()
+                && a.generators.is_empty()
+                && !a.is_command
+                && !a.command_names
+                && !a.template.is_empty()
         });
         if !cx.incomplete && (files_only || (cx.cands.is_empty() && arg.is_none_or(|a| a.is_optional))) {
             self.options(&node, &persistent, &used, cx);
@@ -391,10 +437,7 @@ impl Engine {
                 Some(sep) if o.takes_arg() => sep.as_str(),
                 _ => " ",
             };
-            let mut c = cand(&o.meta, Kind::Option, suffix);
-            c.query = q.clone();
-            c.delete = d;
-            cx.cands.push(c);
+            cx.push(&o.meta, Kind::Option, suffix, &q, d);
         }
     }
 
@@ -429,7 +472,9 @@ impl Engine {
         let v = &cur.value;
         let trigger_key = match &g.trigger {
             None => String::new(),
-            Some(Trigger::Chars(chars)) => v.rfind(|c| chars.contains(c)).map_or(String::new(), |i| v[..=i].to_string()),
+            Some(Trigger::Chars(chars)) => {
+                v.rfind(|c| chars.contains(c)).map_or(String::new(), |i| v[..=i].to_string())
+            }
             Some(Trigger::Change) => v.clone(),
             Some(Trigger::Prefix(n)) => v.chars().take(*n).collect(),
         };
@@ -462,12 +507,9 @@ impl Engine {
         };
         let icon = generator_icon(&g.id);
         for d in &defs {
-            cx.push_def(d, Kind::Arg, &query, delete);
-            let c = cx.cands.last_mut().unwrap();
+            let c = cx.push_def(d, Kind::Arg, &query, delete);
             c.unfiltered = !g.filter;
-            if c.icon.is_none() {
-                c.icon = icon;
-            }
+            c.icon = c.icon.or(icon);
         }
     }
 
@@ -487,40 +529,13 @@ impl Engine {
         }
     }
 
+    /// Files and folders for the word under the cursor.
     fn files(&mut self, cx: &mut Cx<'_>, folders_only: bool) {
-        let cur = &cx.cl.current;
-        // `cd src/`: a complete directory is typed; offer running the command
-        // first, then what's inside (like Fig).
-        if folders_only && cur.value.ends_with('/') && !cx.cands.iter().any(|c| c.kind == Kind::Execute) {
-            let line = cx.cl.tokens.iter().map(|t| t.raw.as_str()).chain([cur.raw.as_str()]).collect::<Vec<_>>().join(" ");
-            let meta = spec::Meta {
-                names: vec![String::new()],
-                display_name: Some("Enter".into()),
-                description: Some(format!("Run `{line}`")),
-                priority: Some(1000.0),
-                ..Default::default()
-            };
-            let mut c = cand(&meta, Kind::Execute, "");
-            c.unfiltered = true;
-            cx.cands.push(c);
+        if folders_only {
+            folder_navigation(cx);
         }
-        // …then "Back": the same path, one folder up (`../` from nothing).
-        if folders_only && (cur.value.is_empty() || cur.value.ends_with('/')) && !cx.cands.iter().any(|c| c.kind == Kind::Back)
-            && let Some(up) = parent_path(&cur.raw) {
-                let shown = if up.is_empty() { "the current folder".to_string() } else { format!("`{up}`") };
-                let meta = spec::Meta {
-                    names: vec![String::new()],
-                    display_name: Some("Back".into()),
-                    description: Some(format!("Up to {shown}")),
-                    insert_value: Some(up),
-                    priority: Some(999.0),
-                    ..Default::default()
-                };
-                let mut c = cand(&meta, Kind::Back, "");
-                c.unfiltered = true;
-                c.delete = cur.raw.chars().count();
-                cx.cands.push(c);
-            }
+        let cl = cx.cl;
+        let cur = &cl.current;
         let (dir_part, base) = match cur.value.rfind('/') {
             Some(i) => (&cur.value[..=i], &cur.value[i + 1..]),
             None => ("", cur.value.as_str()),
@@ -531,11 +546,10 @@ impl Engine {
         };
         let dir = if dir_part.is_empty() {
             cx.env.cwd.clone()
-        } else if dir_part == "~/" || dir_part.starts_with("~/") {
-            dirs::home_dir().unwrap_or_default().join(&dir_part[2..])
-        } else if dir_part.starts_with('/') {
-            PathBuf::from(dir_part)
+        } else if let Some(rel) = dir_part.strip_prefix("~/") {
+            dirs::home_dir().unwrap_or_default().join(rel)
         } else {
+            // An absolute `dir_part` replaces the cwd.
             cx.env.cwd.join(dir_part)
         };
         let Ok(rd) = std::fs::read_dir(&dir) else { return };
@@ -551,14 +565,13 @@ impl Engine {
                 (is_dir || !folders_only).then_some((is_dir, name))
             })
             .collect();
+        // Folders first, then by name.
         entries.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase())));
         for (is_dir, name) in entries {
-            let (kind, label) = if is_dir { (Kind::Folder, format!("{name}/")) } else { (Kind::File, name.clone()) };
+            let (kind, label, suffix) =
+                if is_dir { (Kind::Folder, format!("{name}/"), "") } else { (Kind::File, name, " ") };
             let meta = spec::Meta { names: vec![label], ..Default::default() };
-            let mut c = cand(&meta, kind, if is_dir { "" } else { " " });
-            c.query = base.to_string();
-            c.delete = delete;
-            cx.cands.push(c);
+            cx.push(&meta, kind, suffix, base, delete);
         }
     }
 
@@ -584,10 +597,7 @@ impl Engine {
                 icon: Some(Icon::Alias),
                 ..Default::default()
             };
-            let mut c = cand(&meta, Kind::Command, " ");
-            c.query = q.clone();
-            c.delete = d;
-            cx.cands.push(c);
+            cx.push(&meta, Kind::Command, " ", &q, d);
         }
         let shell_names = cx
             .env
@@ -603,10 +613,7 @@ impl Engine {
                 icon: Some(icon),
                 ..Default::default()
             };
-            let mut c = cand(&meta, Kind::Command, " ");
-            c.query = q.clone();
-            c.delete = d;
-            cx.cands.push(c);
+            cx.push(&meta, Kind::Command, " ", &q, d);
         }
         for name in path.iter() {
             let meta = spec::Meta {
@@ -614,10 +621,7 @@ impl Engine {
                 priority: Some(if with_spec.contains(name) { 55.0 } else { 50.0 }),
                 ..Default::default()
             };
-            let mut c = cand(&meta, Kind::Command, " ");
-            c.query = q.clone();
-            c.delete = d;
-            cx.cands.push(c);
+            cx.push(&meta, Kind::Command, " ", &q, d);
         }
     }
 
@@ -647,9 +651,21 @@ impl Engine {
 
     // ------------------------------------------------------------ ranking
 
+    /// Filter the candidates by what's typed, rank them and build the suggestions.
     fn finish(&self, cx: Cx<'_>) -> Vec<Suggestion> {
+        /// A candidate that matched.
+        struct Scored {
+            /// From [`match_tier`]: 0 exact, 1 prefix, 2 fuzzy.
+            tier: u8,
+            priority: f64,
+            /// Index in `cx.cands` (spec order breaks ties).
+            idx: usize,
+            /// The name to insert.
+            name: String,
+        }
+
         let cur = &cx.cl.current;
-        let mut scored: Vec<(u8, f64, usize, String)> = vec![];
+        let mut scored: Vec<Scored> = vec![];
         for (idx, c) in cx.cands.iter().enumerate() {
             if c.names.iter().all(|n| n.trim().is_empty())
                 && c.insert_value.is_none()
@@ -675,11 +691,11 @@ impl Engine {
             if c.hidden && tier != 0 {
                 continue;
             }
-            scored.push((tier, c.priority, idx, name.clone()));
+            scored.push(Scored { tier, priority: c.priority, idx, name: name.clone() });
         }
         // Fuzzy matches only when nothing matches by prefix.
-        if scored.iter().any(|s| s.0 < 2) {
-            scored.retain(|s| s.0 < 2);
+        if scored.iter().any(|s| s.tier < 2) {
+            scored.retain(|s| s.tier < 2);
         }
         // Subcommands and values first, then options, then files.
         let files_first = self.cfg.files_first;
@@ -688,19 +704,19 @@ impl Engine {
             Kind::File | Kind::Folder if !files_first => 2,
             _ => 0,
         };
+        let fuzzy = |s: &Scored| s.tier == 2;
         scored.sort_by(|a, b| {
-            let bucket = |t: u8| (t == 2) as u8;
-            bucket(a.0)
-                .cmp(&bucket(b.0))
-                .then(kind_tier(a.2).cmp(&kind_tier(b.2)))
-                .then(b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal))
-                .then(a.0.cmp(&b.0))
-                .then(a.2.cmp(&b.2))
+            fuzzy(a)
+                .cmp(&fuzzy(b))
+                .then(kind_tier(a.idx).cmp(&kind_tier(b.idx)))
+                .then(b.priority.total_cmp(&a.priority))
+                .then(a.tier.cmp(&b.tier))
+                .then(a.idx.cmp(&b.idx))
         });
 
         let mut seen = HashSet::new();
         let mut out = vec![];
-        for (_, _, idx, name) in scored {
+        for Scored { idx, name, .. } in scored {
             let c = &cx.cands[idx];
             let (insert, back) = insertion(c, &name, cur, self.cfg.insert_space);
             // Enter and Back can both insert "": keep them apart from values.
@@ -717,19 +733,51 @@ impl Engine {
                 back,
                 query: c.query.clone(),
             });
-            if out.len() >= 500 {
+            if out.len() >= MAX_SUGGESTIONS {
                 break;
             }
         }
         // Nothing to offer if the only suggestion is exactly what's typed —
         // except an option (accepting adds its space) or a folder (its `/`).
-        if out.len() == 1
-            && !matches!(out[0].kind, Kind::Folder | Kind::Option)
-            && out[0].insert.trim_end() == cur.raw
+        if out.len() == 1 && !matches!(out[0].kind, Kind::Folder | Kind::Option) && out[0].insert.trim_end() == cur.raw
         {
             out.clear();
         }
         out
+    }
+}
+
+/// For a folder argument: "Enter" (run the line) once a folder is complete
+/// (`cd src/`), then "Back" (one folder up), like Fig.
+fn folder_navigation(cx: &mut Cx<'_>) {
+    let cl = cx.cl;
+    let cur = &cl.current;
+    if cur.value.ends_with('/') && !cx.cands.iter().any(|c| c.kind == Kind::Execute) {
+        let line = cl.tokens.iter().map(|t| t.raw.as_str()).chain([cur.raw.as_str()]).collect::<Vec<_>>().join(" ");
+        let meta = spec::Meta {
+            names: vec![String::new()],
+            display_name: Some("Enter".into()),
+            description: Some(format!("Run `{line}`")),
+            priority: Some(1000.0),
+            ..Default::default()
+        };
+        cx.push(&meta, Kind::Execute, "", "", 0).unfiltered = true;
+    }
+    // The same path one folder up (`../` from nothing).
+    if (cur.value.is_empty() || cur.value.ends_with('/'))
+        && !cx.cands.iter().any(|c| c.kind == Kind::Back)
+        && let Some(up) = parent_path(&cur.raw)
+    {
+        let shown = if up.is_empty() { "the current folder".to_string() } else { format!("`{up}`") };
+        let meta = spec::Meta {
+            names: vec![String::new()],
+            display_name: Some("Back".into()),
+            description: Some(format!("Up to {shown}")),
+            insert_value: Some(up),
+            priority: Some(999.0),
+            ..Default::default()
+        };
+        cx.push(&meta, Kind::Back, "", "", cur.raw.chars().count()).unfiltered = true;
     }
 }
 
@@ -842,11 +890,7 @@ fn insertion(c: &Cand, name: &str, cur: &Token, space: bool) -> (String, usize) 
                 }),
             };
             let open = if c.delete >= cur.raw.chars().count() { q.to_string() } else { String::new() };
-            if is_dir {
-                (format!("{open}{body}/"), 0)
-            } else {
-                (format!("{open}{body}{q}{suffix}"), 0)
-            }
+            if is_dir { (format!("{open}{body}/"), 0) } else { (format!("{open}{body}{q}{suffix}"), 0) }
         }
         _ if matches!(c.kind, Kind::File | Kind::Folder) => (format!("{}{suffix}", parser::escape(bare)), 0),
         // Values from specs may be globs or `~/…`; only escape what would break the word.
@@ -872,24 +916,21 @@ fn find_option(node: &Subcommand, persistent: &[Arc<Opt>], name: &str) -> Option
 
 /// Returns the option a flag token refers to and whether its argument is
 /// already part of the token (`--foo=bar`, `-ovalue`, `-abc`).
-fn match_option(
-    node: &Subcommand,
-    persistent: &[Arc<Opt>],
-    t: &str,
-    d: &spec::Directives,
-) -> Option<(Arc<Opt>, bool)> {
+fn match_option(node: &Subcommand, persistent: &[Arc<Opt>], t: &str, d: &spec::Directives) -> Option<(Arc<Opt>, bool)> {
     if let Some(o) = find_option(node, persistent, t) {
         return Some((o, false));
     }
     if let Some((name, _)) = t.split_once('=')
-        && let Some(o) = find_option(node, persistent, name) {
-            return Some((o, true));
-        }
+        && let Some(o) = find_option(node, persistent, name)
+    {
+        return Some((o, true));
+    }
     for sep in &d.option_arg_separators {
         if let Some((name, _)) = t.split_once(sep.as_str())
-            && let Some(o) = find_option(node, persistent, name) {
-                return Some((o, true));
-            }
+            && let Some(o) = find_option(node, persistent, name)
+        {
+            return Some((o, true));
+        }
     }
     if !t.starts_with("--") && !d.flags_are_posix_noncompliant {
         let chars: Vec<char> = t[1..].chars().collect();
@@ -912,7 +953,8 @@ pub fn match_tier(name: &str, query: &str, fuzzy: bool) -> Option<u8> {
         return Some(1);
     }
     let sensitive = query.chars().any(char::is_uppercase);
-    let (n, q) = if sensitive { (name.to_string(), query.to_string()) } else { (name.to_lowercase(), query.to_lowercase()) };
+    let (n, q) =
+        if sensitive { (name.to_string(), query.to_string()) } else { (name.to_lowercase(), query.to_lowercase()) };
     if n == q {
         return Some(0);
     }

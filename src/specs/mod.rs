@@ -66,6 +66,8 @@ pub fn merge(base: &Subcommand, extra: &Subcommand) -> Subcommand {
     out
 }
 
+/// Merge two specs' argument at the same position: `base`'s, plus the
+/// suggestions and generators only `extra` has.
 fn merge_arg(base: &crate::spec::Arg, extra: &crate::spec::Arg) -> crate::spec::Arg {
     let mut out = base.clone();
     for s in &extra.suggestions {

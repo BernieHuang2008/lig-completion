@@ -34,26 +34,40 @@ pub fn git_branches() -> Generator {
 
 pub fn git_local_branches() -> Generator {
     gen_fn("git:local-branches", |cx| {
-        cx.lines(&["git", "--no-optional-locks", "for-each-ref", "--sort=-committerdate", "--format=%(refname:short)%09%(subject)", "refs/heads"])
+        cx.lines(&[
+            "git",
+            "--no-optional-locks",
+            "for-each-ref",
+            "--sort=-committerdate",
+            "--format=%(refname:short)%09%(subject)",
+            "refs/heads",
+        ])
+        .iter()
+        .map(|l| {
+            let (b, s) = l.split_once('\t').unwrap_or((l, ""));
+            sug(b).desc(s)
+        })
+        .collect()
+    })
+}
+
+pub fn git_remotes() -> Generator {
+    gen_fn("git:remotes", |cx| {
+        cx.lines(&["git", "remote", "-v"])
             .iter()
-            .map(|l| {
-                let (b, s) = l.split_once('\t').unwrap_or((l, ""));
-                sug(b).desc(s)
+            .filter_map(|l| {
+                let mut p = l.split_whitespace();
+                let (name, url) = (p.next()?, p.next().unwrap_or(""));
+                l.ends_with("(fetch)").then(|| sug(name).desc(url))
             })
             .collect()
     })
 }
 
-pub fn git_remotes() -> Generator {
-    gen_fn("git:remotes", |cx| cx.lines(&["git", "remote", "-v"]).iter().filter_map(|l| {
-        let mut p = l.split_whitespace();
-        let (name, url) = (p.next()?, p.next().unwrap_or(""));
-        l.ends_with("(fetch)").then(|| sug(name).desc(url))
-    }).collect())
-}
-
 pub fn git_tags() -> Generator {
-    gen_fn("git:tags", |cx| cx.lines(&["git", "tag", "--sort=-creatordate"]).into_iter().map(|t| sug(t).desc("tag")).collect())
+    gen_fn("git:tags", |cx| {
+        cx.lines(&["git", "tag", "--sort=-creatordate"]).into_iter().map(|t| sug(t).desc("tag")).collect()
+    })
 }
 
 pub fn git_commits() -> Generator {
@@ -102,7 +116,9 @@ pub fn git_changed(which: Changes) -> Generator {
     gen_fn(id, move |cx| {
         let prefix = cx.run(&["git", "rev-parse", "--show-prefix"]).unwrap_or_default();
         let prefix = prefix.trim();
-        let Some(out) = cx.run(&["git", "--no-optional-locks", "-c", "core.quotePath=false", "status", "--porcelain", "-uall"]) else {
+        let Some(out) =
+            cx.run(&["git", "--no-optional-locks", "-c", "core.quotePath=false", "status", "--porcelain", "-uall"])
+        else {
             return vec![];
         };
         let mut v = vec![];
@@ -201,7 +217,9 @@ pub fn find_up(cwd: &Path, name: &str) -> Option<PathBuf> {
 pub fn npm_scripts() -> Generator {
     gen_fn("npm:scripts", |cx| {
         let Some(pj) = find_up(cx.cwd, "package.json") else { return vec![] };
-        let Ok(v) = std::fs::read_to_string(pj).map(|t| serde_json::from_str::<serde_json::Value>(&t).unwrap_or_default()) else {
+        let Ok(v) =
+            std::fs::read_to_string(pj).map(|t| serde_json::from_str::<serde_json::Value>(&t).unwrap_or_default())
+        else {
             return vec![];
         };
         v["scripts"]
@@ -215,11 +233,18 @@ pub fn npm_scripts() -> Generator {
 pub fn npm_deps() -> Generator {
     gen_fn("npm:deps", |cx| {
         let Some(pj) = find_up(cx.cwd, "package.json") else { return vec![] };
-        let v: serde_json::Value = std::fs::read_to_string(pj).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+        let v: serde_json::Value =
+            std::fs::read_to_string(pj).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
         let mut out = vec![];
-        for (section, label) in [("dependencies", "dependency"), ("devDependencies", "dev dependency"), ("peerDependencies", "peer dependency")] {
+        for (section, label) in [
+            ("dependencies", "dependency"),
+            ("devDependencies", "dev dependency"),
+            ("peerDependencies", "peer dependency"),
+        ] {
             if let Some(o) = v[section].as_object() {
-                out.extend(o.iter().map(|(k, ver)| sug(k.clone()).desc(format!("{label} {}", ver.as_str().unwrap_or("")))));
+                out.extend(
+                    o.iter().map(|(k, ver)| sug(k.clone()).desc(format!("{label} {}", ver.as_str().unwrap_or("")))),
+                );
             }
         }
         out
@@ -257,10 +282,12 @@ pub fn cargo_targets(kind: &'static str) -> Generator {
             if let Some(arr) = v.get(kind).and_then(|x| x.as_array()) {
                 names.extend(arr.iter().filter_map(|t| t.get("name")?.as_str().map(str::to_string)));
             }
-            if kind == "bin" && root.join("src/main.rs").is_file()
-                && let Some(n) = v.get("package").and_then(|p| p.get("name")).and_then(|n| n.as_str()) {
-                    names.push(n.to_string());
-                }
+            if kind == "bin"
+                && root.join("src/main.rs").is_file()
+                && let Some(n) = v.get("package").and_then(|p| p.get("name")).and_then(|n| n.as_str())
+            {
+                names.push(n.to_string());
+            }
         }
         names.sort();
         names.dedup();
@@ -282,11 +309,17 @@ pub fn cargo_features() -> Generator {
 
 pub fn cargo_packages() -> Generator {
     gen_fn("cargo:packages", |cx| {
-        let Some(out) = cx.run(&["cargo", "metadata", "--no-deps", "--format-version", "1", "--offline"]) else { return vec![] };
+        let Some(out) = cx.run(&["cargo", "metadata", "--no-deps", "--format-version", "1", "--offline"]) else {
+            return vec![];
+        };
         let v: serde_json::Value = serde_json::from_str(&out).unwrap_or_default();
         v["packages"]
             .as_array()
-            .map(|a| a.iter().filter_map(|p| Some(sug(p["name"].as_str()?).desc(p["version"].as_str().unwrap_or("")))).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|p| Some(sug(p["name"].as_str()?).desc(p["version"].as_str().unwrap_or(""))))
+                    .collect()
+            })
             .unwrap_or_default()
     })
     .ttl(30_000)
@@ -308,9 +341,10 @@ pub fn cargo_installed() -> Generator {
 pub fn make_targets() -> Generator {
     gen_fn("make:targets", |cx| {
         let dir = cx.flag_value(&["-C", "--directory"]).map_or_else(|| cx.cwd.to_path_buf(), |d| cx.cwd.join(d));
-        let file = cx.flag_value(&["-f", "--file", "--makefile"]).map(|f| dir.join(f)).or_else(|| {
-            ["GNUmakefile", "makefile", "Makefile"].iter().map(|n| dir.join(n)).find(|p| p.is_file())
-        });
+        let file = cx
+            .flag_value(&["-f", "--file", "--makefile"])
+            .map(|f| dir.join(f))
+            .or_else(|| ["GNUmakefile", "makefile", "Makefile"].iter().map(|n| dir.join(n)).find(|p| p.is_file()));
         let Some(text) = file.and_then(|f| std::fs::read_to_string(f).ok()) else { return vec![] };
         let mut out: Vec<SuggestionDef> = vec![];
         let mut last_comment = String::new();
@@ -328,7 +362,8 @@ pub fn make_targets() -> Generator {
                     continue;
                 }
                 // `target: deps ## description`
-                let desc = rest.split_once("##").map(|(_, d)| d.trim().to_string()).unwrap_or_else(|| last_comment.clone());
+                let desc =
+                    rest.split_once("##").map(|(_, d)| d.trim().to_string()).unwrap_or_else(|| last_comment.clone());
                 for t in targets.split_whitespace() {
                     if !out.iter().any(|s| s.meta.names[0] == t) {
                         out.push(sug(t).desc(desc.clone()));
@@ -367,7 +402,6 @@ pub fn process_names() -> Generator {
     .ttl(2000)
 }
 
-
 /// `systemctl` units; `--user` in the line lists user units.
 pub fn systemd_units() -> Generator {
     gen_fn("systemd:units", |cx| {
@@ -400,8 +434,10 @@ pub fn systemd_units() -> Generator {
 }
 
 pub fn apt_installed() -> Generator {
-    gen_fn("apt:installed", |cx| cx.lines(&["dpkg-query", "-W", "-f", "${Package}\n"]).into_iter().map(|p| sug(p).desc("installed")).collect())
-        .ttl(60_000)
+    gen_fn("apt:installed", |cx| {
+        cx.lines(&["dpkg-query", "-W", "-f", "${Package}\n"]).into_iter().map(|p| sug(p).desc("installed")).collect()
+    })
+    .ttl(60_000)
 }
 
 /// Package names starting with the first two typed characters.
@@ -442,9 +478,12 @@ pub fn ssh_host_list() -> Vec<SuggestionDef> {
                     Some("include") => {
                         for inc in p {
                             let inc = inc.replace('~', &home.to_string_lossy());
-                            let path = if inc.starts_with('/') { PathBuf::from(&inc) } else { home.join(".ssh").join(&inc) };
+                            let path =
+                                if inc.starts_with('/') { PathBuf::from(&inc) } else { home.join(".ssh").join(&inc) };
                             if let Some(parent) = path.parent().filter(|_| inc.contains('*')) {
-                                configs.extend(std::fs::read_dir(parent).into_iter().flatten().flatten().map(|e| e.path()));
+                                configs.extend(
+                                    std::fs::read_dir(parent).into_iter().flatten().flatten().map(|e| e.path()),
+                                );
                             } else {
                                 configs.push(path);
                             }
@@ -518,7 +557,6 @@ pub fn rustup_list(id: &'static str, what: &'static str, installed: bool) -> Gen
 
 // ---------------------------------------------------------------- kubectl
 
-
 fn kube_base(cx: &GenCtx) -> Vec<String> {
     let mut v = vec!["kubectl".to_string()];
     if let Some(ns) = cx.flag_value(&["-n", "--namespace"]) {
@@ -550,12 +588,17 @@ pub fn kube_names(default_type: Option<&str>) -> Generator {
 }
 
 pub fn kube_contexts() -> Generator {
-    gen_fn("kube:contexts", |cx| cx.lines(&["kubectl", "config", "get-contexts", "-o", "name"]).into_iter().map(sug).collect())
+    gen_fn("kube:contexts", |cx| {
+        cx.lines(&["kubectl", "config", "get-contexts", "-o", "name"]).into_iter().map(sug).collect()
+    })
 }
 
 pub fn kube_namespaces() -> Generator {
     gen_fn("kube:namespaces", |cx| {
-        cx.lines(&["kubectl", "get", "namespaces", "-o", "name"]).iter().map(|l| sug(l.trim_start_matches("namespace/"))).collect()
+        cx.lines(&["kubectl", "get", "namespaces", "-o", "name"])
+            .iter()
+            .map(|l| sug(l.trim_start_matches("namespace/")))
+            .collect()
     })
     .ttl(30_000)
 }
@@ -610,7 +653,9 @@ pub fn prefixed_files(prefix: String) -> Generator {
 }
 
 pub fn docker_contexts() -> Generator {
-    gen_fn("docker:contexts", |cx| cx.lines(&["docker", "context", "ls", "--format", "{{.Name}}"]).into_iter().map(sug).collect())
+    gen_fn("docker:contexts", |cx| {
+        cx.lines(&["docker", "context", "ls", "--format", "{{.Name}}"]).into_iter().map(sug).collect()
+    })
 }
 
 /// Dependencies listed in the nearest `Cargo.toml`.
@@ -619,7 +664,11 @@ pub fn cargo_deps() -> Generator {
         let Some(m) = find_up(cx.cwd, "Cargo.toml") else { return vec![] };
         let v = std::fs::read_to_string(m).ok().and_then(|t| t.parse::<toml::Table>().ok()).unwrap_or_default();
         let mut out = vec![];
-        for (sec, d) in [("dependencies", "dependency"), ("dev-dependencies", "dev dependency"), ("build-dependencies", "build dependency")] {
+        for (sec, d) in [
+            ("dependencies", "dependency"),
+            ("dev-dependencies", "dev dependency"),
+            ("build-dependencies", "build dependency"),
+        ] {
             if let Some(t) = v.get(sec).and_then(|x| x.as_table()) {
                 out.extend(t.keys().map(|k| sug(k.clone()).desc(d)));
             }
@@ -797,13 +846,16 @@ fn home_abbrev(p: &str) -> String {
 /// tool itself using every keyword typed so far.
 pub fn zoxide_dirs() -> Generator {
     gen_fn("zoxide:dirs", |cx| {
-        let words: Vec<&str> = cx.tokens[1..].iter().map(String::as_str).filter(|t| !t.is_empty() && !t.starts_with('-')).collect();
+        let words: Vec<&str> =
+            cx.tokens[1..].iter().map(String::as_str).filter(|t| !t.is_empty() && !t.starts_with('-')).collect();
         let mut argv = vec!["zoxide", "query", "--list", "--"];
         argv.extend(&words);
         let mut paths = cx.lines(&argv);
         if paths.is_empty() && cx.run(&["zoxide", "--version"]).is_none() {
             // rupa/z: `path|rank|time` lines.
-            let data = std::env::var("_Z_DATA").map(PathBuf::from).unwrap_or_else(|_| dirs::home_dir().unwrap_or_default().join(".z"));
+            let data = std::env::var("_Z_DATA")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| dirs::home_dir().unwrap_or_default().join(".z"));
             let mut entries: Vec<(f64, String)> = std::fs::read_to_string(data)
                 .unwrap_or_default()
                 .lines()
@@ -860,7 +912,8 @@ fn split_at_version(token: &str) -> Option<(&str, &str)> {
 fn sort_versions(list: &mut [(String, String)]) {
     fn key(v: &str) -> (bool, Vec<u64>) {
         let pre = v.contains(|c: char| c.is_ascii_alphabetic());
-        let nums = v.split(|c: char| !c.is_ascii_digit()).filter(|p| !p.is_empty()).filter_map(|p| p.parse().ok()).collect();
+        let nums =
+            v.split(|c: char| !c.is_ascii_digit()).filter(|p| !p.is_empty()).filter_map(|p| p.parse().ok()).collect();
         (pre, nums)
     }
     list.sort_by(|a, b| {
@@ -874,12 +927,23 @@ fn rank_by_prefix(q: &str, mut v: Vec<SuggestionDef>) -> Vec<SuggestionDef> {
     let q = q.to_lowercase();
     v.sort_by_key(|s| {
         let n = s.meta.names[0].to_lowercase();
-        if n == q { 0 } else if n.starts_with(&q) { 1 } else { 2 }
+        if n == q {
+            0
+        } else if n.starts_with(&q) {
+            1
+        } else {
+            2
+        }
     });
     v
 }
 
-fn version_suggestions(name: &str, sep: &str, typed: &str, versions: impl IntoIterator<Item = (String, String)>) -> Vec<SuggestionDef> {
+fn version_suggestions(
+    name: &str,
+    sep: &str,
+    typed: &str,
+    versions: impl IntoIterator<Item = (String, String)>,
+) -> Vec<SuggestionDef> {
     versions
         .into_iter()
         .filter(|(v, _)| v.starts_with(typed))
@@ -904,10 +968,14 @@ pub fn npm_registry() -> Generator {
             let Some(v) = http_json(cx, &url, Some("application/vnd.npm.install-v1+json")) else { return vec![] };
             let mut list: Vec<(String, String)> = v["dist-tags"]
                 .as_object()
-                .map(|o| o.iter().map(|(t, ver)| (t.clone(), format!("tag for {}", ver.as_str().unwrap_or("")))).collect())
+                .map(|o| {
+                    o.iter().map(|(t, ver)| (t.clone(), format!("tag for {}", ver.as_str().unwrap_or("")))).collect()
+                })
                 .unwrap_or_default();
-            let mut versions: Vec<(String, String)> =
-                v["versions"].as_object().map(|o| o.keys().map(|k| (k.clone(), String::new())).collect()).unwrap_or_default();
+            let mut versions: Vec<(String, String)> = v["versions"]
+                .as_object()
+                .map(|o| o.keys().map(|k| (k.clone(), String::new())).collect())
+                .unwrap_or_default();
             sort_versions(&mut versions);
             list.extend(versions);
             return version_suggestions(name, "@", typed, list);
@@ -916,13 +984,14 @@ pub fn npm_registry() -> Generator {
         // version numbers are stale, so only names and descriptions are used.
         let url = format!("https://api.npms.io/v2/search/suggestions?q={}&size=25", urlencode(q));
         if let Some(serde_json::Value::Array(list)) = http_json(cx, &url, None)
-            && !list.is_empty() {
-                let v = list.iter().filter_map(|o| {
-                    let p = &o["package"];
-                    Some(sug(p["name"].as_str()?).desc(p["description"].as_str().unwrap_or("")))
-                });
-                return rank_by_prefix(q, v.collect());
-            }
+            && !list.is_empty()
+        {
+            let v = list.iter().filter_map(|o| {
+                let p = &o["package"];
+                Some(sug(p["name"].as_str()?).desc(p["description"].as_str().unwrap_or("")))
+            });
+            return rank_by_prefix(q, v.collect());
+        }
         // Fallback: the registry's own search (matches whole words only).
         let url = format!("https://registry.npmjs.org/-/v1/search?text={}&size=25", urlencode(q));
         let Some(v) = http_json(cx, &url, None) else { return vec![] };
@@ -953,7 +1022,12 @@ pub fn crates_io() -> Generator {
                 .into_iter()
                 .flatten()
                 .filter(|x| x["yanked"] != true)
-                .filter_map(|x| Some((x["num"].as_str()?.to_string(), x["created_at"].as_str().unwrap_or("").chars().take(10).collect())))
+                .filter_map(|x| {
+                    Some((
+                        x["num"].as_str()?.to_string(),
+                        x["created_at"].as_str().unwrap_or("").chars().take(10).collect(),
+                    ))
+                })
                 .collect();
             sort_versions(&mut list);
             return version_suggestions(name, "@", typed, list);
@@ -992,10 +1066,16 @@ pub fn docker_hub() -> Generator {
         }
         if let Some((image, typed)) = q.split_once(':') {
             let repo = if image.contains('/') { image.to_string() } else { format!("library/{image}") };
-            let url = format!("https://hub.docker.com/v2/repositories/{repo}/tags?page_size=50&ordering=last_updated&name={}", urlencode(typed));
+            let url = format!(
+                "https://hub.docker.com/v2/repositories/{repo}/tags?page_size=50&ordering=last_updated&name={}",
+                urlencode(typed)
+            );
             let Some(v) = http_json(cx, &url, None) else { return vec![] };
             let list = v["results"].as_array().into_iter().flatten().filter_map(|t| {
-                Some((t["name"].as_str()?.to_string(), t["last_updated"].as_str().unwrap_or("").chars().take(10).collect()))
+                Some((
+                    t["name"].as_str()?.to_string(),
+                    t["last_updated"].as_str().unwrap_or("").chars().take(10).collect(),
+                ))
             });
             return version_suggestions(image, ":", typed, list.collect::<Vec<_>>());
         }
@@ -1021,7 +1101,11 @@ pub fn docker_hub() -> Generator {
 /// (and, when offline, however old it is).
 fn cached_download(cx: &GenCtx, url: &str, file: &str, max_age: std::time::Duration) -> Option<String> {
     let path = dirs::cache_dir()?.join("lig").join(file);
-    let fresh = std::fs::metadata(&path).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|age| age < max_age);
+    let fresh = std::fs::metadata(&path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.elapsed().ok())
+        .is_some_and(|age| age < max_age);
     if !fresh {
         let tmp = path.with_extension("part");
         let _ = std::fs::create_dir_all(path.parent()?);
@@ -1050,7 +1134,8 @@ pub fn pypi_top() -> Generator {
             return vec![];
         }
         let url = "https://hugovk.github.io/top-pypi-packages/top-pypi-packages.min.json";
-        let Some(text) = cached_download(cx, url, "top-pypi-packages.json", std::time::Duration::from_secs(7 * 86400)) else {
+        let Some(text) = cached_download(cx, url, "top-pypi-packages.json", std::time::Duration::from_secs(7 * 86400))
+        else {
             return vec![];
         };
         let v: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
@@ -1060,7 +1145,11 @@ pub fn pypi_top() -> Generator {
             .flatten()
             .filter_map(|r| {
                 let downloads = r["download_count"].as_u64().unwrap_or(0);
-                Some(sug(r["project"].as_str()?).desc(format!("{} downloads/month", human_count(downloads))).priority(51.0))
+                Some(
+                    sug(r["project"].as_str()?)
+                        .desc(format!("{} downloads/month", human_count(downloads)))
+                        .priority(51.0),
+                )
             })
             .collect()
     })
@@ -1078,7 +1167,9 @@ pub fn pypi_versions() -> Generator {
             .map(|o| {
                 o.iter()
                     .filter(|(_, files)| files.as_array().is_some_and(|f| !f.is_empty()))
-                    .map(|(ver, files)| (ver.clone(), files[0]["upload_time"].as_str().unwrap_or("").chars().take(10).collect()))
+                    .map(|(ver, files)| {
+                        (ver.clone(), files[0]["upload_time"].as_str().unwrap_or("").chars().take(10).collect())
+                    })
                     .collect()
             })
             .unwrap_or_default();
@@ -1136,7 +1227,12 @@ mod online_tests {
         assert_eq!(split_at_version("react@18"), Some(("react", "18")));
         assert_eq!(split_at_version("@types/node@2"), Some(("@types/node", "2")));
         assert_eq!(split_at_version("@types/node"), None);
-        let v = version_suggestions("react", "@", "18", vec![("18.2.0".into(), String::new()), ("17.0.0".into(), String::new())]);
+        let v = version_suggestions(
+            "react",
+            "@",
+            "18",
+            vec![("18.2.0".into(), String::new()), ("17.0.0".into(), String::new())],
+        );
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].meta.names[0], "react@18.2.0");
         assert_eq!(v[0].meta.display_name.as_deref(), Some("18.2.0"));
@@ -1155,17 +1251,20 @@ fn cached_output(cx: &GenCtx, argv: &[&str], file: &str, max_age: std::time::Dur
     let path = dirs::cache_dir()?.join("lig").join(file);
     let age = std::fs::metadata(&path).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok());
     if age.is_none_or(|a| a >= max_age)
-        && let Some(out) = cx.run(argv).filter(|o| !o.trim().is_empty()) {
-            let _ = std::fs::create_dir_all(path.parent()?);
-            let _ = std::fs::write(&path, &out);
-            return Some(out);
-        }
+        && let Some(out) = cx.run(argv).filter(|o| !o.trim().is_empty())
+    {
+        let _ = std::fs::create_dir_all(path.parent()?);
+        let _ = std::fs::write(&path, &out);
+        return Some(out);
+    }
     std::fs::read_to_string(path).ok()
 }
 
 /// `(name, description, policy)` for every repository `extrepo search` knows.
 fn extrepo_index(cx: &GenCtx) -> Vec<(String, String, String)> {
-    let Some(out) = cached_output(cx, &["extrepo", "search"], "extrepo-search.txt", std::time::Duration::from_secs(86400)) else {
+    let Some(out) =
+        cached_output(cx, &["extrepo", "search"], "extrepo-search.txt", std::time::Duration::from_secs(86400))
+    else {
         return vec![];
     };
     let mut repos = vec![];

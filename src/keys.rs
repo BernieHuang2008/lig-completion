@@ -55,6 +55,7 @@ pub fn split(input: &[u8]) -> Vec<(&[u8], Key)> {
     out
 }
 
+/// The first key in `s` (not empty): its length in bytes, and which key it is.
 fn one(s: &[u8]) -> (usize, Key) {
     match s[0] {
         0x1b => {
@@ -105,6 +106,7 @@ fn one(s: &[u8]) -> (usize, Key) {
     }
 }
 
+/// Length of the UTF-8 character `s` starts with (1 if invalid).
 fn utf8_len(s: &[u8]) -> usize {
     match s.first() {
         Some(b) if b & 0xe0 == 0xc0 => 2,
@@ -114,10 +116,12 @@ fn utf8_len(s: &[u8]) -> usize {
     }
 }
 
+/// Position of `n` in `h`.
 fn find(h: &[u8], n: &[u8]) -> Option<usize> {
     h.windows(n.len()).position(|w| w == n)
 }
 
+/// What a key does while the popup is open.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     Accept,
@@ -127,9 +131,11 @@ pub enum Action {
     Toggle,
 }
 
+/// The `[keys]` config, resolved.
 pub struct Bindings(Vec<(Key, Action)>);
 
 impl Bindings {
+    /// Unknown key names are reported and skipped.
     pub fn new(k: &crate::config::Keys) -> Self {
         let mut v = vec![];
         for (names, action) in [
@@ -138,8 +144,7 @@ impl Bindings {
             (&k.prev, Action::Prev),
             (&k.dismiss, Action::Dismiss),
             (&k.toggle, Action::Toggle),
-        ]
-        {
+        ] {
             for n in names {
                 match Key::parse_name(n) {
                     Some(key) => v.push((key, action)),
@@ -150,6 +155,7 @@ impl Bindings {
         Bindings(v)
     }
 
+    /// The action bound to `key`, if any.
     pub fn action(&self, key: &Key) -> Option<Action> {
         if *key == Key::Other {
             return None;

@@ -224,6 +224,7 @@ pub struct GenCtx<'a> {
 }
 
 impl GenCtx<'_> {
+    /// The token being completed.
     pub fn current(&self) -> &str {
         self.tokens.last().map_or("", String::as_str)
     }
@@ -235,6 +236,7 @@ impl GenCtx<'_> {
         (out.status == 0).then_some(out.stdout)
     }
 
+    /// Run a command; its non-empty output lines, trimmed.
     pub fn lines(&self, argv: &[&str]) -> Vec<String> {
         self.run(argv)
             .map(|s| s.lines().map(str::trim).filter(|l| !l.is_empty()).map(str::to_string).collect())
@@ -251,13 +253,15 @@ impl GenCtx<'_> {
         let toks = &self.tokens[..self.tokens.len().saturating_sub(1)];
         for (i, t) in toks.iter().enumerate() {
             if names.contains(&t.as_str())
-                && let Some(v) = toks.get(i + 1) {
-                    return Some(v.clone());
-                }
+                && let Some(v) = toks.get(i + 1)
+            {
+                return Some(v.clone());
+            }
             if let Some((n, v)) = t.split_once('=')
-                && names.contains(&n) {
-                    return Some(v.to_string());
-                }
+                && names.contains(&n)
+            {
+                return Some(v.to_string());
+            }
         }
         None
     }
@@ -269,9 +273,12 @@ impl GenCtx<'_> {
     }
 }
 
+/// A generator written in Rust (see `specs/gens.rs`).
 pub type GenFn = dyn Fn(&GenCtx) -> Vec<SuggestionDef> + Send + Sync;
 
+/// Where a generator's suggestions come from.
 pub enum GenSource {
+    /// A native generator, referenced from specs as `{"builtin": "<id>"}`.
     Rust(Box<GenFn>),
     /// Run a command (argv, or a shell string) and shape its output.
     Script { argv: Vec<String>, shell: Option<String>, output: Output },
@@ -301,6 +308,7 @@ pub struct JsonTemplate {
     pub lines: bool,
 }
 
+/// Suggestions computed while typing (branches, containers, packages…).
 pub struct Generator {
     /// Stable id, part of the result cache key.
     pub id: String,
@@ -320,6 +328,7 @@ impl std::fmt::Debug for Generator {
 }
 
 impl Subcommand {
+    /// The subcommand typed as `name` (any of its names).
     pub fn find_subcommand(&self, name: &str) -> Option<&Arc<Subcommand>> {
         self.subcommands.iter().find(|s| s.meta.names.iter().any(|n| n == name))
     }
@@ -330,6 +339,7 @@ impl Subcommand {
 }
 
 impl Opt {
+    /// The option needs a value (`-o FILE`), so the next token is that value.
     pub fn takes_arg(&self) -> bool {
         self.args.first().is_some_and(|a| !a.is_optional)
     }
@@ -338,6 +348,7 @@ impl Opt {
 // ---------------------------------------------------------------- output shaping
 
 impl Output {
+    /// Turn a command's stdout into suggestions.
     pub fn suggestions(&self, out: &str) -> Vec<SuggestionDef> {
         match self {
             Output::Lines { split_on, skip, field } => out
@@ -355,7 +366,9 @@ impl Output {
     }
 }
 
+/// Delimits JSON paths inside a template (see [`JsonTemplate`]).
 const TAG: char = '\u{1}';
+/// Path parts that iterate a collection.
 const MARKERS: [&str; 3] = ["[*]", "{*}", "{key}"];
 
 /// `(start, end)` of the first iteration marker in a path.
@@ -383,6 +396,7 @@ fn json_get<'a>(v: &'a Value, path: &str) -> Option<&'a Value> {
     Some(cur)
 }
 
+/// A scalar as text (anything else: empty).
 fn json_text(v: Option<&Value>) -> String {
     match v {
         Some(Value::String(s)) => s.clone(),
@@ -393,6 +407,9 @@ fn json_text(v: Option<&Value>) -> String {
 }
 
 impl JsonTemplate {
+    /// Fill template `t` for one `item` of the collection at path `base`
+    /// (`key`: its key, when the collection is an object). Paths outside the
+    /// collection are read from `root`.
     fn render(t: &str, root: &Value, base: &str, key: Option<&str>, item: &Value) -> String {
         let mut out = String::new();
         for (i, part) in t.split(TAG).enumerate() {
@@ -402,7 +419,9 @@ impl JsonTemplate {
             }
             let text = if !base.is_empty() && part == format!("{base}{{key}}") {
                 key.unwrap_or("").to_string()
-            } else if let Some(rest) = MARKERS.iter().find_map(|m| part.strip_prefix(&format!("{base}{m}")).filter(|_| !base.is_empty())) {
+            } else if let Some(rest) =
+                MARKERS.iter().find_map(|m| part.strip_prefix(&format!("{base}{m}")).filter(|_| !base.is_empty()))
+            {
                 json_text(json_get(item, &format!("${rest}")))
             } else {
                 json_text(json_get(root, part))
@@ -412,6 +431,8 @@ impl JsonTemplate {
         out.trim().to_string()
     }
 
+    /// One suggestion per item of the iterated collection (or one in all, if
+    /// no path iterates).
     fn items(&self, root: &Value, out: &mut Vec<SuggestionDef>) {
         // The collection being iterated, from the first path that iterates.
         let base = self
@@ -468,7 +489,11 @@ fn split_names(names: &str) -> Vec<String> {
 /// A (sub)command. `names` is comma separated: `"remove, rm"`.
 pub fn cmd(names: &str, desc: &str) -> Subcommand {
     Subcommand {
-        meta: Meta { names: split_names(names), description: (!desc.is_empty()).then(|| desc.into()), ..Default::default() },
+        meta: Meta {
+            names: split_names(names),
+            description: (!desc.is_empty()).then(|| desc.into()),
+            ..Default::default()
+        },
         ..Default::default()
     }
 }
@@ -476,7 +501,11 @@ pub fn cmd(names: &str, desc: &str) -> Subcommand {
 /// An option. `names` is comma separated: `"-v, --verbose"`.
 pub fn opt(names: &str, desc: &str) -> Opt {
     Opt {
-        meta: Meta { names: split_names(names), description: (!desc.is_empty()).then(|| desc.into()), ..Default::default() },
+        meta: Meta {
+            names: split_names(names),
+            description: (!desc.is_empty()).then(|| desc.into()),
+            ..Default::default()
+        },
         ..Default::default()
     }
 }
@@ -492,7 +521,14 @@ pub fn sug(name: impl Into<String>) -> SuggestionDef {
 
 /// A generator backed by a Rust function.
 pub fn gen_fn(id: &str, f: impl Fn(&GenCtx) -> Vec<SuggestionDef> + Send + Sync + 'static) -> Generator {
-    Generator { id: id.into(), source: GenSource::Rust(Box::new(f)), trigger: None, query_term: None, cache_ttl: None, filter: true }
+    Generator {
+        id: id.into(),
+        source: GenSource::Rust(Box::new(f)),
+        trigger: None,
+        query_term: None,
+        cache_ttl: None,
+        filter: true,
+    }
 }
 
 impl SuggestionDef {
@@ -881,7 +917,8 @@ fn suggestion(v: &Value) -> Option<SuggestionDef> {
         Value::String(s) => Some(sug(s.clone())),
         Value::Object(_) => {
             let meta = meta(v);
-            (!meta.names.is_empty()).then(|| SuggestionDef { meta, kind: v.get("type").and_then(Value::as_str).and_then(kind_from_str) })
+            (!meta.names.is_empty())
+                .then(|| SuggestionDef { meta, kind: v.get("type").and_then(Value::as_str).and_then(kind_from_str) })
         }
         _ => None,
     }
@@ -910,7 +947,10 @@ pub fn from_value(v: &Value) -> Subcommand {
         subcommands: one_or_many(v.get("subcommands")).into_iter().map(|s| Arc::new(from_value(s))).collect(),
         options: one_or_many(v.get("options")).into_iter().map(|o| Arc::new(opt_from(o))).collect(),
         args: one_or_many(v.get("args")).into_iter().map(|a| Arc::new(arg_from(a))).collect(),
-        additional_suggestions: one_or_many(v.get("additionalSuggestions")).into_iter().filter_map(suggestion).collect(),
+        additional_suggestions: one_or_many(v.get("additionalSuggestions"))
+            .into_iter()
+            .filter_map(suggestion)
+            .collect(),
         load_spec: string(v, "loadSpec").map(LoadSpec::Name).or_else(|| {
             // lig: take the details from `<argv> --help` when entered.
             let argv = names(v.get("loadHelp"));
@@ -1010,12 +1050,21 @@ mod tests {
 
     #[test]
     fn json_templates() {
-        let t = |name: &str, desc: Option<&str>, lines| JsonTemplate { name: name.into(), description: desc.map(Into::into), lines };
+        let t = |name: &str, desc: Option<&str>, lines| JsonTemplate {
+            name: name.into(),
+            description: desc.map(Into::into),
+            lines,
+        };
         let out = r#"{"Buckets":[{"Name":"a","Region":"eu"},{"Name":"b","Region":"us"}],"Owner":{"ID":"me"}}"#;
-        let r = t("\u{1}$.Buckets[*].Name\u{1}", Some("in \u{1}$.Buckets[*].Region\u{1} of \u{1}$.Owner.ID\u{1}"), false).suggestions(out);
+        let r =
+            t("\u{1}$.Buckets[*].Name\u{1}", Some("in \u{1}$.Buckets[*].Region\u{1} of \u{1}$.Owner.ID\u{1}"), false)
+                .suggestions(out);
         assert_eq!(names(r), [("a".into(), Some("in eu of me".into())), ("b".into(), Some("in us of me".into()))]);
         // Arrays of strings, object keys/values, JSON lines.
-        assert_eq!(names(t("\u{1}$.ids[*]\u{1}", None, false).suggestions(r#"{"ids":["x",2]}"#)), [("x".into(), None), ("2".into(), None)]);
+        assert_eq!(
+            names(t("\u{1}$.ids[*]\u{1}", None, false).suggestions(r#"{"ids":["x",2]}"#)),
+            [("x".into(), None), ("2".into(), None)]
+        );
         let r = t("\u{1}${key}\u{1}", Some("\u{1}${*}\u{1}"), false).suggestions(r#"{"build":"tsc","test":"jest"}"#);
         assert_eq!(names(r), [("build".into(), Some("tsc".into())), ("test".into(), Some("jest".into()))]);
         let r = t("\u{1}$.Names\u{1}", None, true).suggestions("{\"Names\":\"web\"}\n{\"Names\":\"db\"}\n");
@@ -1025,7 +1074,10 @@ mod tests {
     #[test]
     fn line_outputs() {
         let o = Output::Lines { split_on: "\n".into(), skip: 1, field: Some(0) };
-        assert_eq!(names(o.suggestions("NAME  STATUS\nweb   up\ndb    down\n")), [("web".into(), None), ("db".into(), None)]);
+        assert_eq!(
+            names(o.suggestions("NAME  STATUS\nweb   up\ndb    down\n")),
+            [("web".into(), None), ("db".into(), None)]
+        );
     }
 
     #[test]

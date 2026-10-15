@@ -312,8 +312,17 @@ struct Conv<'a> {
 }
 
 const DROP_KEYS: &[&str] = &[
-    "generateSpec", "filterStrategy", "isDangerous", "requiresSubcommand", "previewComponent", "isModule",
-    "isScript", "suggestCurrentToken", "deprecated", "debounce", "isSticky",
+    "generateSpec",
+    "filterStrategy",
+    "isDangerous",
+    "requiresSubcommand",
+    "previewComponent",
+    "isModule",
+    "isScript",
+    "suggestCurrentToken",
+    "deprecated",
+    "debounce",
+    "isSticky",
 ];
 
 impl Conv<'_> {

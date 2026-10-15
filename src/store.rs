@@ -57,9 +57,10 @@ impl Store {
             for e in fs::read_dir(d).into_iter().flatten().flatten() {
                 let p = e.path();
                 if let (Some(stem), Some(ext)) = (p.file_stem(), p.extension())
-                    && (ext == "json" || ext == "toml") {
-                        out.insert(stem.to_string_lossy().into_owned());
-                    }
+                    && (ext == "json" || ext == "toml")
+                {
+                    out.insert(stem.to_string_lossy().into_owned());
+                }
             }
         }
         out

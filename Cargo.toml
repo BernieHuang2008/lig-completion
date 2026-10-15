@@ -1,7 +1,9 @@
 [package]
 name = "lig"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
+rust-version = "1.85"
+authors = ["Keven Goncalves"]
 description = "Fig-style IDE autocomplete for your Linux terminal"
 license = "MIT"
 

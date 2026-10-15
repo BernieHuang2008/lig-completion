@@ -22,18 +22,23 @@ use crate::spec::{LoadSpec, Opt, Subcommand, Template, arg, cmd, opt};
 const MAX_DEPTH: usize = 4;
 
 pub enum Lookup {
+    /// Known: the parsed spec, or `None` when there is nothing to parse.
     Found(Option<Arc<Subcommand>>),
     /// Not cached; running the command is needed.
     NeedsRun,
 }
 
+/// Parses and caches `--help` specs (in memory, and the raw text on disk).
 pub struct HelpLoader {
     cache_dir: PathBuf,
     timeout: Duration,
+    /// Commands never to run `--help` for (`help_skip`).
     skip: Vec<String>,
+    /// Parsed specs by command line (`"docker compose"`).
     mem: HashMap<String, Option<Arc<Subcommand>>>,
 }
 
+/// Where the raw `--help` texts are cached.
 pub fn cache_dir() -> PathBuf {
     dirs::cache_dir().unwrap_or_else(std::env::temp_dir).join("lig").join("help")
 }
@@ -43,6 +48,7 @@ fn fnv(s: &str) -> u64 {
     s.bytes().fold(0xcbf29ce484222325, |h, b| (h ^ b as u64).wrapping_mul(0x100000001b3))
 }
 
+/// The executable `name` resolves to on `path`.
 fn which(name: &str, path: &str) -> Option<PathBuf> {
     if name.contains('/') {
         return Some(PathBuf::from(name));
@@ -70,8 +76,8 @@ fn help_is_safe(exe: &Path) -> bool {
     false
 }
 
+/// Drop man-style overstrike (`x\bx`, `_\bx`) and ANSI escapes.
 fn clean(text: &str) -> String {
-    // Drop man-style overstrike (`x\bx`, `_\bx`) and ANSI escapes.
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
     while let Some(c) = chars.next() {
@@ -144,6 +150,8 @@ impl HelpLoader {
         Lookup::Found(spec)
     }
 
+    /// The help text: `--help` output if that parses into something, else
+    /// the man page (top-level commands only), else nothing.
     fn fetch(&self, argv: &[String], exe: &Path, cwd: &Path, env: &[(String, String)]) -> String {
         let mut vars = env.to_vec();
         for (k, v) in [
@@ -179,6 +187,7 @@ impl HelpLoader {
     }
 }
 
+/// Leading whitespace of a line, in bytes.
 fn indent(l: &str) -> usize {
     l.len() - l.trim_start().len()
 }
@@ -194,6 +203,7 @@ fn split_gap(t: &str) -> (&str, &str) {
     (t, "")
 }
 
+/// Looks like an option name: `-x`, `--long-name`.
 fn valid_flag(n: &str) -> bool {
     let body = n.trim_start_matches('-');
     let dashes = n.len() - body.len();
@@ -353,7 +363,9 @@ pub fn parse(text: &str, argv: &[String]) -> Option<Subcommand> {
         // `name  description` on one line (help output), or `name [args]`
         // with the description on the next, more indented line (man pages).
         let same_line = !desc.is_empty()
-            && rest.first().is_none_or(|w| w.starts_with(['<', '[', '{', '-', '.']) || w.starts_with(|c: char| c.is_ascii_uppercase()));
+            && rest.first().is_none_or(|w| {
+                w.starts_with(['<', '[', '{', '-', '.']) || w.starts_with(|c: char| c.is_ascii_uppercase())
+            });
         let man_style = desc.is_empty() && !next_desc(i, ind).is_empty();
         let bare = desc.is_empty() && rest.is_empty();
         if !(same_line || man_style || bare) {

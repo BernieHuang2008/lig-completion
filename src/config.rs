@@ -221,7 +221,6 @@ impl Default for Behavior {
     }
 }
 
-
 impl Config {
     /// Load the config file; problems are reported and defaults are used.
     pub fn load() -> Config {
@@ -244,9 +243,10 @@ pub fn sgr_color(spec: &str, base: u8) -> String {
     let s = spec.trim();
     if let Some(hex) = s.strip_prefix('#')
         && hex.len() == 6
-            && let Ok(n) = u32::from_str_radix(hex, 16) {
-                return format!("{base};2;{};{};{}", n >> 16, (n >> 8) & 0xff, n & 0xff);
-            }
+        && let Ok(n) = u32::from_str_radix(hex, 16)
+    {
+        return format!("{base};2;{};{};{}", n >> 16, (n >> 8) & 0xff, n & 0xff);
+    }
     match s.parse::<u8>() {
         Ok(n) => format!("{base};5;{n}"),
         Err(_) => format!("{}", base + 1), // "default": the terminal's color

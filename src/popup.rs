@@ -51,9 +51,11 @@ fn style(ui: &Ui) -> Style {
     }
 }
 
+/// Where the popup goes and how wide its columns are.
 pub struct Layout {
     pub rect: Rect,
     style: Style,
+    /// Column widths: icon (with its gap), name, description (0: hidden).
     icon_w: u16,
     name_w: u16,
     desc_w: u16,
@@ -62,18 +64,19 @@ pub struct Layout {
 }
 
 impl Layout {
-    fn b(&self) -> u16 {
+    /// Width of the border: 1, or 0 without one.
+    fn border_w(&self) -> u16 {
         u16::from(self.style.border.is_some())
     }
 
     /// Border and padding rows.
     fn chrome_h(&self) -> u16 {
-        2 * (self.b() + self.style.pad_v)
+        2 * (self.border_w() + self.style.pad_v)
     }
 
     /// Rows of the bottom description frame, borders included.
     fn frame_h(&self) -> u16 {
-        frame_height(self.frame_lines, self.b())
+        frame_height(self.frame_lines, self.border_w())
     }
 
     /// Rows available for suggestions.
@@ -82,8 +85,10 @@ impl Layout {
     }
 }
 
-fn frame_height(lines: u16, b: u16) -> u16 {
-    if lines == 0 { 0 } else { lines + if b == 1 { 2 } else { 1 } }
+/// Rows of a description frame with `lines` of text: a box, or (without a
+/// border) a separator line above the text.
+fn frame_height(lines: u16, border_w: u16) -> u16 {
+    if lines == 0 { 0 } else { lines + if border_w == 1 { 2 } else { 1 } }
 }
 
 /// Word-wrap to lines of at most `w` columns.
@@ -364,7 +369,8 @@ pub fn render(ui: &Ui, l: &Layout, items: &[Suggestion], selected: usize, scroll
         // Position counter in the bottom edge when the list scrolls.
         let counter = if n > h && selected < n { format!(" {}/{} ", selected + 1, n) } else { String::new() };
         let fill = w.saturating_sub(2 + counter.width() + usize::from(!counter.is_empty()));
-        let tail = if counter.is_empty() { String::new() } else { format!("\x1b[{}m{counter}{edge}{}", t.info_fg, bd[4]) };
+        let tail =
+            if counter.is_empty() { String::new() } else { format!("\x1b[{}m{counter}{edge}{}", t.info_fg, bd[4]) };
         lines.push(format!("{edge}{}{}{tail}{}\x1b[0m", bd[2], bd[4].repeat(fill), bd[3]));
     }
     if l.frame_lines > 0 {
@@ -378,7 +384,7 @@ fn render_frame(t: &Theme, l: &Layout, item: Option<&Suggestion>) -> Vec<String>
     let st = l.style;
     let w = l.rect.width as usize;
     let edge = format!("\x1b[0;{};{}m", t.border_bg, t.border_fg);
-    let text_w = w - 2 * l.b() as usize - (st.pad_l + st.pad_r) as usize;
+    let text_w = w - 2 * l.border_w() as usize - (st.pad_l + st.pad_r) as usize;
     let desc = item.map_or("", |s| s.description.as_str());
     let (text, style) = if desc.is_empty() {
         (frame_text("no description", text_w, l.frame_lines as usize), format!("3;{}", t.info_fg))
@@ -442,6 +448,7 @@ pub fn preview(ui: &Ui, cols: u16) -> String {
     out
 }
 
+/// Draw the popup at its place on screen.
 pub fn draw(out: &mut Vec<u8>, ui: &Ui, l: &Layout, items: &[Suggestion], selected: usize, scroll: usize) {
     let r = l.rect;
     for (i, line) in render(ui, l, items, selected, scroll).iter().enumerate() {
@@ -461,6 +468,16 @@ pub fn erase(out: &mut Vec<u8>, screen: &vt100::Screen, rect: Rect) {
         } else if i >= range.end {
             break;
         }
+    }
+}
+
+/// Put the cursor and SGR state back where the shell left them.
+pub fn restore_cursor(out: &mut Vec<u8>, screen: &vt100::Screen) {
+    let (r, c) = screen.cursor_position();
+    let _ = write!(out, "\x1b[0m\x1b[{};{}H", r + 1, c + 1);
+    out.extend_from_slice(&screen.attributes_formatted());
+    if !screen.hide_cursor() {
+        out.extend_from_slice(b"\x1b[?25h");
     }
 }
 
@@ -540,9 +557,13 @@ mod tests {
             assert_eq!(line.width(), l.rect.width as usize, "{line:?}");
         }
         // Compact, square, no border.
-        for (border, density) in
-            [("square", "compact"), ("rounded", "relaxed"), ("none", "relaxed"), ("none", "compact"), ("none", "normal")]
-        {
+        for (border, density) in [
+            ("square", "compact"),
+            ("rounded", "relaxed"),
+            ("none", "relaxed"),
+            ("none", "compact"),
+            ("none", "normal"),
+        ] {
             let ui = Ui { border: border.into(), density: density.into(), ..Ui::default() };
             let l = layout(&ui, &it, (24, 80), (2, 10), 0).unwrap();
             for line in render(&ui, &l, &it, 0, 0) {
@@ -625,15 +646,5 @@ mod tests {
             let t = crate::theme::resolve(&ui);
             assert!(!t.bg.is_empty() && !t.sel_bg.is_empty());
         }
-    }
-}
-
-/// Put the cursor and SGR state back where the shell left them.
-pub fn restore_cursor(out: &mut Vec<u8>, screen: &vt100::Screen) {
-    let (r, c) = screen.cursor_position();
-    let _ = write!(out, "\x1b[0m\x1b[{};{}H", r + 1, c + 1);
-    out.extend_from_slice(&screen.attributes_formatted());
-    if !screen.hide_cursor() {
-        out.extend_from_slice(b"\x1b[?25h");
     }
 }

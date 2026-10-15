@@ -12,6 +12,7 @@
 //!   `K;<name>\x1e<name>…`  the shell's builtins
 
 const PREFIX: &[u8] = b"\x1b]6973;";
+/// An unterminated message longer than this isn't ours: pass it through.
 const MAX_PENDING: usize = 1 << 20;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,6 +28,8 @@ pub enum Msg {
     Builtins(Vec<String>),
 }
 
+/// Removes our messages from the output; keeps state across reads, since a
+/// message can be split between two of them.
 #[derive(Default)]
 pub struct OscFilter {
     pending: Vec<u8>,
@@ -80,6 +83,7 @@ impl OscFilter {
     }
 }
 
+/// A message from its payload (`<kind>;<rest>`); unknown kinds are ignored.
 fn parse(payload: &[u8]) -> Option<Msg> {
     let s = String::from_utf8_lossy(payload);
     let (kind, rest) = s.split_once(';').unwrap_or((&s, ""));

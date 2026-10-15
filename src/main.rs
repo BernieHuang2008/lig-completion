@@ -1,9 +1,14 @@
+//! lig: Fig-style autocomplete for zsh and bash, in any terminal.
+//!
+//! `lig shell` ([`session`]) runs the shell in a PTY and draws the popup;
+//! [`engine`] turns a command line into suggestions using the specs
+//! ([`spec`], [`specs`]), `--help` output ([`help`]) and generators.
+
 mod config;
 mod engine;
 mod exec;
 mod help;
 mod icons;
-mod theme;
 mod keys;
 mod osc;
 mod parser;
@@ -12,12 +17,14 @@ mod session;
 mod spec;
 mod specs;
 mod store;
+mod theme;
 
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 
 const PRE_ZSH: &str = include_str!("../shell/pre.zsh");
 const POST_ZSH: &str = include_str!("../shell/post.zsh");
@@ -33,7 +40,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Run a shell inside lig (the zsh integration does this for you)
+    /// Run a shell inside lig (the shell integration does this for you)
     Shell {
         /// Shell to run (default: $SHELL)
         #[arg(long)]
@@ -81,40 +88,43 @@ enum Cmd {
     /// List every icon (in the mode you use, next to its Unicode fallback)
     Icons,
     /// Show a sample popup with your settings (or try others)
-    Preview {
-        /// Theme: default, catppuccin, nord, dracula, gruvbox, tokyonight, light, terminal
-        #[arg(long)]
-        theme: Option<String>,
-        /// rounded, square or none
-        #[arg(long)]
-        border: Option<String>,
-        /// compact, normal or relaxed
-        #[arg(long)]
-        density: Option<String>,
-        /// auto, nerd, unicode or none
-        #[arg(long)]
-        icons: Option<String>,
-        /// auto, columns (60) or percent ("50%")
-        #[arg(long)]
-        width: Option<String>,
-        /// rows (8) or percent ("30%")
-        #[arg(long)]
-        height: Option<String>,
-        /// right or bottom
-        #[arg(long)]
-        description: Option<String>,
-        /// Show every theme
-        #[arg(long)]
-        all: bool,
-        /// Show every density
-        #[arg(long)]
-        densities: bool,
-    },
+    Preview(PreviewArgs),
     /// Print the default configuration (save it to `lig config path`)
     Config {
         #[arg(value_enum, default_value_t = ConfigCmd::Default)]
         what: ConfigCmd,
     },
+}
+
+#[derive(Args)]
+struct PreviewArgs {
+    /// Theme: default, catppuccin, nord, dracula, gruvbox, tokyonight, light, terminal
+    #[arg(long)]
+    theme: Option<String>,
+    /// rounded, square or none
+    #[arg(long)]
+    border: Option<String>,
+    /// compact, normal or relaxed
+    #[arg(long)]
+    density: Option<String>,
+    /// auto, nerd, unicode or none
+    #[arg(long)]
+    icons: Option<String>,
+    /// auto, columns (60) or percent ("50%")
+    #[arg(long)]
+    width: Option<String>,
+    /// rows (8) or percent ("30%")
+    #[arg(long)]
+    height: Option<String>,
+    /// right or bottom
+    #[arg(long)]
+    description: Option<String>,
+    /// Show every theme
+    #[arg(long)]
+    all: bool,
+    /// Show every density
+    #[arg(long)]
+    densities: bool,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -137,6 +147,7 @@ impl ShellKind {
         }
     }
 
+    /// The rc file lig is installed into.
     fn rc(self) -> PathBuf {
         match self {
             ShellKind::Zsh => {
@@ -185,6 +196,7 @@ pub fn log(msg: &str) {
     }
 }
 
+/// This executable's path, for the shell scripts to run.
 fn exe() -> String {
     std::env::current_exe()
         .ok()
@@ -193,6 +205,7 @@ fn exe() -> String {
         .unwrap_or_else(|| "lig".into())
 }
 
+/// `lig init`: the integration script for `shell`.
 fn init_script(shell: ShellKind, part: Part) -> String {
     let (pre, post) = match shell {
         ShellKind::Zsh => (PRE_ZSH, POST_ZSH),
@@ -208,11 +221,13 @@ fn init_script(shell: ShellKind, part: Part) -> String {
     s.replace("@LIG_BIN@", &exe())
 }
 
+// Markers around the blocks `lig install` adds to the rc file.
 const PRE_BEGIN: &str = "# >>> lig pre >>>";
 const PRE_END: &str = "# <<< lig pre <<<";
 const POST_BEGIN: &str = "# >>> lig post >>>";
 const POST_END: &str = "# <<< lig post <<<";
 
+/// `text` without the lines from `begin` to `end` (inclusive).
 fn strip_block(text: &str, begin: &str, end: &str) -> String {
     let mut out = String::new();
     let mut skipping = false;
@@ -229,6 +244,8 @@ fn strip_block(text: &str, begin: &str, end: &str) -> String {
     out
 }
 
+/// Add the pre block at the top of the rc file and the post block at the
+/// bottom (replacing earlier ones), keeping a backup of the original.
 fn install(shell: ShellKind) -> Result<()> {
     let rc = shell.rc();
     let sh = shell.name();
@@ -277,13 +294,15 @@ fn doctor() -> Result<()> {
     println!("[{}] this terminal is running inside lig", ok(inside));
     let cfg = config::config_path();
     if cfg.exists() {
-        let valid = std::fs::read_to_string(&cfg).ok().and_then(|t| toml::from_str::<config::Config>(&t).ok()).is_some();
+        let valid =
+            std::fs::read_to_string(&cfg).ok().and_then(|t| toml::from_str::<config::Config>(&t).ok()).is_some();
         println!("[{}] config {}", ok(valid), cfg.display());
     } else {
         println!("[ok  ] config: defaults ({} not present)", cfg.display());
     }
     let mut e = engine::Engine::new(store::Store::default(), config::Config::load().behavior);
-    let env = engine::ShellEnv { cwd: std::env::current_dir()?, path: std::env::var("PATH").ok(), ..Default::default() };
+    let env =
+        engine::ShellEnv { cwd: std::env::current_dir()?, path: std::env::var("PATH").ok(), ..Default::default() };
     let n = e.complete("git ", &env, false, false).items.len();
     println!("[{}] engine: `git ` → {n} suggestions", ok(n > 0));
     let n = e.complete("ls --", &env, true, false).items.len();
@@ -291,21 +310,108 @@ fn doctor() -> Result<()> {
     Ok(())
 }
 
+/// `lig complete`: print what the popup would show for `line`.
 fn complete(line: &str, cwd: Option<PathBuf>, aliases: Vec<String>) -> Result<()> {
     let cwd = match cwd {
         Some(c) => c,
         None => std::env::current_dir()?,
     };
     let mut e = engine::Engine::new(store::Store::default(), config::Config::load().behavior);
-    let env = engine::ShellEnv { cwd, path: std::env::var("PATH").ok(), aliases: std::sync::Arc::new(aliases.into_iter().filter_map(|a| a.split_once('=').map(|(k, v)| (k.to_string(), v.to_string()))).collect()), ..Default::default() };
+    let env = engine::ShellEnv {
+        cwd,
+        path: std::env::var("PATH").ok(),
+        aliases: std::sync::Arc::new(
+            aliases
+                .into_iter()
+                .filter_map(|a| a.split_once('=').map(|(k, v)| (k.to_string(), v.to_string())))
+                .collect(),
+        ),
+        ..Default::default()
+    };
     let t = std::time::Instant::now();
     let c = e.complete(line, &env, true, true);
     let elapsed = t.elapsed();
     for s in &c.items {
-        println!("{:<11} {:<32} {:<28} {}", format!("{:?}", s.kind), s.label, format!("{:?}-{}", s.insert, s.delete), s.description);
+        println!(
+            "{:<11} {:<32} {:<28} {}",
+            format!("{:?}", s.kind),
+            s.label,
+            format!("{:?}-{}", s.insert, s.delete),
+            s.description
+        );
     }
     eprintln!("{} suggestions in {:.1?}", c.items.len(), elapsed);
     Ok(())
+}
+
+/// `lig specs list`: every command with a spec, and where it comes from.
+fn list_specs() {
+    let mut all: BTreeMap<String, &str> = BTreeMap::new();
+    for c in specs::FIG.names() {
+        all.insert(c.to_string(), "fig");
+    }
+    for c in specs::lig_names() {
+        let src = if all.contains_key(c) { "lig + fig" } else { "lig" };
+        all.insert(c.to_string(), src);
+    }
+    for c in store::Store::default().commands() {
+        all.insert(c, "user");
+    }
+    for (c, src) in &all {
+        println!("{c:<32} {src}");
+    }
+    eprintln!("{} commands ({} lig + {} fig spec files embedded)", all.len(), specs::LIG.count(), specs::FIG.count());
+}
+
+/// `lig icons`: every icon in the current mode, with its Unicode fallback.
+fn list_icons() {
+    icons::detect();
+    let style = config::Config::load().ui.icons;
+    let nerd = icons::use_nerd(&style);
+    println!("icons = \"{style}\" → using {}\n", if nerd { "Nerd Font glyphs" } else { "Unicode symbols" });
+    let fallback = icons::legend(false);
+    for (i, (g, c, what)) in icons::legend(nerd).into_iter().enumerate() {
+        let alt = fallback.get(i).filter(|_| nerd).map_or(String::new(), |(ug, _, _)| format!("   (unicode: {ug})"));
+        println!("  \x1b[{c}m{g}\x1b[0m  {what}{alt}");
+    }
+}
+
+/// `lig preview`: sample popups with the config, overridden by the flags.
+fn preview(args: PreviewArgs) {
+    icons::detect();
+    let mut ui = config::Config::load().ui;
+    ui.theme = args.theme.unwrap_or(ui.theme);
+    ui.border = args.border.unwrap_or(ui.border);
+    ui.density = args.density.unwrap_or(ui.density);
+    ui.icons = args.icons.unwrap_or(ui.icons);
+    if let Some(w) = args.width {
+        ui.width = config::Size::Text(w);
+    }
+    if let Some(h) = args.height {
+        ui.height = config::Size::Text(h);
+    }
+    if let Some(d) = args.description {
+        ui.description_position = d;
+    }
+    let cols = unsafe {
+        let mut ws: libc::winsize = std::mem::zeroed();
+        if libc::ioctl(1, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0 { ws.ws_col } else { 100 }
+    };
+    if args.densities {
+        for d in ["compact", "normal", "relaxed"] {
+            ui.density = d.into();
+            println!("\x1b[1m{d}\x1b[0m");
+            println!("{}", popup::preview(&ui, cols));
+        }
+        return;
+    }
+    let names: Vec<String> =
+        if args.all { theme::NAMES.iter().map(|s| s.to_string()).collect() } else { vec![ui.theme.clone()] };
+    for name in names {
+        ui.theme = name.clone();
+        println!("\x1b[1m{name}\x1b[0m  (border = {}, density = {}, icons = {})", ui.border, ui.density, ui.icons);
+        println!("{}", popup::preview(&ui, cols));
+    }
 }
 
 fn default_shell() -> PathBuf {
@@ -323,24 +429,7 @@ fn main() -> Result<()> {
         Cmd::Init { shell, part } => print!("{}", init_script(shell, part)),
         Cmd::Install { shell } => install(shell.unwrap_or_else(ShellKind::current))?,
         Cmd::Uninstall { shell } => uninstall(shell.unwrap_or_else(ShellKind::current))?,
-        Cmd::Specs { cmd: SpecsCmd::List } => {
-            let user = store::Store::default().commands();
-            let mut all: std::collections::BTreeMap<String, &str> = std::collections::BTreeMap::new();
-            for c in specs::FIG.names() {
-                all.insert(c.to_string(), "fig");
-            }
-            for c in specs::lig_names() {
-                let src = if all.contains_key(c) { "lig + fig" } else { "lig" };
-                all.insert(c.to_string(), src);
-            }
-            for c in &user {
-                all.insert(c.clone(), "user");
-            }
-            for (c, src) in &all {
-                println!("{c:<32} {src}");
-            }
-            eprintln!("{} commands ({} lig + {} fig spec files embedded)", all.len(), specs::LIG.count(), specs::FIG.count());
-        }
+        Cmd::Specs { cmd: SpecsCmd::List } => list_specs(),
         Cmd::Specs { cmd: SpecsCmd::Path } => {
             println!("user specs: {}", store::user_dir().display());
             println!("--help cache: {}", help::cache_dir().display());
@@ -361,52 +450,8 @@ fn main() -> Result<()> {
         }
         Cmd::Complete { cwd, aliases, line } => complete(&line, cwd, aliases)?,
         Cmd::Doctor => doctor()?,
-        Cmd::Icons => {
-            icons::detect();
-            let style = config::Config::load().ui.icons;
-            let nerd = icons::use_nerd(&style);
-            println!("icons = \"{style}\" → using {}\n", if nerd { "Nerd Font glyphs" } else { "Unicode symbols" });
-            let fallback = icons::legend(false);
-            for (i, (g, c, what)) in icons::legend(nerd).into_iter().enumerate() {
-                let alt = fallback.get(i).filter(|_| nerd).map_or(String::new(), |(ug, _, _)| format!("   (unicode: {ug})"));
-                println!("  \x1b[{c}m{g}\x1b[0m  {what}{alt}");
-            }
-        }
-        Cmd::Preview { theme, border, density, icons: icon_style, width, height, description, all, densities: density_all } => {
-            icons::detect();
-            let mut ui = config::Config::load().ui;
-            ui.theme = theme.unwrap_or(ui.theme);
-            ui.border = border.unwrap_or(ui.border);
-            ui.density = density.unwrap_or(ui.density);
-            ui.icons = icon_style.unwrap_or(ui.icons);
-            if let Some(w) = width {
-                ui.width = config::Size::Text(w);
-            }
-            if let Some(h) = height {
-                ui.height = config::Size::Text(h);
-            }
-            if let Some(d) = description {
-                ui.description_position = d;
-            }
-            let cols = unsafe {
-                let mut ws: libc::winsize = std::mem::zeroed();
-                if libc::ioctl(1, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0 { ws.ws_col } else { 100 }
-            };
-            if density_all {
-                for d in ["compact", "normal", "relaxed"] {
-                    ui.density = d.into();
-                    println!("\x1b[1m{d}\x1b[0m");
-                    println!("{}", popup::preview(&ui, cols));
-                }
-                return Ok(());
-            }
-            let names: Vec<String> = if all { theme::NAMES.iter().map(|s| s.to_string()).collect() } else { vec![ui.theme.clone()] };
-            for name in names {
-                ui.theme = name.clone();
-                println!("\x1b[1m{name}\x1b[0m  (border = {}, density = {}, icons = {})", ui.border, ui.density, ui.icons);
-                println!("{}", popup::preview(&ui, cols));
-            }
-        }
+        Cmd::Icons => list_icons(),
+        Cmd::Preview(args) => preview(args),
         Cmd::Config { what: ConfigCmd::Path } => println!("{}", config::config_path().display()),
         Cmd::Config { what: ConfigCmd::Default } => {
             print!("{}", toml::to_string_pretty(&config::Config::default())?);
