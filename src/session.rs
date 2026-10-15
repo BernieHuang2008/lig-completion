@@ -197,6 +197,7 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
         navigated: false,
         just_accepted: false,
         close_after_insert: false,
+        shown: false,
         manual: false,
         loading: None,
         pending_enter: None,
@@ -278,6 +279,8 @@ struct Session {
     just_accepted: bool,
     /// Keep the popup closed for the line the accepted insert produces.
     close_after_insert: bool,
+    /// The last render showed suggestions.
+    shown: bool,
     /// The popup was asked for with the toggle key (until the line is run).
     manual: bool,
     /// (line, message, since) while slower suggestions are being fetched.
@@ -385,6 +388,11 @@ impl Session {
         self.erase(&mut w);
         self.end_sync(&mut w);
         self.write_out(&w);
+    }
+
+    /// A popup with suggestions is on screen (keys go to it).
+    fn popup_open(&self) -> bool {
+        self.visible() && self.shown
     }
 
     fn visible(&self) -> bool {
@@ -614,7 +622,7 @@ impl Session {
             }
             let toggle = self.bindings.action(&key) == Some(Action::Toggle);
             if toggle && self.editing && !self.hidden && !self.parser.screen().alternate_screen() {
-                if self.visible() {
+                if self.popup_open() {
                     self.dismissed = Some(self.line.clone());
                     self.manual = false;
                 } else {
@@ -627,7 +635,7 @@ impl Session {
                 redraw = true;
                 continue;
             }
-            if !self.visible() {
+            if !self.popup_open() {
                 if key != Key::Enter {
                     self.just_accepted = false;
                 }
@@ -651,9 +659,16 @@ impl Session {
                     self.selected = (self.selected + 1) % self.items.len();
                     redraw = true;
                 }
+                Some(Action::Prev) if self.selected == 0 => {
+                    // Up from the first item closes the popup (and the next Up
+                    // goes to the shell's history).
+                    self.dismissed = Some(self.line.clone());
+                    self.manual = false;
+                    redraw = true;
+                }
                 Some(Action::Prev) => {
                     self.navigated = true;
-                    self.selected = (self.selected + self.items.len() - 1) % self.items.len();
+                    self.selected -= 1;
                     redraw = true;
                 }
                 Some(Action::Dismiss) | Some(Action::Toggle) => {
@@ -740,6 +755,9 @@ impl Session {
             };
             popup::layout(&self.cfg.ui, &shown, screen.size(), screen.cursor_position(), tail.width() as u16)
         };
+        // What the user sees; it stays set across the brief erase/redraw
+        // around shell output.
+        self.shown = layout.is_some() && !is_message;
         match (&layout, self.drawn) {
             (Some(l), Some(old)) if l.rect == old => {}
             _ => self.erase(&mut w),

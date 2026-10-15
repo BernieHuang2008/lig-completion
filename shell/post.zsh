@@ -12,7 +12,10 @@ if [[ -o interactive && -z "$LIG_DISABLE" && -n "$LIG_TTY" && "$LIG_TTY" == "$TT
   _lig_report() {
     builtin emulate -L zsh
     local msg
-    if (( ${ISEARCHMATCH_ACTIVE:-0} )) || [[ $KEYMAP == (vicmd|menuselect) ]] || [[ -n $PREBUFFER ]]; then
+    # No popup while browsing history (Up/Down, history search, Ctrl-R, fzf):
+    # the line is a recalled command and the arrows must keep going to zsh.
+    if (( ${ISEARCHMATCH_ACTIVE:-0} )) || [[ $KEYMAP == (vicmd|menuselect) ]] || [[ -n $PREBUFFER ]] \
+        || [[ $LASTWIDGET == (*history*|*beginning-search*|up-line*|down-line*|*-search-*) ]]; then
       msg=$'\e]6973;H\a'
     else
       # Control characters are masked so they cannot terminate the OSC early;

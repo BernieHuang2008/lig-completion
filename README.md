@@ -202,7 +202,7 @@ Spec files can set one with `"icon"`: `package`, `npm`, `rust`, `python`, `docke
 | --- | --- |
 | `Ctrl+Space` | show the popup now / hide it |
 | `Tab` / `↓` / `Ctrl-N` | next suggestion (with a single suggestion, `Tab` accepts it) |
-| `Shift-Tab` / `↑` / `Ctrl-P` | previous suggestion |
+| `Shift-Tab` / `↑` / `Ctrl-P` | previous suggestion; on the first one, closes the popup |
 | `Enter` | accept the selected suggestion |
 | `Esc` | dismiss (until the line changes) |
 
@@ -231,6 +231,9 @@ after every pick. If you move
 the highlight with `Tab` or the arrows, `Enter` picks that item. If suggestions are
 still loading, lig waits for them (up to 1.5 s). Set `enter_accepts` to
 `"after-space"` (pick only after a space), `"always"` or `"never"` to change this.
+
+While you browse history (`↑`/`↓`, history search, `Ctrl-R`, fzf), the recalled lines
+don't open the popup, so the arrows keep moving through history. Typing brings it back.
 
 When the popup isn't showing, keys go straight to zsh, so normal Tab completion still
 works. `Ctrl+Space` is taken from zsh's `set-mark-command` while you edit a command line.
