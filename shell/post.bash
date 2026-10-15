@@ -29,7 +29,12 @@ if [[ $- == *i* && -z "$LIG_DISABLE" && -n "$LIG_TTY" && "$LIG_TTY" == "$(tty)" 
     fi
     # The marker goes at the very end of the prompt, also when another tool
     # (starship, …) rebuilds PS1 on every prompt.
-    [[ $PS1 == *'6973;S'* ]] || PS1+='\[\e]6973;S\a\]'
+    if [[ $PS1 != *'6973;S'* ]]; then
+      # A prompt ending in an odd backslash would swallow ours: complete it.
+      local t=${PS1##*[!\\]}
+      (( ${#t} % 2 )) && PS1+='\'
+      PS1+='\[\e]6973;S\a\]'
+    fi
     return $status
   }
   # Runs last, after anything already in PROMPT_COMMAND.
@@ -39,7 +44,9 @@ if [[ $- == *i* && -z "$LIG_DISABLE" && -n "$LIG_TTY" && "$LIG_TTY" == "$(tty)" 
     PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND$'\n'}__lig_prompt"
   fi
   # Shown after a command is read, before it runs: the line is finished.
-  PS0+='\e]6973;F\a'
+  # Prepended: other integrations (GNOME Terminal's vte.sh, …) end PS0 with an
+  # `ESC \` terminator, whose backslash would swallow our `\e` if we came after.
+  [[ $PS0 == *'6973;F'* ]] || PS0='\e]6973;F\a'"${PS0:-}"
 
   # lig writes `<delete>;<back>;<text>` to $LIG_INSERT_FILE, then sends ESC [9147~.
   __lig_insert() {
