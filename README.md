@@ -247,7 +247,9 @@ still loading, lig waits for them (up to 1.5 s). Set `enter_accepts` to
 For folder arguments (`cd`, `pushd`, `mkdir`, …), picking a folder keeps the popup
 open with what's inside, so you can walk down the tree: `cd s` `Enter` → `cd src/`
 with its subfolders listed. Once a folder is on the line, the first entry is
-**↵ Enter**, which runs the command, as Fig did. `Enter` `Enter` picks a folder and then
+**↵ Enter**, which runs the command, as Fig did. Next comes **Back**, which takes the path
+one folder up (`cd src/app/` → `cd src/`) and keeps the popup open; on a bare `cd ` it
+offers `../`. `Enter` `Enter` picks a folder and then
 `cd`s into it.
 
 While you browse history (`↑`/`↓`, history search, `Ctrl-R`, fzf), the recalled lines

@@ -61,6 +61,7 @@ pub fn glyph(kind: Kind, icon: Option<Icon>, label: &str, nerd: bool) -> (&'stat
         Kind::Shortcut => "38;5;209",
         Kind::Info => GREY,
         Kind::Execute => "38;5;114",
+        Kind::Back => "38;5;75",
     };
     let g = if nerd {
         match kind {
@@ -73,6 +74,7 @@ pub fn glyph(kind: Kind, icon: Option<Icon>, label: &str, nerd: bool) -> (&'stat
             Kind::Shortcut => "\u{f0e7}",   // bolt
             Kind::Info => "\u{f110}",       // spinner
             Kind::Execute => "↵",
+            Kind::Back => "\u{f062}",       // arrow-up
         }
     } else {
         match kind {
@@ -85,6 +87,7 @@ pub fn glyph(kind: Kind, icon: Option<Icon>, label: &str, nerd: bool) -> (&'stat
             Kind::Shortcut => "★",
             Kind::Info => "…",
             Kind::Execute => "↵",
+            Kind::Back => "↑",
         }
     };
     (g, color)
@@ -207,6 +210,7 @@ pub fn legend(nerd: bool) -> Vec<(&'static str, &'static str, String)> {
         (Kind::Shortcut, "shortcut"),
         (Kind::Info, "loading message"),
         (Kind::Execute, "run the command (folders)"),
+        (Kind::Back, "up one folder"),
     ];
     let icons = [
         (Icon::Alias, "alias"),

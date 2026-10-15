@@ -770,7 +770,15 @@ impl Session {
                         // A completed word needs no popup until the next keystroke;
                         // after `--option ` or a folder (`src/`) the next
                         // suggestions show right away.
-                        self.close_after_insert = !s.insert.ends_with(|c: char| c.is_whitespace() || c == '/');
+                        // Judged on the resulting line: Back from `Downloads/`
+                        // inserts nothing and leaves `cd `, which keeps it open.
+                        let kept: String = {
+                            let n = self.line.chars().count();
+                            self.line.chars().take(n.saturating_sub(s.delete)).collect()
+                        };
+                        let result = format!("{kept}{}", s.insert);
+                        self.close_after_insert =
+                            !(result.is_empty() || result.ends_with(|c: char| c.is_whitespace() || c == '/'));
                         if self.prompt_end.is_some() {
                             // bash: the bound function reads it from a file.
                             let _ = std::fs::write(&self.insert_file, format!("{};{};{}", s.delete, s.back, s.insert));

@@ -504,6 +504,23 @@ impl Engine {
             c.unfiltered = true;
             cx.cands.push(c);
         }
+        // …then "Back": the same path, one folder up (`../` from nothing).
+        if folders_only && (cur.value.is_empty() || cur.value.ends_with('/')) && !cx.cands.iter().any(|c| c.kind == Kind::Back)
+            && let Some(up) = parent_path(&cur.raw) {
+                let shown = if up.is_empty() { "the current folder".to_string() } else { format!("`{up}`") };
+                let meta = spec::Meta {
+                    names: vec![String::new()],
+                    display_name: Some("Back".into()),
+                    description: Some(format!("Up to {shown}")),
+                    insert_value: Some(up),
+                    priority: Some(999.0),
+                    ..Default::default()
+                };
+                let mut c = cand(&meta, Kind::Back, "");
+                c.unfiltered = true;
+                c.delete = cur.raw.chars().count();
+                cx.cands.push(c);
+            }
         let (dir_part, base) = match cur.value.rfind('/') {
             Some(i) => (&cur.value[..=i], &cur.value[i + 1..]),
             None => ("", cur.value.as_str()),
@@ -634,7 +651,10 @@ impl Engine {
         let cur = &cx.cl.current;
         let mut scored: Vec<(u8, f64, usize, String)> = vec![];
         for (idx, c) in cx.cands.iter().enumerate() {
-            if c.names.iter().all(|n| n.trim().is_empty()) && c.insert_value.is_none() && c.kind != Kind::Execute {
+            if c.names.iter().all(|n| n.trim().is_empty())
+                && c.insert_value.is_none()
+                && !matches!(c.kind, Kind::Execute | Kind::Back)
+            {
                 continue;
             }
             // Rank by the best-matching name, but insert the first name (in
@@ -683,7 +703,8 @@ impl Engine {
         for (_, _, idx, name) in scored {
             let c = &cx.cands[idx];
             let (insert, back) = insertion(c, &name, cur, self.cfg.insert_space);
-            if !seen.insert(insert.clone()) {
+            // Enter and Back can both insert "": keep them apart from values.
+            if !matches!(c.kind, Kind::Execute | Kind::Back) && !seen.insert(insert.clone()) {
                 continue;
             }
             out.push(Suggestion {
@@ -739,6 +760,24 @@ fn generator_icon(id: &str) -> Option<Icon> {
         ("cargo", _) | ("online", "crates") => Icon::Rust,
         ("zoxide", _) => Icon::Folder,
         _ => return None,
+    })
+}
+
+/// A typed directory path (as typed, quotes/escapes kept) one level up:
+/// `src/app/` → `src/`, `src/` → ``, `` → `../`, `../` → `../../`.
+fn parent_path(raw: &str) -> Option<String> {
+    if raw == "/" {
+        return None;
+    }
+    let trimmed = raw.trim_end_matches('/');
+    let (head, last) = match trimmed.rfind('/') {
+        Some(i) => (&trimmed[..=i], &trimmed[i + 1..]),
+        None => ("", trimmed),
+    };
+    Some(match last {
+        // Nothing to strip: go further up.
+        "" | "." | ".." | "~" => format!("{raw}../"),
+        _ => head.to_string(),
     })
 }
 
@@ -1085,9 +1124,26 @@ mod tests {
         assert_eq!(c.items[0].kind, Kind::Execute);
         assert_eq!(c.items[0].label, "Enter");
         assert_eq!(c.items[0].description, "Run `go-to sub\\ dir/`");
+        // Then "Back", one folder up.
+        assert_eq!((c.items[1].kind, c.items[1].insert.as_str(), c.items[1].delete), (Kind::Back, "", 9));
+        let c = e.complete("go-to ", &env, true, false);
+        assert_eq!((c.items[0].kind, c.items[0].insert.as_str()), (Kind::Back, "../"));
         // Not before a directory is complete, and not for file arguments.
         assert!(e.complete("go-to su", &env, true, false).items.iter().all(|s| s.kind != Kind::Execute));
         assert!(e.complete("tool -o sub\\ dir/", &env, true, false).items.iter().all(|s| s.kind != Kind::Execute));
+    }
+
+    #[test]
+    fn parent_paths() {
+        assert_eq!(parent_path("src/app/").as_deref(), Some("src/"));
+        assert_eq!(parent_path("src/").as_deref(), Some(""));
+        assert_eq!(parent_path("").as_deref(), Some("../"));
+        assert_eq!(parent_path("../").as_deref(), Some("../../"));
+        assert_eq!(parent_path("~/").as_deref(), Some("~/../"));
+        assert_eq!(parent_path("/usr/lib/").as_deref(), Some("/usr/"));
+        assert_eq!(parent_path("/usr/").as_deref(), Some("/"));
+        assert_eq!(parent_path("/"), None);
+        assert_eq!(parent_path("my\\ dir/sub/").as_deref(), Some("my\\ dir/"));
     }
 
     #[test]

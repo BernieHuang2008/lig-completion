@@ -30,6 +30,8 @@ pub enum Kind {
     Info,
     /// Run the command line as it is (the "Enter" item on top of folders).
     Execute,
+    /// Go up one folder in the path being typed (the "Back" item).
+    Back,
 }
 
 /// What a suggestion is, for its icon (falls back to its [`Kind`]).
