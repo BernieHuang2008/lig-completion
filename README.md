@@ -1,286 +1,107 @@
 # lig
 
-IDE-style autocomplete for your Linux terminal, written entirely in Rust. It works
-like Fig / Kiro CLI autocomplete and [easy-complete](https://github.com/chen86860/easy-complete),
-but runs on Linux, with no JavaScript, no npm and no downloads.
+IDE-style autocomplete for your Linux terminal, in the spirit of Fig / Kiro CLI
+autocomplete. Written in Rust, for **zsh** and **bash**, in any terminal.
 
 ```
-% git ch█
-     ▸ checkout      Switch branches or restore working tree files
-     ▸ cherry-pick   Apply the changes introduced by some existing commits
+❯ git ch
+   ╭──────────────────────────────────────────────────────────╮
+   │  ▸ checkout       Switch branches or restore working tree │
+   │  ▸ cherry-pick    Apply the changes introduced by some …  │
+   ╰──────────────────────────────────────────────────────────╯
 ```
 
-Everything runs locally. There is no daemon, no account and no telemetry.
-
-## Where suggestions come from
-
-1. **All ~730 commands from [withfig/autocomplete](https://github.com/withfig/autocomplete/tree/master/src)**
-   (1,478 spec files, including git, docker, aws, gcloud, az, kubectl, gh, terraform,
-   brew, npm, cargo, ffmpeg, heroku, deno, go…). They are converted to plain JSON in
-   `specs/fig/`, compressed into the binary at build time, and inflated one at a time
-   on first use. lig contains no JavaScript; see [Converted specs](#converted-specs).
-2. **Hand-written specs** (`specs/lig/*.json`): `git`, `docker` (+ `compose`), `cargo`,
-   `rustup`, `npm`, `npx`, `pnpm`, `yarn`, `bun`, `pip`, `systemctl`, `journalctl`,
-   `apt`, `apt-get`, `kill`, `killall`, `pkill`, `ssh`, `scp`, `make`, `tmux`,
-   `kubectl`, `snap`, `extrepo`, `sudo`, `cd`, `z`, `which`, `man`, `time`, `watch`,
-   `xargs`, …. They're JSON like the others. Their dynamic values come from native
-   generators written in Rust and referenced by id (`{"builtin": "git:branches"}`):
-   git branches, tags, commits, stashes and changed files, docker containers, images
-   and compose services, systemd units, PIDs, ssh hosts, Makefile targets,
-   `package.json` scripts, cargo bins and features, apt packages, extrepo repositories,
-   kube resources, zoxide directories, and the online registries. `lig specs generators`
-   lists them all. When a command also has a converted spec, the two are merged: the
-   hand-written one wins, and the converted one adds the options and subcommands it's
-   missing.
-3. **Every other command**: lig parses its `--help` output or man page and caches the
-   result per executable version. This covers GNU/uutils tools, clap, cobra, click and
-   argparse CLIs, and anything with a man page. Subcommands are expanded lazily
-   (`foo bar --help`).
-4. **Your own specs** in `~/.config/lig/specs/` (JSON or TOML) override all of the above.
-
-Your shell's **aliases and functions** are known too: the zsh hook reports them when
-they change. Typing `gco ` completes like `git checkout `, and `ls -` gives `lsd`'s
-options if `ls` is aliased to `lsd`. Both appear in the command-name suggestions.
-zoxide's `z`/`zi` complete with zoxide's own frecent directory ranking (rupa/z's `~/.z`
-also works).
-
-**Package registries are searched as you type**, the way Fig did it:
-
-| Command | Source |
-| --- | --- |
-| `npm i`, `pnpm add`/`i`, `yarn add`, `bun add`, `pnpm dlx` | npms.io prefix suggestions (fallback: npm registry search); `pkg@` → dist-tags and versions |
-| `cargo add`, `cargo install` | crates.io search; `crate@` → versions |
-| `docker pull`, `docker run` | your local images, then Docker Hub; `image:` → tags |
-| `pip install`, `pip download` | the 15,000 most downloaded PyPI packages ([top-pypi-packages](https://hugovk.github.io/top-pypi-packages/), cached for a week; offline: Fig's built-in list) since PyPI has no search API; `pkg==` → versions from PyPI |
-| `snap install`, `snap find`, `snap info` | the Snap Store (`snap find`) |
-| `apt install` / `apt-get install` | the local apt index (`apt-cache pkgnames`) |
-| `brew install` | Homebrew's own formula and cask lists (`brew formulae` / `brew casks`) |
-
-Requests go through `curl` and are cached for 30 minutes. While a new search runs, the
-previous results stay visible, filtered to what you've typed. If there's nothing to show
-yet, the popup says what it's waiting for (`Searching npm…`, `Searching crates.io…`,
-`Reading foo --help…`). This only appears when results take more than about 150 ms, so
-fast local suggestions never flash it. Turn this off with
-`online = false`. With it on, the package name you're typing is sent to these
-services.
-
-Order in the popup: subcommands and values first (branches, scripts, units…), then
-options, then files. When an argument is just a file path, the options are listed too,
-so `java ` offers `-jar`, `-cp`… before files. Type a letter and only matching files
-remain. Set `files_first = true` to put files first.
-
-`lig specs list` shows every command with a spec and where it comes from.
-
-## How it works
-
-Wayland (GNOME) doesn't let an app put a floating window at the terminal cursor, so
-lig draws the popup **inside the terminal**, the way an editor draws a completion menu:
-
-```
-terminal ⇄ lig shell (PTY proxy + vt100 screen model + popup) ⇄ zsh or bash (+ hooks)
-                         │
-                         └─ worker thread: completion engine (specs, --help parser, generators)
-```
-
-* `lig shell` runs your shell (zsh or bash) in a pseudo-terminal and passes everything
-  through. It keeps a vt100 model of the screen, so after it draws the popup it can
-  restore the exact cells that were underneath. Redraws use synchronized output
-  (`?2026`) to avoid flicker.
-* **zsh** reports the edit buffer and cursor on every redraw (`zle-line-pre-redraw` →
-  a private `OSC 6973`). When you accept a suggestion, lig sends a private key sequence
-  bound to a ZLE widget, which edits `$LBUFFER` directly.
-* **bash** has no "line changed" hook, so its prompt ends with an invisible marker and
-  lig reads the line off its screen model, from the marker to the cursor. This also
-  works with prompts rebuilt every time (starship) and multi-line prompts. `PS0`
-  reports that a command was submitted, `PROMPT_COMMAND` reports the directory,
-  `PATH`, aliases, functions and builtins, and an accepted suggestion is applied by a
-  `bind -x` function that edits `READLINE_LINE`.
-* lig removes its private messages from the stream before they reach the terminal.
-* Anything that runs a command (generators, `--help`) is done in a second pass.
-  Static suggestions appear immediately, and the popup updates when those results arrive.
-
-### Is running `--help` safe?
-
-lig only runs `<cmd> --help` automatically when `<cmd>` is an ELF binary or a
-python/node/ruby script. Their argument parsers handle `--help` before doing anything.
-Shell scripts and other files only get their man page read.
-`--help` runs with stdin closed, an invalid `DISPLAY`/`WAYLAND_DISPLAY` (so GUI apps
-can't open windows), and a 2 s timeout. It runs once per executable version.
-To opt a command out, add it to `help_skip`, or turn the feature off with
-`help_parsing = false`.
+- **~730 commands** out of the box: git, docker, kubectl, cargo, npm, aws, gh, terraform,
+  systemctl, apt… (the [withfig/autocomplete](https://github.com/withfig/autocomplete)
+  specs, converted to JSON and embedded in the binary).
+- **Live values**: git branches, docker containers, systemd units, ssh hosts, make
+  targets, npm scripts, zoxide directories, PIDs…
+- **Package search as you type**: npm, crates.io, Docker Hub, PyPI, Snap Store, apt.
+- **Any other command** gets options and subcommands parsed from its `--help` or man page.
+- Knows your **aliases, functions and builtins** (`gco ` completes like `git checkout `).
+- Nerd Font icons, themes, configurable size and keys.
+- Runs locally: no daemon, no account, no telemetry.
 
 ## Install
 
-Requirements: Rust 1.85+, and zsh ≥ 5.3 or bash ≥ 4.4.
+Requirements: Linux, [Rust](https://rustup.rs) 1.85+, zsh ≥ 5.3 or bash ≥ 4.4.
+Optional: `curl` (online package search), a [Nerd Font](https://www.nerdfonts.com) (icons).
 
 ```bash
+git clone <this repository> lig
+cd lig
 cargo install --path .
+lig install            # sets up your $SHELL; or: lig install zsh / lig install bash
 ```
+
+Open a new terminal, then check the setup:
 
 ```bash
-lig install
+lig doctor
 ```
 
-`lig install` sets up the shell in your `$SHELL`. Name one to choose (`lig install zsh`,
-`lig install bash`), or run it twice to set up both. It adds a small block at the top
-and at the bottom of `~/.zshrc` / `~/.bashrc`, and saves the original as
-`~/.zshrc.lig-backup` / `~/.bashrc.lig-backup`. Then open a new terminal. To check the
-setup, run `lig doctor`.
-
-If you'd rather edit the rc file yourself, put the first line at the very top and the
-second at the very bottom:
-
-```zsh
-eval "$(lig init zsh pre)"    # ~/.zshrc, top: re-execs the shell inside lig
-eval "$(lig init zsh post)"   # ~/.zshrc, bottom: ZLE hooks
-```
+`lig install` adds two small blocks to `~/.zshrc` or `~/.bashrc`, at the very top and
+at the very bottom, and keeps a backup of the original (`~/.zshrc.lig-backup`). To set
+it up by hand instead:
 
 ```bash
-eval "$(lig init bash pre)"   # ~/.bashrc, top
-eval "$(lig init bash post)"  # ~/.bashrc, bottom: after anything that sets PS1/PROMPT_COMMAND
+# first line of ~/.zshrc                 # last line of ~/.zshrc
+eval "$(lig init zsh pre)"               eval "$(lig init zsh post)"
+
+# first line of ~/.bashrc                # last line of ~/.bashrc
+eval "$(lig init bash pre)"              eval "$(lig init bash post)"
 ```
 
-### Disable temporarily
+- Remove it: `lig uninstall` (or `lig uninstall bash`).
+- Skip it for one shell: `LIG_DISABLE=1 zsh`.
+- After updating lig (`cargo install --path .` again), open a new terminal tab. A tab
+  keeps the version it started with.
 
-```bash
-LIG_DISABLE=1 zsh
-```
+## Usage
 
-```bash
-LIG_DISABLE=1 bash
-```
-
-## Look
-
-The popup is a rounded box by default. When the list scrolls, the
-scrollbar runs along its right edge and the bottom edge shows the position (`3/27`).
-Change it in `[ui]`:
-
-* `border`: `rounded`, `square` or `none`
-* `density`:
-  * `compact`: tight padding, narrow descriptions, most rows on screen
-  * `normal`: the default
-  * `relaxed`: wide padding and gaps, and a blank row above and below the list
-* `theme`: `default`, `catppuccin`, `nord`, `dracula`, `gruvbox`, `tokyonight`,
-  `light`, or `terminal` (follows your terminal's color scheme)
-* `[ui.colors]`: override any single color of the theme
-* `width`: `"auto"` fits the content (between `min_width` and `max_width`), or set a
-  number of columns (`60`) or a share of the terminal (`"50%"`). With a fixed width the
-  description column takes the extra space. When space is short the description
-  shrinks first and is dropped before the name gets cut.
-* `description_position`: `"right"` shows a description column next to each name.
-  `"bottom"` lists only the names and shows the **selected** item's full description,
-  wrapped, in a separate frame under the list. The frame is up to `description_lines`
-  tall and keeps its size while you move through the list.
-* `height`: the most suggestions listed at once (`8`), or a share of the terminal
-  height (`"30%"`). The list scrolls beyond that. `min_height` keeps the popup at least
-  that tall even with fewer suggestions.
-
-Try them without editing anything:
-
-```bash
-lig preview                          # your current settings
-lig preview --theme nord --density compact --border square
-lig preview --all                    # every theme
-lig preview --densities              # compact / normal / relaxed side by side
-lig preview --width 60 --height 5    # try sizes ("50%" works too)
-lig preview --description bottom     # description frame under the list
-```
-
-## Icons
-
-With `icons = "auto"` (the default), lig uses [Nerd Font](https://www.nerdfonts.com)
-glyphs when a Nerd Font is installed (detected with `fc-list`). If your terminal
-provides the glyphs another way, set `icons = "nerd"`. Without Nerd Fonts it falls back to plain
-Unicode symbols. The icon depends on what the suggestion is:
-
-* commands, aliases, functions, builtins, subcommands, flags
-* folders, and files by type (Rust, Python, JS/TS, JSON, Markdown, configs, shell,
-  images, archives, lockfiles…)
-* packages by ecosystem (npm, crates.io, PyPI, Docker, apt/snap/brew)
-* git branches, tags, commits, remotes and stashes
-* containers, processes, services, hosts, users, versions, scripts and make targets
-
-Run `lig icons` to see every icon lig uses, with its name and Unicode fallback.
-
-Spec files can set one with `"icon"`: `package`, `npm`, `rust`, `python`, `docker`,
-`container`, `git-branch`, `git-tag`, `git-commit`, `git-remote`, `git-stash`,
-`process`, `service`, `host`, `user`, `version`, `script`, `folder`, `volume`,
-`network`, `cloud`, `terminal`, `alias`, `function` or `builtin`.
-
-## Keys
+Type as usual and the popup appears with suggestions for what you're typing.
 
 | Key | Action |
 | --- | --- |
-| `Ctrl+Space` | show the popup now / hide it |
-| `Tab` / `↓` / `Ctrl-N` | next suggestion (with a single suggestion, `Tab` accepts it) |
-| `Shift-Tab` / `↑` / `Ctrl-P` | previous suggestion; on the first one, closes the popup |
-| `Enter` | accept the selected suggestion |
-| `Esc` | dismiss (until the line changes) |
+| `Tab` / `↓` | next suggestion |
+| `Shift-Tab` / `↑` | previous suggestion (on the first one: close the popup) |
+| `Enter` | accept the suggestion |
+| `Esc` | close the popup |
+| `Ctrl+Space` | open / close the popup on demand |
 
-The popup doesn't open by itself while you type a command name, either the first word
-or the command after `sudo`, `time`, `env`, `watch`, `xargs`, …. So `ls`, `htop`,
-`exit` or `sudo ls` can be typed and run with one `Enter`. Press `Ctrl+Space` to see command names, aliases,
-functions and builtins. (Set `complete_commands = true` to get them automatically.)
+What to expect:
 
-What `Enter` does while the popup is showing:
-
-* **The line ends with a space** (`z `, `git checkout `, `npm run `): it picks the
-  highlighted suggestion (the first one unless you moved).
-* **You're in the middle of a word** (`go bui`, `git chec`): it completes the word with
-  the highlighted suggestion (`go build `).
-* **The word is already complete** (`git status`, `go build`): it runs the line. With no
-  matches, the popup isn't shown and `Enter` runs anyway. A fully typed **option** is
-  the exception: `go build -o` + `Enter` accepts it, adding its space, and the popup
-  moves on to the option's value.
-
-A pick inserts just the word, with no trailing space (`git chec` → `git checkout`),
-and closes the popup. Type a space to get the next suggestions, or press `Enter` to run:
-`Enter` `Enter` means "pick, then run". Options are the exception: they get a space
-(`--force `), and the popup goes straight to what can follow. Folders keep their `/`,
-and options that take `=` keep it (`--color=`). Set `insert_space = true` to add a space
-after every pick. If you move
-the highlight with `Tab` or the arrows, `Enter` picks that item. If suggestions are
-still loading, lig waits for them (up to 1.5 s). Set `enter_accepts` to
-`"after-space"` (pick only after a space), `"always"` or `"never"` to change this.
-
-For folder arguments (`cd`, `pushd`, `mkdir`, …), picking a folder keeps the popup
-open with what's inside, so you can walk down the tree: `cd s` `Enter` → `cd src/`
-with its subfolders listed. Once a folder is on the line, the first entry is
-**↵ Enter**, which runs the command, as Fig did. Next comes **Back**, which takes the path
-one folder up (`cd src/app/` → `cd src/`) and keeps the popup open; on a bare `cd ` it
-offers `../`. `Enter` `Enter` picks a folder and then
-`cd`s into it.
-
-While you browse history (`↑`/`↓`, history search, `Ctrl-R`, fzf), the recalled lines
-don't open the popup, so the arrows keep moving through history. Typing brings it back.
-
-When the popup isn't showing, keys go straight to the shell, so normal Tab completion still
-works. `Ctrl+Space` is taken from zsh's `set-mark-command` while you edit a command line.
+- **Command names don't pop up by themselves** (`ls`, `sudo ls`…), so simple commands
+  run with a single `Enter`. Press `Ctrl+Space` to see command names.
+- **`Enter`** completes the word you're typing (`go bui` → `go build`), or picks the
+  first suggestion after a space (`git checkout ` → `git checkout main`). If the word is
+  already complete (`git status`), it runs the command. `Enter` `Enter` means "pick,
+  then run".
+- **No space is added** after a pick, except after options (`--force `). Type the space
+  yourself to see what comes next.
+- **Folders** (`cd`, `mkdir`, …): picking one keeps the popup open with its subfolders.
+  The first entries are **↵ Enter** (run the command) and **Back** (one folder up).
+- **History and the shell's own completion stay yours**: while you browse history with
+  the arrows or use `Tab` after closing the popup, lig stays out of the way. Typing
+  brings it back.
 
 ## Configuration
 
-`~/.config/lig/config.toml`. Print the defaults with `lig config`:
+Settings live in `~/.config/lig/config.toml`. `lig config` prints every option with its
+default value. The ones you're most likely to change:
 
 ```toml
 [ui]
-width = "auto"           # "auto" (fit content), columns (60), or "50%" of the terminal
-min_width = 30           # bounds for width = "auto"
-max_width = 100          #   (columns or "80%")
-height = 8               # suggestion rows at most, or "30%" of the terminal height
-min_height = 0           # keep at least this many rows (padded) for a steadier popup
-descriptions = true
-description_position = "right"   # or "bottom": the selected item's description in a frame below
-description_lines = 3            # height of that frame (at most)
-icons = "auto"           # "nerd", "unicode" or "none"
-border = "rounded"       # "square" or "none"
-density = "normal"       # "compact", "normal" or "relaxed"
-theme = "default"        # catppuccin, nord, dracula, gruvbox, tokyonight, light, terminal
+theme = "default"          # catppuccin, nord, dracula, gruvbox, tokyonight, light, terminal
+border = "rounded"         # square, none
+density = "normal"         # compact, relaxed
+icons = "auto"             # nerd, unicode, none
+width = "auto"             # or columns (60), or "50%" of the terminal
+height = 8                 # max rows, or "30%"
+description_position = "right"   # or "bottom": a frame under the list
 
-[ui.colors]              # optional: override any theme color
-# bg = "#1e1e2e"         # 0-255 palette index, "#rrggbb", or "default" (terminal's own)
-# fg, selected_bg, selected_fg, description_fg, selected_description_fg,
-# match_fg, border_fg, border_bg, scrollbar_fg, scrollbar_thumb, info_fg
+[ui.colors]                # override single theme colors: "#rrggbb", 0-255, or "default"
+# bg = "#1e1e2e"
 
 [keys]
 accept = ["enter"]
@@ -290,26 +111,49 @@ dismiss = ["esc"]
 toggle = ["ctrl-space"]
 
 [behavior]
-fuzzy = true                 # subsequence matching when nothing matches by prefix
-enter_accepts = "auto"            # pick/complete unless the word is complete ("after-space", "always", "never")
-insert_space = false         # add a space after an accepted suggestion
-files_first = false          # list files before options/subcommands
-show_on_empty_token = true   # suggest right after a space
-complete_commands = false    # pop up for the first word too (Ctrl+Space always does)
-online = true                # search package registries (npm, crates.io, Docker Hub, …)
-generator_timeout_ms = 5000
-generator_cache_ms = 5000
-disabled_commands = []
-help_parsing = true          # specs from --help / man for other commands
-help_timeout_ms = 2000
-help_skip = []               # never run `<cmd> --help` for these
+enter_accepts = "auto"     # "after-space", "always", "never"
+insert_space = false       # add a space after every pick
+complete_commands = false  # pop up for command names too
+online = true              # search package registries as you type
+disabled_commands = []     # never show the popup for these
 ```
 
-## Writing specs
+Try styles without editing the file:
 
-### As a file (no rebuild)
+```bash
+lig preview --all                                   # every theme
+lig preview --theme nord --density compact --border square
+lig preview --description bottom --width 60
+lig icons                                           # every icon lig uses
+```
 
-Put `~/.config/lig/specs/<command>.toml` (or `.json`) there:
+Changes apply to new terminal tabs.
+
+## Where suggestions come from
+
+Looked up in this order:
+
+1. **Your specs** in `~/.config/lig/specs/<command>.json` or `.toml`.
+2. **Hand-written specs** in [`specs/lig/`](specs/lig) (git, docker, cargo, npm, systemctl,
+   apt, ssh, kubectl, cd, z, …), merged with the converted one for the same command when
+   there is one.
+3. **Converted Fig specs** in [`specs/fig/`](specs/fig).
+4. **The command's `--help` or man page**, parsed and cached per executable version.
+   `--help` is only run for real binaries and Python/Node/Ruby scripts, with no input,
+   no display and a 2 s timeout. Other files only get their man page read. Turn it off
+   with `help_parsing = false`.
+
+`lig specs list` shows which source each command uses.
+
+**Online search** (`npm i`, `pnpm add`, `cargo add`, `docker pull`, `pip install`,
+`snap install`) sends the package name you're typing to that registry, through `curl`,
+with results cached for 30 minutes. Turn it off with `online = false`.
+
+### Writing a spec
+
+A spec describes a command's subcommands, options and arguments, in the
+[Fig spec format](https://fig.io/docs/reference) (static parts only). Save it as
+`~/.config/lig/specs/deploy.toml`:
 
 ```toml
 name = "deploy"
@@ -321,119 +165,77 @@ description = "Target environment"
 args = { name = "env", suggestions = ["staging", "production"] }
 
 [[subcommands]]
-name = ["status", "st"]
-description = "Show deployment status"
-
-[[subcommands]]
 name = "logs"
-description = "Tail logs of a service"
-args = { name = "service", generators = { script = ["deploy", "services"] } }
+description = "Tail the logs of a service"
+args = { name = "service", generators = { script = ["deploy", "list-services"] } }
 ```
 
-Supported fields: `name` (string or list), `description`, `subcommands`, `options`,
-`args`, `insertValue` (with an optional `{cursor}`), `priority`, `hidden`,
-`isPersistent`, `isRepeatable`, `requiresSeparator`, `exclusiveOn`, `isOptional`,
-`isVariadic`, `isCommand`, `suggestions`, `template` (`"filepaths"` / `"folders"`),
-`generators` (`script` as an argv list or a shell string, plus `splitOn`), and
-`loadSpec`.
+Arguments can list fixed `suggestions`, use `template = "filepaths"` or `"folders"`, or
+run a command whose output lines become suggestions (`generators = { script = [...] }`).
+lig also has native generators (git branches, docker containers, …) usable with
+`generators = [{ builtin = "git:branches" }]`. `lig specs generators` lists them.
 
-### In this repository (built in)
-
-Add `specs/lig/<command>.json` and rebuild. `build.rs` embeds it, and fails the build
-if the JSON is broken. The format is the same as above, plus three lig-specific keys:
-
-* `"generators": [{"builtin": "<id>"}]`: a native generator; `lig specs generators`
-  lists the ids
-* `"loadHelp": ["docker", "buildx"]`: on a subcommand, read its details from
-  `docker buildx --help` when it's reached
-* `"commandNames": true`: on an argument, suggest command names (as `which` does)
-
-```json
-{
-  "name": "deploy",
-  "description": "Deploy the app",
-  "options": [{ "name": ["-e", "--env"], "args": { "name": "env", "suggestions": ["staging", "production"] } }],
-  "subcommands": [
-    { "name": "checkout", "args": { "name": "branch", "generators": [{ "builtin": "git:branches" }] } }
-  ]
-}
-```
-
-A new kind of dynamic value needs Rust: add a generator to `src/specs/gens.rs` and give
-it an id in `builtin()`. `cargo test` checks that every spec in `specs/lig/` loads, uses
-only keys lig understands, and only refers to generators that exist.
-
-### Debugging
+To check a spec:
 
 ```bash
-lig complete "git checkout "     # what the engine suggests
-lig complete --alias "gco=git checkout" "gco "
-lig specs clear-cache            # forget cached --help results
-LIG_LOG=1 zsh                    # (or bash) log errors to ~/.local/state/lig/lig.log
+lig complete "deploy -e "
 ```
 
-## Converted specs
+## How it works
 
-`specs/fig/` is generated from the withfig/autocomplete TypeScript sources by
-`tools/update-fig-specs.sh`:
+lig runs your shell inside a pseudo-terminal (`lig shell`) and passes everything
+through. It keeps a model of the screen, draws the popup into the terminal under the
+cursor, and restores what was underneath when the popup closes. This is why it works
+in any terminal and on Wayland, where apps can't place floating windows.
 
-```bash
-tools/update-fig-specs.sh            # or: tools/update-fig-specs.sh <git ref>
-```
+Small shell hooks tell lig what you're typing. zsh reports the line on every redraw.
+For bash, lig reads the line from the screen after an invisible prompt marker. To
+accept a suggestion, lig sends a private key that a shell function binds to edit the
+line. Slow sources (commands, network) run in the background, so the popup never
+blocks typing.
 
-The script compiles the sources with esbuild, then runs `tools/figconv`, a Rust dev
-tool that isn't part of lig. figconv evaluates each spec once, in an embedded QuickJS,
-and writes static JSON. Fig specs contain JavaScript functions, and lig doesn't run
-JavaScript, so each generator is translated by probing what it does:
+## Troubleshooting
 
-| Generator in the Fig spec | In lig |
+| Problem | Try |
 | --- | --- |
-| runs a command lig has a native generator for (git branches, docker ps, systemctl units, …) | `{"builtin": "git:branches"}` (Rust) |
-| `postProcess` that turns lines into suggestions | `{"script": […]}` |
-| `postProcess` that picks a column, optionally skipping a header | `{"script": […], "field": 0, "skipLines": 1}` |
-| `postProcess` / `custom` that reads JSON output (learned by running it against a recording proxy instead of `JSON.parse`) | `{"script": […], "json": {"name": "…", "description": "…"}}` |
-| file listings | `{"template": "filepaths"}` |
-| a fixed list | `{"suggestions": […]}` |
-
-At revision `aef52ac` this converts 3,908 of 5,094 generators. The other 1,186 depend
-on token-specific logic, and only those values are lost: the options and subcommands
-around them are kept. Descriptions are shortened to their first line.
-The specs are © Hercules Labs Inc. and the withfig contributors, MIT licensed; see
-`specs/fig/LICENSE`.
+| No popup at all | `lig doctor`. "running inside lig" must be ok; open a new tab after installing or updating. |
+| Wrong or missing suggestions | `lig complete "<the line>"` shows what lig would suggest. |
+| A command's suggestions look outdated | `lig specs clear-cache` (re-reads `--help` output). |
+| Something else | Start a shell with `LIG_LOG=1 zsh` (or `bash`) and check `~/.local/state/lig/lig.log`. |
 
 ## Limitations
 
-* zsh and bash. fish would only need its own hook script; the PTY side doesn't depend
-  on the shell.
-* In bash the line is read from the screen. A cursor in the middle of a wrapped line
-  near the bottom of a full screen can occasionally confuse it; typing another key
-  fixes it.
-* The popup is drawn into the terminal grid. It hides inside full-screen apps
-  (alternate screen) and while a command is running.
-* Specs parsed from `--help` contain options and subcommands, but they can't know about
-  dynamic values; arguments fall back to file paths.
-* Some converted generators could not be translated (see above).
+- zsh and bash only for now (fish would need its own hook script).
+- In bash the line is read from the screen. A cursor inside a long wrapped line at the
+  bottom of a full screen can occasionally confuse it, until the next key.
+- Specs parsed from `--help` contain options and subcommands, but no dynamic values.
+- About a quarter of the Fig specs' dynamic generators couldn't be converted (they
+  relied on JavaScript logic); the options and subcommands around them are kept.
 
-## Layout
+## Development
+
+```bash
+cargo test                      # unit tests, including every spec in specs/lig/
+cargo build --release
+tools/update-fig-specs.sh       # regenerate specs/fig/ from withfig/autocomplete
+```
 
 ```
-src/
-  main.rs      CLI (shell, init, install, specs, complete, doctor, config)
-  session.rs   PTY proxy, event loop, key handling
-  popup.rs     popup layout/drawing and screen restore
-  osc.rs       private OSC message filter
-  keys.rs      input key parsing and bindings
-  parser.rs    shell command-line tokenizer
-  engine.rs    spec walker, generators, ranking, insertion text
-  spec.rs      spec model + builder DSL + JSON/TOML loading
-  specs/       gens.rs (native generators), archive.rs (embedded spec archives)
-  help.rs      --help / man page parser and cache
-  exec.rs      running commands with timeouts
-  store.rs     user spec files
-  config.rs    configuration
-shell/         zsh and bash integration (pre/post)
-specs/lig/     hand-written specs (JSON)
-specs/fig/     converted withfig/autocomplete specs (generated, JSON)
-build.rs       packs specs/lig and specs/fig into compressed archives in the binary
-tools/         figconv (spec converter) and update-fig-specs.sh
+src/            the lig binary (session.rs: PTY + popup, engine.rs: completion,
+                popup.rs: drawing, help.rs: --help parser, specs/gens.rs: native generators)
+shell/          zsh and bash hooks
+specs/lig/      hand-written specs (JSON)
+specs/fig/      converted withfig/autocomplete specs (generated)
+build.rs        embeds both spec folders, compressed, into the binary
+tools/figconv/  the Fig → JSON converter (development only, not part of lig)
 ```
+
+To add a built-in spec, add `specs/lig/<command>.json` and rebuild. To add a new kind of
+live value, write a generator in `src/specs/gens.rs` and register its id in `builtin()`.
+
+## Credits and license
+
+The specs in `specs/fig/` come from [withfig/autocomplete](https://github.com/withfig/autocomplete),
+© Hercules Labs Inc. and contributors, MIT licensed (see [`specs/fig/LICENSE`](specs/fig/LICENSE)).
+
+lig is MIT licensed, see [`LICENSE`](LICENSE).
