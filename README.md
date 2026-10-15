@@ -47,7 +47,7 @@ Requirements: Linux, [Rust](https://rustup.rs) 1.85+, zsh ≥ 5.3 or bash ≥ 4.
 Optional: `curl` (online package search), a [Nerd Font](https://www.nerdfonts.com) (icons).
 
 ```bash
-git clone <this repository> lig
+git clone https://github.com/KevenGoncalves/lig lig
 cd lig
 cargo install --path .
 lig install            # sets up your $SHELL; or: lig install zsh / lig install bash
