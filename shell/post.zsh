@@ -2,13 +2,6 @@
 if [[ -o interactive && -z "$LIG_DISABLE" && -n "$LIG_TTY" && "$LIG_TTY" == "$TTY" ]] && (( ! ${+_lig_loaded} )); then
   typeset -g _lig_loaded=1 _lig_last=
 
-  # Ghostty only injects its integration into the first shell; the shell lig
-  # spawns needs it sourced by hand.
-  #if [[ -n "$GHOSTTY_RESOURCES_DIR" && -r "$GHOSTTY_RESOURCES_DIR/shell-integration/zsh/ghostty-integration" ]] \
-  #    && (( ! ${+_ghostty_state} )); then
-  #  builtin source "$GHOSTTY_RESOURCES_DIR/shell-integration/zsh/ghostty-integration"
-  #fi
-
   _lig_report() {
     builtin emulate -L zsh
     local msg

@@ -77,7 +77,7 @@ Wayland (GNOME) doesn't let an app put a floating window at the terminal cursor,
 lig draws the popup **inside the terminal**, the way an editor draws a completion menu:
 
 ```
-Ghostty ⇄ lig shell (PTY proxy + vt100 screen model + popup) ⇄ zsh (+ ZLE hooks)
+terminal ⇄ lig shell (PTY proxy + vt100 screen model + popup) ⇄ zsh (+ ZLE hooks)
                          │
                          └─ worker thread: completion engine (specs, --help parser, generators)
 ```
@@ -126,12 +126,6 @@ eval "$(lig init zsh pre)"    # top: re-execs the shell inside lig
 eval "$(lig init zsh post)"   # bottom: ZLE hooks
 ```
 
-### Ghostty
-
-Nothing extra is needed. Ghostty only injects its shell integration into the first
-shell it starts, and lig re-sources it in the shell it wraps, so prompt marks, cursor
-shape and titles keep working.
-
 ### Disable temporarily
 
 ```bash
@@ -178,8 +172,8 @@ lig preview --description bottom     # description frame under the list
 ## Icons
 
 With `icons = "auto"` (the default), lig uses [Nerd Font](https://www.nerdfonts.com)
-glyphs when they're available. Ghostty and WezTerm bundle them, and otherwise any
-installed Nerd Font is detected with `fc-list`. Without Nerd Fonts it falls back to plain
+glyphs when a Nerd Font is installed (detected with `fc-list`). If your terminal
+provides the glyphs another way, set `icons = "nerd"`. Without Nerd Fonts it falls back to plain
 Unicode symbols. The icon depends on what the suggestion is:
 
 * commands, aliases, functions, builtins, subcommands, flags
