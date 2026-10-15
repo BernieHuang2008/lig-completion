@@ -196,6 +196,7 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
         selected: 0,
         navigated: false,
         just_accepted: false,
+        close_after_insert: false,
         manual: false,
         loading: None,
         pending_enter: None,
@@ -275,6 +276,8 @@ struct Session {
     navigated: bool,
     /// A suggestion was just accepted and nothing typed since: Enter runs.
     just_accepted: bool,
+    /// Keep the popup closed for the line the accepted insert produces.
+    close_after_insert: bool,
     /// The popup was asked for with the toggle key (until the line is run).
     manual: bool,
     /// (line, message, since) while slower suggestions are being fetched.
@@ -421,6 +424,9 @@ impl Session {
                 self.editing = true;
                 self.hidden = false;
                 let line: String = text.chars().take(cursor).collect();
+                if std::mem::take(&mut self.close_after_insert) && line != self.line {
+                    self.dismissed = Some(line.clone());
+                }
                 if line != self.line || self.items_line != line {
                     if self.dismissed.as_deref() != Some(line.as_str()) {
                         self.dismissed = None;
@@ -501,9 +507,11 @@ impl Session {
     }
 
     /// The word being typed already equals one of the suggestions (`git status`).
+    /// Options don't count: Enter on a fully typed `-o` accepts it (adding
+    /// its space) instead of running the line.
     fn word_complete(&self) -> bool {
         let chars: Vec<char> = self.line.chars().collect();
-        self.items.iter().any(|s| {
+        self.items.iter().filter(|s| s.kind != Kind::Option).any(|s| {
             let typed: String = chars[chars.len().saturating_sub(s.delete)..].iter().collect();
             !typed.is_empty() && s.insert.trim_end().trim_end_matches('/') == typed.trim_end_matches('/')
         })
@@ -657,6 +665,9 @@ impl Session {
                     self.just_accepted = true;
                     passthrough = true;
                     let s = &self.items[self.selected];
+                    // A completed word needs no popup until the next keystroke;
+                    // after `--option ` the next suggestions show right away.
+                    self.close_after_insert = !s.insert.ends_with(char::is_whitespace);
                     let payload = format!("{INSERT_KEY}{};{};{}\x07", s.delete, s.back, s.insert);
                     fwd.extend_from_slice(payload.as_bytes());
                     self.items.clear();

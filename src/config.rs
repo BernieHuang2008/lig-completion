@@ -140,6 +140,8 @@ pub struct Behavior {
     /// `"never"`. A selection moved with Tab/arrows is always picked; the
     /// Enter right after a pick runs the line.
     pub enter_accepts: String,
+    /// Add a space after an accepted suggestion (`checkout ` vs `checkout`).
+    pub insert_space: bool,
     /// List files before options and subcommands.
     pub files_first: bool,
     /// Show suggestions right after a space (empty current token).
@@ -204,6 +206,7 @@ impl Default for Behavior {
         Behavior {
             fuzzy: true,
             enter_accepts: "auto".into(),
+            insert_space: false,
             files_first: false,
             show_on_empty_token: true,
             complete_commands: false,

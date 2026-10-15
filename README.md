@@ -218,9 +218,16 @@ What `Enter` does while the popup is showing:
 * **You're in the middle of a word** (`go bui`, `git chec`): it completes the word with
   the highlighted suggestion (`go build `).
 * **The word is already complete** (`git status`, `go build`): it runs the line. With no
-  matches, the popup isn't shown and `Enter` runs anyway.
+  matches, the popup isn't shown and `Enter` runs anyway. A fully typed **option** is
+  the exception: `go build -o` + `Enter` accepts it, adding its space, and the popup
+  moves on to the option's value.
 
-After a pick, the next `Enter` runs: `Enter` `Enter` means "pick, then run". If you move
+A pick inserts just the word, with no trailing space (`git chec` → `git checkout`),
+and closes the popup. Type a space to get the next suggestions, or press `Enter` to run:
+`Enter` `Enter` means "pick, then run". Options are the exception: they get a space
+(`--force `), and the popup goes straight to what can follow. Folders keep their `/`,
+and options that take `=` keep it (`--color=`). Set `insert_space = true` to add a space
+after every pick. If you move
 the highlight with `Tab` or the arrows, `Enter` picks that item. If suggestions are
 still loading, lig waits for them (up to 1.5 s). Set `enter_accepts` to
 `"after-space"` (pick only after a space), `"always"` or `"never"` to change this.
@@ -262,6 +269,7 @@ toggle = ["ctrl-space"]
 [behavior]
 fuzzy = true                 # subsequence matching when nothing matches by prefix
 enter_accepts = "auto"            # pick/complete unless the word is complete ("after-space", "always", "never")
+insert_space = false         # add a space after an accepted suggestion
 files_first = false          # list files before options/subcommands
 show_on_empty_token = true   # suggest right after a space
 complete_commands = false    # pop up for the first word too (Ctrl+Space always does)

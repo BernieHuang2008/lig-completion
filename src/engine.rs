@@ -667,7 +667,7 @@ impl Engine {
         let mut out = vec![];
         for (_, _, idx, name) in scored {
             let c = &cx.cands[idx];
-            let (insert, back) = insertion(c, &name, cur);
+            let (insert, back) = insertion(c, &name, cur, self.cfg.insert_space);
             if !seen.insert(insert.clone()) {
                 continue;
             }
@@ -685,8 +685,12 @@ impl Engine {
                 break;
             }
         }
-        // Nothing to offer if the only suggestion is exactly what's typed.
-        if out.len() == 1 && out[0].kind != Kind::Folder && out[0].insert.trim_end() == cur.raw {
+        // Nothing to offer if the only suggestion is exactly what's typed —
+        // except an option (accepting adds its space) or a folder (its `/`).
+        if out.len() == 1
+            && !matches!(out[0].kind, Kind::Folder | Kind::Option)
+            && out[0].insert.trim_end() == cur.raw
+        {
             out.clear();
         }
         out
@@ -755,7 +759,7 @@ fn expand_aliases(cl: &mut CommandLine, env: &ShellEnv) {
     }
 }
 
-fn insertion(c: &Cand, name: &str, cur: &Token) -> (String, usize) {
+fn insertion(c: &Cand, name: &str, cur: &Token, space: bool) -> (String, usize) {
     if let Some(iv) = &c.insert_value {
         return match iv.split_once("{cursor}") {
             Some((a, b)) => (format!("{a}{b}"), b.chars().count()),
@@ -764,7 +768,13 @@ fn insertion(c: &Cand, name: &str, cur: &Token) -> (String, usize) {
     }
     let is_dir = c.kind == Kind::Folder || name.ends_with('/');
     let bare = if is_dir { name.trim_end_matches('/') } else { name };
-    let suffix = if is_dir { "/" } else { c.suffix.as_str() };
+    // A trailing space after options (`--force `), otherwise only with
+    // `insert_space`; `=` and `/` always.
+    let suffix = match (is_dir, c.suffix.as_str()) {
+        (true, _) => "/",
+        (false, " ") if !space && c.kind != Kind::Option => "",
+        (false, s) => s,
+    };
     match cur.open_quote {
         Some(q) if c.kind != Kind::Option => {
             let body = match q {
@@ -908,7 +918,7 @@ mod tests {
             "name = \"mytool\"\n[[subcommands]]\nname = [\"hello\", \"hi\"]\ndescription = \"Say hello\"\n[[subcommands.args]]\nname = \"who\"\nsuggestions = [\"world\", \"you\"]\n",
         )
         .unwrap();
-        let cfg = Behavior { help_parsing: false, ..Behavior::default() };
+        let cfg = Behavior { help_parsing: false, insert_space: true, ..Behavior::default() };
         let mut e = Engine::new(Store::with_dirs(vec![dir.join("specs")]), cfg);
         e.insert_spec(tool());
         (e, ShellEnv { cwd: dir.join("work"), ..Default::default() })
@@ -1031,6 +1041,25 @@ mod tests {
         let opt = r.iter().position(|x| x.0 == "--force").unwrap();
         let file = r.iter().position(|x| x.0 == "file.txt").unwrap();
         assert!(opt < file, "{r:?}");
+    }
+
+    #[test]
+    fn no_space_after_completion_by_default() {
+        let (_, env) = engine();
+        let dir = env.cwd.parent().unwrap().join("specs");
+        let mut e = Engine::new(Store::with_dirs(vec![dir]), Behavior { help_parsing: false, ..Behavior::default() });
+        e.insert_spec(tool());
+        let r = labels(&mut e, &env, "tool b");
+        assert_eq!(r[0], ("build".into(), "build".into(), 1));
+        // Options get their space; separators that belong to the value stay.
+        assert_eq!(labels(&mut e, &env, "tool build --verb")[0].1, "--verbose ");
+        assert_eq!(labels(&mut e, &env, "tool --out")[0].1, "--output ");
+        assert_eq!(labels(&mut e, &env, "tool --c")[0].1, "--color=");
+        // A fully typed option is still offered, to accept it with its space.
+        assert_eq!(labels(&mut e, &env, "tool -o")[0].1, "-o ");
+        assert!(labels(&mut e, &env, "tool bench").is_empty());
+        assert_eq!(labels(&mut e, &env, "tool -o su")[0].1, "sub\\ dir/");
+        assert_eq!(labels(&mut e, &env, "tool -o \"fi")[0].1, "\"file.txt\"");
     }
 
     #[test]
