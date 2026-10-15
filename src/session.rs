@@ -184,7 +184,7 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
     let mut s = Session {
         insert_file,
         prompt_end: None,
-        history_recall: false,
+        shell_nav: false,
         cwd_fallback: std::env::current_dir().unwrap_or_else(|_| "/".into()),
         bindings: Bindings::new(&cfg.keys),
         cfg,
@@ -272,9 +272,10 @@ struct Session {
     insert_file: PathBuf,
     /// Set by bash's prompt marker: the line is read off the screen.
     prompt_end: Option<PromptEnd>,
-    /// The last key sent to the shell browses history (Up/Down): the line it
-    /// recalls gets no popup, so the arrows keep going.
-    history_recall: bool,
+    /// The last key sent to the shell is one the shell itself acts on —
+    /// history (Up/Down) or its own completion (Tab): the lines it produces get
+    /// no popup, so those keys keep going to the shell. Typing ends it.
+    shell_nav: bool,
     bindings: Bindings,
     out: std::io::Stdout,
     pty: Box<dyn Write + Send>,
@@ -464,7 +465,7 @@ impl Session {
             if std::mem::take(&mut self.close_after_insert) {
                 self.dismissed = Some(line.clone());
             }
-            if std::mem::take(&mut self.history_recall) {
+            if self.shell_nav {
                 self.dismissed = Some(line.clone());
             }
         }
@@ -717,7 +718,10 @@ impl Session {
                 if key != Key::Enter {
                     self.just_accepted = false;
                 }
-                self.history_recall = matches!(key, Key::Up | Key::Down | Key::Ctrl('p') | Key::Ctrl('n'));
+                self.shell_nav = matches!(
+                    key,
+                    Key::Up | Key::Down | Key::Ctrl('p') | Key::Ctrl('n') | Key::Tab | Key::ShiftTab
+                );
                 fwd.extend_from_slice(raw);
                 passthrough = true;
                 continue;
