@@ -1,7 +1,14 @@
-# lig
+<p align="center">
+  <img src="assets/logo.svg" width="140" alt="Lig logo: a terminal prompt with a suggestion popup under the cursor">
+</p>
 
-IDE-style autocomplete for your Linux terminal, in the spirit of Fig / Kiro CLI
-autocomplete. Written in Rust, for **zsh** and **bash**, in any terminal.
+<h1 align="center">Lig</h1>
+
+<p align="center">
+  <b>IDE-style autocomplete for your Linux terminal.</b><br>
+  Subcommands, options, branches, packages and paths in a popup as you type.<br>
+  For zsh and bash, in any terminal. Written in Rust.
+</p>
 
 ```
 ❯ git ch
@@ -10,6 +17,18 @@ autocomplete. Written in Rust, for **zsh** and **bash**, in any terminal.
    │  ▸ cherry-pick    Apply the changes introduced by some …  │
    ╰──────────────────────────────────────────────────────────╯
 ```
+
+## What is Lig?
+
+Your shell already completes commands when you press `Tab`, but it shows a flat list
+of words and only knows what each command's completion script tells it. Lig shows
+a popup under the cursor while you type, like the autocomplete in a code editor: what
+each subcommand and option does, values that come from your system (branches,
+containers, packages), and the next thing that fits on the line.
+
+It brings the experience of [Fig](https://fig.io) (now Kiro CLI autocomplete) and
+[easy-complete](https://github.com/chen86860/easy-complete) to Linux, as a single
+binary that works in any terminal: it draws the popup inside the terminal itself.
 
 - **~730 commands** out of the box: git, docker, kubectl, cargo, npm, aws, gh, terraform,
   systemctl, apt… (the [withfig/autocomplete](https://github.com/withfig/autocomplete)
@@ -228,6 +247,7 @@ specs/lig/      hand-written specs (JSON)
 specs/fig/      converted withfig/autocomplete specs (generated)
 build.rs        embeds both spec folders, compressed, into the binary
 tools/figconv/  the Fig → JSON converter (development only, not part of lig)
+assets/         the logo
 ```
 
 To add a built-in spec, add `specs/lig/<command>.json` and rebuild. To add a new kind of
