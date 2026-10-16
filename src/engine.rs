@@ -90,6 +90,10 @@ struct Cx<'a> {
     loading: Option<String>,
     /// The popup was asked for (Ctrl+Space).
     manual: bool,
+    /// Offer `.` (the current folder) with paths: for option values and
+    /// subcommand arguments (`cargo install --path .`, `docker build .`), not
+    /// a command's own argument (`cd .`, or `cat .` picked by Enter).
+    offer_dot: bool,
 }
 
 impl Cx<'_> {
@@ -198,6 +202,7 @@ impl Engine {
             incomplete: false,
             loading: None,
             manual,
+            offer_dot: false,
         };
 
         if cl.current.redirect {
@@ -245,6 +250,8 @@ impl Engine {
         // An option still waiting for its argument number `k`.
         let mut pending: Option<(Arc<Opt>, usize)> = None;
         let mut directives = node.directives();
+        // No subcommand reached yet: positionals are the command's own.
+        let mut at_root = true;
 
         for tok in &tokens {
             let t = tok.value.as_str();
@@ -280,6 +287,7 @@ impl Engine {
                     directives = d.clone();
                 }
                 arg_idx = 0;
+                at_root = false;
                 continue;
             }
             saw_positional = true;
@@ -294,6 +302,7 @@ impl Engine {
                 saw_positional = false;
                 no_more_opts = false;
                 directives = node.directives();
+                at_root = true;
                 continue;
             }
             if !arg.is_variadic {
@@ -307,6 +316,7 @@ impl Engine {
             let a = opt.args[k].clone();
             if !(a.is_variadic && a.options_can_break_variadic && is_flag(&cur.value)) {
                 let (q, d) = cx.default_query();
+                cx.offer_dot = true;
                 self.arg_suggestions(&a, cx, &q, d);
                 return;
             }
@@ -324,6 +334,7 @@ impl Engine {
                 {
                     if let Some(a) = opt.args.first().cloned() {
                         let delete = cur.raw.rsplit_once(sep.as_str()).map_or(0, |(_, r)| r.chars().count());
+                        cx.offer_dot = true;
                         self.arg_suggestions(&a, cx, value, delete);
                     }
                     return;
@@ -352,6 +363,7 @@ impl Engine {
                 self.commands(cx);
             } else {
                 let (q, d) = cx.default_query();
+                cx.offer_dot = !at_root;
                 self.arg_suggestions(a, cx, &q, d);
             }
         }
@@ -536,6 +548,19 @@ impl Engine {
         }
         let cl = cx.cl;
         let cur = &cl.current;
+        if cx.offer_dot && (cur.value.is_empty() || cur.value == ".") {
+            let meta = spec::Meta {
+                names: vec![".".into()],
+                description: Some("The current folder".into()),
+                insert_value: Some(".".into()),
+                priority: Some(1000.0),
+                icon: Some(Icon::Folder),
+                ..Default::default()
+            };
+            // Listed with the values, first: Enter after `--path ` picks it.
+            cx.push(&meta, Kind::Arg, "", &cur.value, cur.raw.chars().count());
+            cx.offer_dot = false;
+        }
         let (dir_part, base) = match cur.value.rfind('/') {
             Some(i) => (&cur.value[..=i], &cur.value[i + 1..]),
             None => ("", cur.value.as_str()),
@@ -1065,7 +1090,19 @@ mod tests {
     fn files_and_option_args() {
         let (mut e, env) = engine();
         let r = labels(&mut e, &env, "tool -o ");
-        assert_eq!(r, vec![("sub dir/".into(), "sub\\ dir/".into(), 0), ("file.txt".into(), "file.txt ".into(), 0)]);
+        assert_eq!(
+            r,
+            vec![
+                (".".into(), ".".into(), 0),
+                ("sub dir/".into(), "sub\\ dir/".into(), 0),
+                ("file.txt".into(), "file.txt ".into(), 0)
+            ]
+        );
+        // `.` for option values and subcommand arguments, not the command's own.
+        assert_eq!(labels(&mut e, &env, "tool edit ")[0].0, ".");
+        assert!(labels(&mut e, &env, "tool -o .").is_empty());
+        e.insert_spec(cmd("view", "").arg(arg("file").files()));
+        assert!(labels(&mut e, &env, "view ").iter().all(|r| r.0 != "."));
         let r = labels(&mut e, &env, "tool -o \"su");
         assert_eq!(r, vec![("sub dir/".into(), "\"sub dir/".into(), 3)]);
     }
