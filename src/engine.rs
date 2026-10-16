@@ -94,6 +94,9 @@ struct Cx<'a> {
     /// subcommand arguments (`cargo install --path .`, `docker build .`), not
     /// a command's own argument (`cd .`, or `cat .` picked by Enter).
     offer_dot: bool,
+    /// The path argument has no generated values (branches, packages…): `.`,
+    /// Enter and Back may be offered without crowding them out (`git checkout`).
+    only_paths: bool,
 }
 
 impl Cx<'_> {
@@ -203,6 +206,7 @@ impl Engine {
             loading: None,
             manual,
             offer_dot: false,
+            only_paths: true,
         };
 
         if cl.current.redirect {
@@ -454,6 +458,7 @@ impl Engine {
     }
 
     fn arg_suggestions(&mut self, a: &Arg, cx: &mut Cx<'_>, query: &str, delete: usize) {
+        cx.only_paths = a.generators.is_empty();
         for s in &a.suggestions {
             cx.push_def(s, Kind::Arg, query, delete);
         }
@@ -543,12 +548,12 @@ impl Engine {
 
     /// Files and folders for the word under the cursor.
     fn files(&mut self, cx: &mut Cx<'_>, folders_only: bool) {
-        if folders_only {
+        if folders_only && cx.only_paths {
             folder_navigation(cx);
         }
         let cl = cx.cl;
         let cur = &cl.current;
-        if cx.offer_dot && (cur.value.is_empty() || cur.value == ".") {
+        if cx.offer_dot && cx.only_paths && (cur.value.is_empty() || cur.value == ".") {
             let meta = spec::Meta {
                 names: vec![".".into()],
                 description: Some("The current folder".into()),
