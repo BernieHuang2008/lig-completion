@@ -1,0 +1,29 @@
+{
+  "name": "open",
+  "description": "Open a file or URL in the preferred application",
+  "skipFigSpec": true,
+  "options": [
+    {
+      "name": "--help",
+      "description": "Show help"
+    },
+    {
+      "name": "--manual",
+      "description": "Show the manual"
+    },
+    {
+      "name": "--version",
+      "description": "Show the version"
+    }
+  ],
+  "args": {
+    "name": "file or URL",
+    "suggestions": [
+      {
+        "name": ".",
+        "description": "The current folder"
+      }
+    ],
+    "template": "filepaths"
+  }
+}
