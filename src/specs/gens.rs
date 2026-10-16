@@ -555,6 +555,208 @@ pub fn rustup_list(id: &'static str, what: &'static str, installed: bool) -> Gen
     .ttl(60_000)
 }
 
+// ---------------------------------------------------------------- asdf
+
+/// The plugin the line is about: `asdf install nodejs …`, `asdf list all nodejs …`.
+fn asdf_plugin(cx: &GenCtx) -> Option<String> {
+    cx.positionals().into_iter().skip(1).find(|p| *p != "all").map(str::to_string)
+}
+
+/// Installed plugins.
+pub fn asdf_plugins() -> Generator {
+    gen_fn("asdf:plugins", |cx| cx.lines(&["asdf", "plugin", "list"]).into_iter().map(sug).collect()).ttl(10_000)
+}
+
+/// Plugins in the asdf-plugins repository, with their URL.
+pub fn asdf_plugins_all() -> Generator {
+    gen_fn("asdf:plugins-all", |cx| {
+        cx.lines(&["asdf", "plugin", "list", "all"])
+            .into_iter()
+            .filter_map(|l| {
+                let mut words = l.split_whitespace();
+                let name = words.next()?.to_string();
+                Some(sug(name).desc(words.next().unwrap_or("")))
+            })
+            .collect()
+    })
+    .ttl(3_600_000)
+}
+
+/// Installed versions of the plugin on the line, the current one marked.
+pub fn asdf_installed() -> Generator {
+    gen_fn("asdf:installed", |cx| {
+        let Some(plugin) = asdf_plugin(cx) else { return vec![] };
+        cx.lines(&["asdf", "list", &plugin])
+            .into_iter()
+            // Skip messages like "No versions installed".
+            .filter(|l| !l.contains(char::is_whitespace))
+            .map(|l| match l.strip_prefix('*') {
+                Some(v) => sug(v).desc("current").priority(60.0),
+                None => sug(l),
+            })
+            .collect()
+    })
+    .ttl(5000)
+}
+
+/// Every version the plugin can install, newest first, after `latest`.
+pub fn asdf_versions() -> Generator {
+    gen_fn("asdf:versions", |cx| {
+        let Some(plugin) = asdf_plugin(cx) else { return vec![] };
+        let mut out = vec![sug("latest").desc("the latest stable version").priority(60.0)];
+        let versions = cx.lines(&["asdf", "list", "all", &plugin]);
+        out.extend(versions.into_iter().rev().filter(|l| !l.contains(char::is_whitespace)).map(sug));
+        out
+    })
+    .ttl(3_600_000)
+}
+
+/// Commands with an asdf shim.
+pub fn asdf_shims() -> Generator {
+    gen_fn("asdf:shims", |_| {
+        let data = std::env::var_os("ASDF_DATA_DIR")
+            .map(PathBuf::from)
+            .or_else(|| dirs::home_dir().map(|h| h.join(".asdf")))
+            .unwrap_or_default();
+        let mut names: Vec<String> = std::fs::read_dir(data.join("shims"))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names.into_iter().map(sug).collect()
+    })
+    .ttl(10_000)
+}
+
+// ---------------------------------------------------------------- ghostty
+
+/// Themes Ghostty can load, and where they come from.
+pub fn ghostty_themes() -> Generator {
+    gen_fn("ghostty:themes", |cx| {
+        cx.lines(&["ghostty", "+list-themes", "--plain"])
+            .into_iter()
+            .map(|l| match l.rsplit_once(" (") {
+                // `Dracula (resources)`: shipped with Ghostty, `(user)`: yours.
+                Some((name, "resources)")) => sug(name).desc("built-in"),
+                Some((name, _)) => sug(name).desc("your theme"),
+                None => sug(&*l),
+            })
+            .collect()
+    })
+    .ttl(3_600_000)
+}
+
+/// Font families Ghostty finds.
+pub fn ghostty_fonts() -> Generator {
+    gen_fn("ghostty:fonts", |cx| {
+        let out = cx.run(&["ghostty", "+list-fonts"]).unwrap_or_default();
+        // Families start at the margin; their faces are indented below them.
+        out.lines().filter(|l| !l.is_empty() && !l.starts_with(char::is_whitespace)).map(sug).collect()
+    })
+    .ttl(3_600_000)
+}
+
+// ---------------------------------------------------------------- opencode
+
+/// Models of the configured providers, as `provider/model`.
+pub fn opencode_models() -> Generator {
+    gen_fn("opencode:models", |cx| {
+        cx.lines(&["opencode", "models"]).into_iter().filter(|l| l.contains('/')).map(sug).collect()
+    })
+    .ttl(60_000)
+}
+
+/// Sessions of the current project, newest first, with their title.
+pub fn opencode_sessions() -> Generator {
+    gen_fn("opencode:sessions", |cx| {
+        let out = cx.run(&["opencode", "session", "list", "--format", "json"]).unwrap_or_default();
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap_or_default();
+        v.as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|s| Some(sug(s["id"].as_str()?).desc(s["title"].as_str().unwrap_or(""))))
+            .collect()
+    })
+    .ttl(10_000)
+}
+
+/// Agents that can be chosen (internal ones left out).
+pub fn opencode_agents() -> Generator {
+    gen_fn("opencode:agents", |cx| {
+        let out = cx.run(&["opencode", "debug", "agents"]).unwrap_or_default();
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap_or_default();
+        v.as_array()
+            .into_iter()
+            .flatten()
+            .filter(|a| a["hidden"].as_bool() != Some(true))
+            .filter_map(|a| Some(sug(a["id"].as_str()?).desc(a["description"].as_str().unwrap_or(""))))
+            .collect()
+    })
+    .ttl(60_000)
+}
+
+// ---------------------------------------------------------------- dnf
+
+/// Installed packages, from the rpm database.
+pub fn dnf_installed() -> Generator {
+    gen_fn("dnf:installed", |cx| {
+        let mut names = cx.lines(&["rpm", "-qa", "--qf", "%{NAME}\\n"]);
+        names.sort();
+        names.dedup();
+        names.into_iter().map(sug).collect()
+    })
+    .ttl(30_000)
+}
+
+/// Packages in the enabled repositories. Read from dnf's metadata cache
+/// (`-C`: nothing is downloaded while typing) and kept for a few hours.
+pub fn dnf_available() -> Generator {
+    gen_fn("dnf:available", |cx| {
+        let argv = ["dnf", "-q", "-C", "repoquery", "--available", "--qf", "%{name}\\n"];
+        let out = cached_output(cx, &argv, "dnf-available.txt", std::time::Duration::from_secs(6 * 3600));
+        let mut names: Vec<&str> =
+            out.as_deref().unwrap_or("").lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+        names.sort_unstable();
+        names.dedup();
+        names.into_iter().map(sug).collect()
+    })
+    .ttl(600_000)
+}
+
+/// Repositories: `which` is `--all`, `--enabled` or `--disabled`.
+pub fn dnf_repos(id: &'static str, which: &'static str) -> Generator {
+    gen_fn(id, move |cx| {
+        cx.lines(&["dnf", "-q", "-C", "repolist", which])
+            .into_iter()
+            .filter(|l| !l.starts_with("repo id"))
+            .map(|l| {
+                let (repo, name) = l.split_once(char::is_whitespace).unwrap_or((&l, ""));
+                sug(repo).desc(name.trim())
+            })
+            .collect()
+    })
+    .ttl(60_000)
+}
+
+/// Transactions in the history, newest first, with what they did.
+pub fn dnf_history() -> Generator {
+    gen_fn("dnf:history", |cx| {
+        cx.lines(&["dnf", "-q", "history", "list"])
+            .into_iter()
+            .filter_map(|l| {
+                // dnf4 separates the columns with `|`, dnf5 with spaces.
+                let (id, rest) = l.split_once(|c: char| c.is_whitespace() || c == '|')?;
+                id.parse::<u64>().ok()?;
+                let desc = rest.replace('|', " ").split_whitespace().collect::<Vec<_>>().join(" ");
+                Some(sug(id).desc(desc))
+            })
+            .collect()
+    })
+    .ttl(10_000)
+}
+
 // ---------------------------------------------------------------- kubectl
 
 fn kube_base(cx: &GenCtx) -> Vec<String> {
@@ -736,6 +938,22 @@ pub const BUILTIN_IDS: &[(&str, &str)] = &[
     ("rustup:targets-installed", "installed targets"),
     ("rustup:components", "all components"),
     ("rustup:components-installed", "installed components"),
+    ("asdf:plugins", "installed plugins"),
+    ("asdf:plugins-all", "plugins in the asdf-plugins repository"),
+    ("asdf:installed", "installed versions of the plugin on the line"),
+    ("asdf:versions", "every version of the plugin on the line"),
+    ("asdf:shims", "commands with a shim"),
+    ("ghostty:themes", "Ghostty themes"),
+    ("ghostty:fonts", "font families Ghostty finds"),
+    ("opencode:models", "models of the configured providers"),
+    ("opencode:sessions", "sessions of the current project"),
+    ("opencode:agents", "agents"),
+    ("dnf:installed", "installed packages (rpm)"),
+    ("dnf:available", "packages in the enabled repositories (cached metadata)"),
+    ("dnf:repos", "all repositories"),
+    ("dnf:repos-enabled", "enabled repositories"),
+    ("dnf:repos-disabled", "disabled repositories"),
+    ("dnf:history", "transaction history"),
     ("make:targets", "Makefile targets"),
     ("sys:pids", "processes, by PID"),
     ("sys:process-names", "process names"),
@@ -813,6 +1031,22 @@ pub fn builtin(id: &str) -> Option<Generator> {
         "rustup:targets-installed" => rustup_list("rustup:targets-installed", "target", true),
         "rustup:components" => rustup_list("rustup:components", "component", false),
         "rustup:components-installed" => rustup_list("rustup:components-installed", "component", true),
+        "asdf:plugins" => asdf_plugins(),
+        "asdf:plugins-all" => asdf_plugins_all(),
+        "asdf:installed" => asdf_installed(),
+        "asdf:versions" => asdf_versions(),
+        "asdf:shims" => asdf_shims(),
+        "ghostty:themes" => ghostty_themes(),
+        "ghostty:fonts" => ghostty_fonts(),
+        "opencode:models" => opencode_models(),
+        "opencode:sessions" => opencode_sessions(),
+        "opencode:agents" => opencode_agents(),
+        "dnf:installed" => dnf_installed(),
+        "dnf:available" => dnf_available(),
+        "dnf:repos" => dnf_repos("dnf:repos", "--all"),
+        "dnf:repos-enabled" => dnf_repos("dnf:repos-enabled", "--enabled"),
+        "dnf:repos-disabled" => dnf_repos("dnf:repos-disabled", "--disabled"),
+        "dnf:history" => dnf_history(),
         "ssh:hosts-colon" => ssh_hosts_colon(),
         "sys:users" => sys_users(),
         "snap:installed" => snaps_installed(),

@@ -750,6 +750,10 @@ impl Engine {
 /// For a folder argument: "Enter" (run the line) once a folder is complete
 /// (`cd src/`), then "Back" (one folder up), like Fig.
 fn folder_navigation(cx: &mut Cx<'_>) {
+    // Not next to subcommands (`opencode [directory]`): they matter more.
+    if cx.cands.iter().any(|c| c.kind == Kind::Subcommand) {
+        return;
+    }
     let cl = cx.cl;
     let cur = &cl.current;
     if cur.value.ends_with('/') && !cx.cands.iter().any(|c| c.kind == Kind::Execute) {
@@ -804,7 +808,9 @@ fn generator_icon(id: &str) -> Option<Icon> {
         ("ssh", _) => Icon::Host,
         ("tmux", _) => Icon::Terminal,
         ("pip", _) | ("online", "pypi" | "pypi-top") => Icon::Python,
-        ("rustup", _) => Icon::Version,
+        ("rustup", _) | ("asdf", "installed" | "versions") => Icon::Version,
+        ("asdf", "plugins" | "plugins-all") | ("dnf", "installed" | "available") => Icon::Package,
+        ("dnf", "repos" | "repos-enabled" | "repos-disabled") => Icon::Cloud,
         ("cargo", _) | ("online", "crates") => Icon::Rust,
         ("zoxide", _) => Icon::Folder,
         _ => return None,
@@ -840,6 +846,10 @@ fn loading_label(id: &str) -> String {
         "online:snap" => "Searching the Snap Store",
         "apt:available" => "Searching apt packages",
         "extrepo:available" => "Fetching the extrepo index",
+        "asdf:versions" => "Fetching versions with asdf",
+        "asdf:plugins-all" => "Fetching the asdf plugin index",
+        "dnf:available" => "Reading dnf's package list",
+        "opencode:models" => "Listing opencode models",
         _ => "Loading suggestions",
     }
     .to_string()

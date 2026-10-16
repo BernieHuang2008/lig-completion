@@ -169,6 +169,9 @@ pub struct Subcommand {
     pub additional_suggestions: Vec<SuggestionDef>,
     pub load_spec: Option<LoadSpec>,
     pub directives: Option<Directives>,
+    /// lig: replace the converted withfig spec for this command instead of
+    /// merging with it (it describes an incompatible older version).
+    pub skip_fig_spec: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -863,6 +866,9 @@ pub fn to_value(s: &Subcommand) -> Value {
             o.insert("parserDirectives".into(), Value::Object(pd));
         }
     }
+    if s.skip_fig_spec {
+        o.insert("skipFigSpec".into(), true.into());
+    }
     Value::Object(o)
 }
 
@@ -957,6 +963,7 @@ pub fn from_value(v: &Value) -> Subcommand {
             (!argv.is_empty()).then_some(LoadSpec::Help(argv))
         }),
         directives,
+        skip_fig_spec: flag(v, "skipFigSpec"),
     }
 }
 

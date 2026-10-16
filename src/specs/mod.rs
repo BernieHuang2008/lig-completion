@@ -21,12 +21,13 @@ pub fn lig_names() -> impl Iterator<Item = &'static str> {
     LIG.names()
 }
 
-/// The spec for `name`: hand-written merged with the converted one.
+/// The spec for `name`: hand-written merged with the converted one (unless
+/// the hand-written one says `skipFigSpec`).
 pub fn builtin(name: &str) -> Option<Subcommand> {
     // `.` is `source`.
     let name = if name == "." { "source" } else { name };
     match (LIG.load(name), FIG.load(name)) {
-        (Some(b), Some(f)) => Some(merge(&b, &f)),
+        (Some(b), Some(f)) if !b.skip_fig_spec => Some(merge(&b, &f)),
         (b, f) => b.or(f),
     }
 }

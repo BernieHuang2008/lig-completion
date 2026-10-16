@@ -1,0 +1,401 @@
+{
+  "name": "asdf",
+  "description": "Manage multiple runtime versions with a single CLI tool",
+  "skipFigSpec": true,
+  "subcommands": [
+    {
+      "name": "plugin",
+      "description": "Manage plugins",
+      "subcommands": [
+        {
+          "name": "add",
+          "description": "Add a plugin from the plugin repository, or a Git repo by URL",
+          "args": [
+            {
+              "name": "name",
+              "generators": [
+                {
+                  "builtin": "asdf:plugins-all"
+                }
+              ]
+            },
+            {
+              "name": "git-url",
+              "isOptional": true
+            }
+          ]
+        },
+        {
+          "name": "list",
+          "description": "List installed plugins",
+          "options": [
+            {
+              "name": "--urls",
+              "description": "Show the Git URLs"
+            },
+            {
+              "name": "--refs",
+              "description": "Show the Git refs"
+            }
+          ],
+          "subcommands": [
+            {
+              "name": "all",
+              "description": "List the plugins in the asdf-plugins repository"
+            }
+          ]
+        },
+        {
+          "name": "remove",
+          "description": "Remove a plugin and its installed versions",
+          "args": {
+            "name": "name",
+            "generators": [
+              {
+                "builtin": "asdf:plugins"
+              }
+            ]
+          }
+        },
+        {
+          "name": "update",
+          "description": "Update a plugin to the latest commit, or a Git ref",
+          "options": [
+            {
+              "name": "--all",
+              "description": "Update all plugins"
+            }
+          ],
+          "args": [
+            {
+              "name": "name",
+              "isOptional": true,
+              "generators": [
+                {
+                  "builtin": "asdf:plugins"
+                }
+              ]
+            },
+            {
+              "name": "git-ref",
+              "isOptional": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "current",
+      "description": "Show the current version of every tool, or of one",
+      "args": {
+        "name": "name",
+        "isOptional": true,
+        "generators": [
+          {
+            "builtin": "asdf:plugins"
+          }
+        ]
+      }
+    },
+    {
+      "name": "help",
+      "description": "Show the documentation of a plugin and tool",
+      "args": [
+        {
+          "name": "name",
+          "generators": [
+            {
+              "builtin": "asdf:plugins"
+            }
+          ]
+        },
+        {
+          "name": "version",
+          "isOptional": true,
+          "generators": [
+            {
+              "builtin": "asdf:installed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "install",
+      "description": "Install the versions in .tool-versions, or a specific one",
+      "args": [
+        {
+          "name": "name",
+          "isOptional": true,
+          "generators": [
+            {
+              "builtin": "asdf:plugins"
+            }
+          ]
+        },
+        {
+          "name": "version",
+          "isOptional": true,
+          "generators": [
+            {
+              "builtin": "asdf:versions"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "latest",
+      "description": "Show the latest stable version of a tool",
+      "options": [
+        {
+          "name": "--all",
+          "description": "Show the latest version of every tool, and whether it's installed"
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "isOptional": true,
+          "generators": [
+            {
+              "builtin": "asdf:plugins"
+            }
+          ]
+        },
+        {
+          "name": "version",
+          "isOptional": true
+        }
+      ]
+    },
+    {
+      "name": "list",
+      "description": "List installed versions of a tool",
+      "subcommands": [
+        {
+          "name": "all",
+          "description": "List every version of a tool",
+          "args": [
+            {
+              "name": "name",
+              "generators": [
+                {
+                  "builtin": "asdf:plugins"
+                }
+              ]
+            },
+            {
+              "name": "version",
+              "isOptional": true
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "isOptional": true,
+          "generators": [
+            {
+              "builtin": "asdf:plugins"
+            }
+          ]
+        },
+        {
+          "name": "version",
+          "isOptional": true
+        }
+      ]
+    },
+    {
+      "name": "set",
+      "description": "Set a tool version in .tool-versions",
+      "options": [
+        {
+          "name": "-u",
+          "description": "In $HOME/.tool-versions"
+        },
+        {
+          "name": "-p",
+          "description": "In a .tool-versions in a parent directory"
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "generators": [
+            {
+              "builtin": "asdf:plugins"
+            }
+          ]
+        },
+        {
+          "name": "versions",
+          "isVariadic": true,
+          "suggestions": [
+            "latest",
+            "system"
+          ],
+          "generators": [
+            {
+              "builtin": "asdf:installed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "uninstall",
+      "description": "Remove a version of a tool",
+      "args": [
+        {
+          "name": "name",
+          "generators": [
+            {
+              "builtin": "asdf:plugins"
+            }
+          ]
+        },
+        {
+          "name": "version",
+          "generators": [
+            {
+              "builtin": "asdf:installed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "where",
+      "description": "Show the install path of a version",
+      "args": [
+        {
+          "name": "name",
+          "generators": [
+            {
+              "builtin": "asdf:plugins"
+            }
+          ]
+        },
+        {
+          "name": "version",
+          "isOptional": true,
+          "generators": [
+            {
+              "builtin": "asdf:installed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "which",
+      "description": "Show the path of an executable",
+      "args": {
+        "name": "command",
+        "generators": [
+          {
+            "builtin": "asdf:shims"
+          }
+        ]
+      }
+    },
+    {
+      "name": "exec",
+      "description": "Run the shim of a command for the current version",
+      "args": [
+        {
+          "name": "command",
+          "generators": [
+            {
+              "builtin": "asdf:shims"
+            }
+          ]
+        },
+        {
+          "name": "args",
+          "isOptional": true,
+          "isVariadic": true,
+          "template": "filepaths"
+        }
+      ]
+    },
+    {
+      "name": "env",
+      "description": "Run a command in the environment of a shim (default: env)",
+      "args": [
+        {
+          "name": "command",
+          "generators": [
+            {
+              "builtin": "asdf:shims"
+            }
+          ]
+        },
+        {
+          "name": "util",
+          "isOptional": true
+        }
+      ]
+    },
+    {
+      "name": "info",
+      "description": "Show OS, shell and asdf debug information"
+    },
+    {
+      "name": "version",
+      "description": "Show the installed version of asdf"
+    },
+    {
+      "name": "reshim",
+      "description": "Recreate the shims of a tool version",
+      "args": [
+        {
+          "name": "name",
+          "isOptional": true,
+          "generators": [
+            {
+              "builtin": "asdf:plugins"
+            }
+          ]
+        },
+        {
+          "name": "version",
+          "isOptional": true,
+          "generators": [
+            {
+              "builtin": "asdf:installed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "shimversions",
+      "description": "List the plugins and versions that provide a command",
+      "args": {
+        "name": "command",
+        "generators": [
+          {
+            "builtin": "asdf:shims"
+          }
+        ]
+      }
+    }
+  ],
+  "options": [
+    {
+      "name": "--version",
+      "description": "Show the version of asdf"
+    },
+    {
+      "name": [
+        "-h",
+        "--help"
+      ],
+      "description": "Show help"
+    }
+  ]
+}

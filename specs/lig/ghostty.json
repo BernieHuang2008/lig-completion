@@ -1,0 +1,2681 @@
+{
+  "name": "ghostty",
+  "description": "Fast, native terminal emulator",
+  "subcommands": [
+    {
+      "name": "+version",
+      "description": "Show the version and build information"
+    },
+    {
+      "name": "+help",
+      "description": "Show help"
+    },
+    {
+      "name": "+list-fonts",
+      "description": "List the fonts Ghostty can use",
+      "options": [
+        {
+          "name": "--family",
+          "description": "Show the fonts of this family, in the order Ghostty picks them",
+          "args": {
+            "name": "family",
+            "generators": [
+              {
+                "builtin": "ghostty:fonts"
+              }
+            ]
+          },
+          "requiresSeparator": true
+        },
+        {
+          "name": "--style",
+          "description": "Prioritize fonts with this style",
+          "args": {
+            "name": "style"
+          },
+          "requiresSeparator": true
+        },
+        {
+          "name": "--bold",
+          "description": "Prioritize bold styles"
+        },
+        {
+          "name": "--italic",
+          "description": "Prioritize italic styles"
+        }
+      ]
+    },
+    {
+      "name": "+list-keybinds",
+      "description": "List the keybinds",
+      "options": [
+        {
+          "name": "--default",
+          "description": "Show the default keybinds"
+        },
+        {
+          "name": "--docs",
+          "description": "Show documentation for the actions"
+        },
+        {
+          "name": "--plain",
+          "description": "Plain output, for Unix tooling"
+        }
+      ]
+    },
+    {
+      "name": "+list-themes",
+      "description": "Preview or list the available themes",
+      "options": [
+        {
+          "name": "--path",
+          "description": "Show the full path of each theme"
+        },
+        {
+          "name": "--plain",
+          "description": "Force a plain list of names"
+        },
+        {
+          "name": "--color",
+          "description": "Only themes for this color scheme",
+          "args": {
+            "name": "scheme",
+            "suggestions": [
+              "dark",
+              "light",
+              "all"
+            ]
+          },
+          "requiresSeparator": true
+        }
+      ]
+    },
+    {
+      "name": "+list-colors",
+      "description": "List the named RGB colors",
+      "options": [
+        {
+          "name": "--plain",
+          "description": "Plain output, for Unix tooling"
+        }
+      ]
+    },
+    {
+      "name": "+list-actions",
+      "description": "List the keybind actions",
+      "options": [
+        {
+          "name": "--docs",
+          "description": "Show the documentation of each action"
+        }
+      ]
+    },
+    {
+      "name": "+ssh-cache",
+      "description": "Manage the SSH terminfo cache (lists cached hosts by default)",
+      "options": [
+        {
+          "name": "--host",
+          "description": "Check whether a host is cached",
+          "args": {
+            "name": "host",
+            "generators": [
+              {
+                "builtin": "ssh:hosts"
+              }
+            ]
+          },
+          "requiresSeparator": true
+        },
+        {
+          "name": "--add",
+          "description": "Add a host (or user@host) to the cache",
+          "args": {
+            "name": "host",
+            "generators": [
+              {
+                "builtin": "ssh:hosts"
+              }
+            ]
+          },
+          "requiresSeparator": true
+        },
+        {
+          "name": "--remove",
+          "description": "Remove a host from the cache",
+          "args": {
+            "name": "host",
+            "generators": [
+              {
+                "builtin": "ssh:hosts"
+              }
+            ]
+          },
+          "requiresSeparator": true
+        },
+        {
+          "name": "--clear",
+          "description": "Clear the whole cache"
+        },
+        {
+          "name": "--expire-days",
+          "description": "Drop entries older than this many days",
+          "args": {
+            "name": "days"
+          },
+          "requiresSeparator": true
+        }
+      ]
+    },
+    {
+      "name": "+edit-config",
+      "description": "Open the configuration file in $VISUAL or $EDITOR"
+    },
+    {
+      "name": "+show-config",
+      "description": "Show the configuration (only what differs from the defaults)",
+      "options": [
+        {
+          "name": "--default",
+          "description": "Show the default configuration"
+        },
+        {
+          "name": "--changes-only",
+          "description": "Only show options changed from the default"
+        },
+        {
+          "name": "--docs",
+          "description": "Print the documentation of each option as a comment"
+        }
+      ]
+    },
+    {
+      "name": "+validate-config",
+      "description": "Validate the configuration file",
+      "options": [
+        {
+          "name": "--config-file",
+          "description": "Validate this file instead of the default one",
+          "args": {
+            "name": "file",
+            "template": "filepaths"
+          },
+          "requiresSeparator": true
+        }
+      ]
+    },
+    {
+      "name": "+show-face",
+      "description": "Show which font face renders a codepoint",
+      "options": [
+        {
+          "name": "--cp",
+          "description": "The codepoint (decimal, 0x hex, 0o octal or 0b binary)",
+          "args": {
+            "name": "codepoint"
+          },
+          "requiresSeparator": true
+        },
+        {
+          "name": "--string",
+          "description": "Every codepoint of this string",
+          "args": {
+            "name": "string"
+          },
+          "requiresSeparator": true
+        },
+        {
+          "name": "--style",
+          "description": "Search for a specific style",
+          "args": {
+            "name": "style",
+            "suggestions": [
+              "regular",
+              "bold",
+              "italic",
+              "bold_italic"
+            ]
+          },
+          "requiresSeparator": true
+        },
+        {
+          "name": "--presentation",
+          "description": "Force a presentation style",
+          "args": {
+            "name": "presentation",
+            "suggestions": [
+              "text",
+              "emoji"
+            ]
+          },
+          "requiresSeparator": true
+        }
+      ]
+    },
+    {
+      "name": "+crash-report",
+      "description": "List crash reports"
+    },
+    {
+      "name": "+boo",
+      "description": "Show the animation from the Ghostty website"
+    },
+    {
+      "name": "+new-window",
+      "description": "Open a new window in the running Ghostty instance"
+    }
+  ],
+  "options": [
+    {
+      "name": "--language",
+      "description": "Set Ghostty's graphical user interface language to a language other than the system default language",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-family",
+      "description": "The font families to use",
+      "args": {
+        "name": "family",
+        "generators": [
+          {
+            "builtin": "ghostty:fonts"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-family-bold",
+      "args": {
+        "name": "family",
+        "generators": [
+          {
+            "builtin": "ghostty:fonts"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-family-italic",
+      "args": {
+        "name": "family",
+        "generators": [
+          {
+            "builtin": "ghostty:fonts"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-family-bold-italic",
+      "args": {
+        "name": "family",
+        "generators": [
+          {
+            "builtin": "ghostty:fonts"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-style",
+      "description": "The named font style to use for each of the requested terminal font styles",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-style-bold",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-style-italic",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-style-bold-italic",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-synthetic-style",
+      "description": "Control whether Ghostty should synthesize a style if the requested style is not available in the specified font-family",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-feature",
+      "description": "Apply a font feature",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-size",
+      "description": "Font size in points",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-variation",
+      "description": "A repeatable configuration to set one or more font variations values for a variable font",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-variation-bold",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-variation-italic",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-variation-bold-italic",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-codepoint-map",
+      "description": "Force one or a range of Unicode codepoints to map to a specific named font",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--clipboard-codepoint-map",
+      "description": "Map specific Unicode codepoints to replacement values when copying text to clipboard",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-thicken",
+      "description": "Draw fonts with a thicker stroke, if supported",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-thicken-strength",
+      "description": "Strength of thickening when font-thicken is enabled",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--font-shaping-break",
+      "description": "Locations to break font shaping into multiple runs",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "cursor",
+            "description": "Break runs under the cursor"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--alpha-blending",
+      "description": "What color space to use when performing alpha blending",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "native",
+            "description": "Perform alpha blending in the native color space for the OS. On macOS this corresponds to Display P3"
+          },
+          {
+            "name": "linear",
+            "description": "Perform alpha blending in linear space"
+          },
+          {
+            "name": "linear-corrected",
+            "description": "Same as linear, but with a correction step applied for text that makes it look nearly or completely "
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--adjust-cell-width",
+      "description": "All of the configurations behavior adjust various metrics determined by the font",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--adjust-cell-height",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--adjust-font-baseline",
+      "description": "Distance in pixels or percentage adjustment from the bottom of the cell to the text baseline",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--adjust-underline-position",
+      "description": "Distance in pixels or percentage adjustment from the top of the cell to the top of the underline",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--adjust-underline-thickness",
+      "description": "Thickness in pixels of the underline",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--adjust-strikethrough-position",
+      "description": "Distance in pixels or percentage adjustment from the top of the cell to the top of the strikethrough",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--adjust-strikethrough-thickness",
+      "description": "Thickness in pixels or percentage adjustment of the strikethrough",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--adjust-overline-position",
+      "description": "Distance in pixels or percentage adjustment from the top of the cell to the top of the overline",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--adjust-overline-thickness",
+      "description": "Thickness in pixels or percentage adjustment of the overline",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--adjust-cursor-thickness",
+      "description": "Thickness in pixels or percentage adjustment of the bar cursor and outlined rect cursor",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--adjust-cursor-height",
+      "description": "Height in pixels or percentage adjustment of the cursor",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--adjust-box-thickness",
+      "description": "Thickness in pixels or percentage adjustment of box drawing characters",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--adjust-icon-height",
+      "description": "Height in pixels or percentage adjustment of maximum height for nerd font icons",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--grapheme-width-method",
+      "description": "The method to use for calculating the cell width of a grapheme cluster",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "legacy",
+            "description": "Use a legacy method to determine grapheme width, such as wcswidth This maximizes compatibility with "
+          },
+          {
+            "name": "unicode",
+            "description": "Use the Unicode standard to determine grapheme width"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--freetype-load-flags",
+      "description": "FreeType load flags to enable",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "hinting",
+            "description": "Enable or disable hinting"
+          },
+          {
+            "name": "force-autohint",
+            "description": "Always use the freetype auto-hinter instead of the font's native hinter"
+          },
+          {
+            "name": "monochrome",
+            "description": "Instructs renderer to use 1-bit monochrome rendering"
+          },
+          {
+            "name": "autohint",
+            "description": "Enable the freetype auto-hinter"
+          },
+          {
+            "name": "light",
+            "description": "Use a light hinting style, better preserving glyph shapes"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--theme",
+      "description": "A theme to use",
+      "args": {
+        "name": "theme",
+        "generators": [
+          {
+            "builtin": "ghostty:themes"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--background",
+      "description": "Background color for the window",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--foreground",
+      "description": "Foreground color for the window",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--background-image",
+      "description": "Background image for the terminal",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--background-image-opacity",
+      "description": "Background image opacity",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--background-image-position",
+      "description": "Background image position",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          "top-left",
+          "top-center",
+          "top-right",
+          "center-left",
+          "center",
+          "center-right",
+          "bottom-left",
+          "bottom-center",
+          "bottom-right"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--background-image-fit",
+      "description": "Background image fit",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          "contain",
+          "cover",
+          "stretch",
+          "none"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--background-image-repeat",
+      "description": "Whether to repeat the background image or not",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--selection-foreground",
+      "description": "The foreground and background color for selection",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--selection-background",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--selection-clear-on-typing",
+      "description": "Whether to clear selected text when typing",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--selection-clear-on-copy",
+      "description": "Whether to clear selected text after copying",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--selection-word-chars",
+      "description": "Characters that mark word boundaries during text selection operations such as double-clicking",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--minimum-contrast",
+      "description": "The minimum contrast ratio between the foreground and background colors",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--palette",
+      "description": "Color palette for the 256 color form that many terminal applications use",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true,
+      "isRepeatable": true
+    },
+    {
+      "name": "--palette-generate",
+      "description": "Whether to automatically generate the extended 256 color palette (indices 16–255) from the base 16 ANSI colors",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--palette-harmonious",
+      "description": "Invert the palette colors generated when palette-generate is enabled, so that the colors go in reverse order",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--cursor-color",
+      "description": "The color of the cursor",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "cell-foreground",
+            "description": "Match the cell foreground color"
+          },
+          {
+            "name": "cell-background",
+            "description": "Match the cell background color"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--cursor-opacity",
+      "description": "The opacity level (opposite of transparency) of the cursor",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--cursor-style",
+      "description": "The style of the cursor",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          "block",
+          "bar",
+          "underline",
+          "block_hollow"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--cursor-style-blink",
+      "description": "Sets the default blinking state of the cursor",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--cursor-text",
+      "description": "The color of the text under the cursor",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--cursor-click-to-move",
+      "description": "Enables the ability to move the cursor at prompts by clicking on a location in the prompt text",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--mouse-hide-while-typing",
+      "description": "Hide the mouse immediately when typing",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--scroll-to-bottom",
+      "description": "When to scroll the surface to the bottom",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--mouse-shift-capture",
+      "description": "Determines whether running programs can detect the shift key pressed with a mouse click",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--mouse-reporting",
+      "description": "Enable or disable mouse reporting",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--mouse-scroll-multiplier",
+      "description": "Multiplier for scrolling distance with the mouse wheel",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--background-opacity",
+      "description": "The opacity level (opposite of transparency) of the background",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--background-opacity-cells",
+      "description": "Applies background opacity to cells with an explicit background color set",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--background-blur",
+      "description": "Whether to blur the background when background-opacity is less than 1",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--unfocused-split-opacity",
+      "description": "The opacity level (opposite of transparency) of an unfocused split",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--unfocused-split-fill",
+      "description": "The color to dim the unfocused split",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--split-divider-color",
+      "description": "The color of the split divider",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--split-preserve-zoom",
+      "description": "Control when Ghostty preserves a zoomed split",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--search-foreground",
+      "description": "The foreground and background color for search matches",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--search-background",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--search-selected-foreground",
+      "description": "The foreground and background color for the currently selected search match",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--search-selected-background",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--command",
+      "description": "The command to run, usually a shell",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--initial-command",
+      "description": "This is the same as \"command\", but only applies to the first terminal surface created when Ghostty starts",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--notify-on-command-finish",
+      "description": "Controls when command finished notifications are sent",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "never",
+            "description": "Never send notifications (the default)"
+          },
+          {
+            "name": "unfocused",
+            "description": "Only send notifications if the surface that the command is running in is not focused"
+          },
+          {
+            "name": "always",
+            "description": "Always send notifications"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--notify-on-command-finish-action",
+      "description": "If command finished notifications are enabled, this controls how the user is notified",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "bell",
+            "description": "enabled by default"
+          },
+          {
+            "name": "notify",
+            "description": "disabled by default"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--notify-on-command-finish-after",
+      "description": "If command finished notifications are enabled, this controls how long a command must have been running before a notification will be sent",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--env",
+      "description": "Extra environment variables to pass to commands launched in a terminal surface",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--input",
+      "description": "Data to send as input to the command on startup",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--wait-after-command",
+      "description": "If true, keep the terminal open after the command exits",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--abnormal-command-exit-runtime",
+      "description": "The number of milliseconds of runtime below which we consider a process exit to be abnormal",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--scrollback-limit",
+      "description": "The size of the scrollback buffer in bytes",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--scrollbar",
+      "description": "Control when the scrollbar is shown to scroll the scrollback buffer",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "system",
+            "description": "Respect the system settings for when to show scrollbars"
+          },
+          {
+            "name": "never",
+            "description": "Never show a scrollbar"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--link-url",
+      "description": "Match a regular expression against the terminal text and associate clicking it with an action",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--link-previews",
+      "description": "Show link previews for a matched URL",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--maximize",
+      "description": "Whether to start the window in a maximized state",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--fullscreen",
+      "description": "Start new windows in fullscreen",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--title",
+      "description": "The title Ghostty will use for the window",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--class",
+      "description": "The setting that will change the application class value",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--x11-instance-name",
+      "description": "This controls the instance name field of the WM_CLASS X11 property when running under X11",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--working-directory",
+      "description": "The directory to change to after starting the command",
+      "args": {
+        "name": "directory",
+        "suggestions": [
+          "home",
+          "inherit"
+        ],
+        "template": "folders"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--keybind",
+      "description": "Key bindings",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true,
+      "isRepeatable": true
+    },
+    {
+      "name": "--key-remap",
+      "description": "Remap modifier keys within Ghostty",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-padding-x",
+      "description": "Horizontal window padding",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-padding-y",
+      "description": "Vertical window padding",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-padding-balance",
+      "description": "The viewport dimensions are usually not perfectly divisible by the cell size",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-padding-color",
+      "description": "The color of the padding area of the window",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "background",
+            "description": "The background color specified in background"
+          },
+          {
+            "name": "extend",
+            "description": "Extend the background color of the nearest grid cell"
+          },
+          {
+            "name": "extend-always",
+            "description": "Same as \"extend\" but always extends without applying any of the heuristics that disable extending no"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-vsync",
+      "description": "Synchronize rendering with the screen refresh rate",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-inherit-working-directory",
+      "description": "If true, new windows will inherit the working directory of the previously focused window",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--tab-inherit-working-directory",
+      "description": "If true, new tabs will inherit the working directory of the previously focused tab",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--split-inherit-working-directory",
+      "description": "If true, new split panes will inherit the working directory of the previously focused split",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-inherit-font-size",
+      "description": "If true, new windows and tabs will inherit the font size of the previously focused window",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-decoration",
+      "description": "Configure a preference for window decorations",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          "none",
+          "auto",
+          "client",
+          "server"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-title-font-family",
+      "description": "The font that will be used for the application's window and tab titles",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-subtitle",
+      "description": "The text that will be displayed in the subtitle of the window",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-theme",
+      "description": "The theme to use for the windows",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "auto",
+            "description": "Determine the theme based on the configured terminal background color"
+          },
+          {
+            "name": "system",
+            "description": "Use the system theme"
+          },
+          {
+            "name": "light",
+            "description": "Use the light theme regardless of system theme"
+          },
+          {
+            "name": "dark",
+            "description": "Use the dark theme regardless of system theme"
+          },
+          {
+            "name": "ghostty",
+            "description": "Use the background and foreground colors specified in the Ghostty configuration"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-colorspace",
+      "description": "The color space to use when interpreting terminal colors",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "srgb",
+            "description": "Interpret colors in the sRGB color space"
+          },
+          {
+            "name": "display-p3",
+            "description": "Interpret colors in the Display P3 color space"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-height",
+      "description": "The initial window size",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-width",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-position-x",
+      "description": "The starting window position",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-position-y",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-save-state",
+      "description": "Whether to enable saving and restoring window state",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-step-resize",
+      "description": "Resize the window in discrete increments of the focused surface's cell size",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-new-tab-position",
+      "description": "The position where new tabs are created",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "current",
+            "description": "Insert the new tab after the currently focused tab, or at the end if there are no focused tabs"
+          },
+          {
+            "name": "end",
+            "description": "Insert the new tab at the end of the tab list"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-show-tab-bar",
+      "description": "Whether to show the tab bar",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-titlebar-background",
+      "description": "Background color for the window titlebar",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--window-titlebar-foreground",
+      "description": "Foreground color for the window titlebar",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--resize-overlay",
+      "description": "This controls when resize overlays are shown",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "always",
+            "description": "Always show resize overlays"
+          },
+          {
+            "name": "never",
+            "description": "Never show resize overlays"
+          },
+          {
+            "name": "after-first",
+            "description": "The resize overlay will not appear when the surface is first created, but will show up if the surfac"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--resize-overlay-position",
+      "description": "If resize overlays are enabled, this controls the position of the overlay",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          "center",
+          "top-left",
+          "top-center",
+          "top-right",
+          "bottom-left",
+          "bottom-center",
+          "bottom-right"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--resize-overlay-duration",
+      "description": "If resize overlays are enabled, this controls how long the overlay is visible on the screen before it is hidden",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--focus-follows-mouse",
+      "description": "If true, when there are multiple split panes, the mouse selects the pane that is focused",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--clipboard-read",
+      "description": "Whether to allow programs running in the terminal to read/write to the system clipboard (OSC 52, for googling)",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          "ask",
+          "allow",
+          "deny"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--clipboard-write",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--clipboard-trim-trailing-spaces",
+      "description": "Trims trailing whitespace on data that is copied to the clipboard",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--clipboard-paste-protection",
+      "description": "Require confirmation before pasting text that appears unsafe",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--clipboard-paste-bracketed-safe",
+      "description": "If true, bracketed pastes will be considered safe",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--title-report",
+      "description": "Enables or disabled title reporting (CSI 21 t)",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--image-storage-limit",
+      "description": "The total amount of bytes that can be used for image data (e.g",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--copy-on-select",
+      "description": "Whether to automatically copy selected text to the clipboard",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--right-click-action",
+      "description": "The action to take when the user right-clicks on the terminal surface",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "context-menu",
+            "description": "Show the context menu"
+          },
+          {
+            "name": "paste",
+            "description": "Paste the contents of the clipboard"
+          },
+          {
+            "name": "copy",
+            "description": "Copy the selected text to the clipboard"
+          },
+          {
+            "name": "copy-or-paste",
+            "description": "If there is a selection, copy the selected text to the clipboard; otherwise, paste the contents of t"
+          },
+          {
+            "name": "ignore",
+            "description": "Do nothing, ignore the right-click"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--click-repeat-interval",
+      "description": "The time in milliseconds between clicks to consider a click a repeat (double, triple, etc.) or an entirely new single click",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--config-file",
+      "description": "Additional configuration files to read",
+      "args": {
+        "name": "file",
+        "template": "filepaths"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--config-default-files",
+      "description": "When this is true, the default configuration file paths will be loaded",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--confirm-close-surface",
+      "description": "Confirms that a surface should be closed before closing it",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--quit-after-last-window-closed",
+      "description": "Whether or not to quit after the last surface is closed",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--quit-after-last-window-closed-delay",
+      "description": "Controls how long Ghostty will stay running after the last open surface has been closed",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--initial-window",
+      "description": "This controls whether an initial window is created when Ghostty is run",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--undo-timeout",
+      "description": "The duration that undo operations remain available",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--quick-terminal-position",
+      "description": "The position of the \"quick\" terminal window",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "top",
+            "description": "Terminal appears at the top of the screen"
+          },
+          {
+            "name": "bottom",
+            "description": "Terminal appears at the bottom of the screen"
+          },
+          {
+            "name": "left",
+            "description": "Terminal appears at the left of the screen"
+          },
+          {
+            "name": "right",
+            "description": "Terminal appears at the right of the screen"
+          },
+          {
+            "name": "center",
+            "description": "Terminal appears at the center of the screen"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--gtk-quick-terminal-layer",
+      "description": "The size of the quick terminal",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          "overlay",
+          "bottom",
+          "background"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--gtk-quick-terminal-namespace",
+      "description": "The namespace for the quick terminal window",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--quick-terminal-screen",
+      "description": "The screen where the quick terminal should show up",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "main",
+            "description": "The screen that the operating system recommends as the main screen"
+          },
+          {
+            "name": "mouse",
+            "description": "The screen that the mouse is currently hovered over"
+          },
+          {
+            "name": "macos-menu-bar",
+            "description": "The screen that contains the macOS menu bar as set in the display settings on macOS. This is a bit c"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--quick-terminal-animation-duration",
+      "description": "Duration (in seconds) of the quick terminal enter and exit animation",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--quick-terminal-autohide",
+      "description": "Automatically hide the quick terminal when focus shifts to another window",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--quick-terminal-space-behavior",
+      "description": "This configuration option determines the behavior of the quick terminal when switching between macOS spaces",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "move",
+            "description": "When switching to another space, the quick terminal will also moved to the current space"
+          },
+          {
+            "name": "remain",
+            "description": "The quick terminal will stay only in the space where it was originally opened and will not follow wh"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--quick-terminal-keyboard-interactivity",
+      "description": "Determines under which circumstances that the quick terminal should receive keyboard input",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          "none",
+          "exclusive"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--shell-integration",
+      "description": "Whether to enable shell integration auto-injection or not",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "none",
+            "description": "Do not do any automatic injection"
+          },
+          {
+            "name": "detect",
+            "description": "Detect the shell based on the filename"
+          },
+          {
+            "name": "bash",
+            "description": "Use this specific shell injection scheme"
+          },
+          {
+            "name": "elvish",
+            "description": "Use this specific shell injection scheme"
+          },
+          {
+            "name": "fish",
+            "description": "Use this specific shell injection scheme"
+          },
+          {
+            "name": "nushell",
+            "description": "Use this specific shell injection scheme"
+          },
+          {
+            "name": "zsh",
+            "description": "Use this specific shell injection scheme"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--shell-integration-features",
+      "description": "Shell integration features to enable",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "cursor",
+            "description": "Set the cursor to a bar at the prompt"
+          },
+          {
+            "name": "sudo",
+            "description": "Set sudo wrapper to preserve terminfo"
+          },
+          {
+            "name": "title",
+            "description": "Set the window title via shell integration"
+          },
+          {
+            "name": "ssh-env",
+            "description": "Enable SSH environment variable compatibility"
+          },
+          {
+            "name": "ssh-terminfo",
+            "description": "Enable automatic terminfo installation on remote hosts"
+          },
+          {
+            "name": "path",
+            "description": "Add Ghostty's binary directory to PATH. This ensures the ghostty command is available in the shell e"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--command-palette-entry",
+      "description": "Custom entries into the command palette",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true,
+      "isRepeatable": true
+    },
+    {
+      "name": "--osc-color-report-format",
+      "description": "Sets the reporting format for OSC sequences that request color information",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "none",
+            "description": "OSC 4/10/11 queries receive no reply"
+          },
+          {
+            "name": "8-bit",
+            "description": "Color components are return unscaled, e.g"
+          },
+          {
+            "name": "16-bit",
+            "description": "Color components are returned scaled, e.g"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--vt-kam-allowed",
+      "description": "If true, allows the \"KAM\" mode (ANSI mode 2) to be used within the terminal",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--custom-shader",
+      "description": "Custom shaders to run after the default shaders",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--custom-shader-animation",
+      "description": "If true (default), the focused terminal surface will run an animation loop when custom shaders are used",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--bell-features",
+      "description": "Bell features to enable if bell support is available in your runtime",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          "system",
+          "audio",
+          "border"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--bell-audio-path",
+      "description": "If audio is an enabled bell feature, this is a path to an audio file",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--bell-audio-volume",
+      "description": "If audio is an enabled bell feature, this is the volume to play the audio file at (relative to the system volume)",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--app-notifications",
+      "description": "Control the in-app notifications that Ghostty shows",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-non-native-fullscreen",
+      "description": "If anything other than false, fullscreen mode on macOS will not use the native fullscreen, but make the window fullscreen without animations and using a new spa",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-window-buttons",
+      "description": "Whether the window buttons in the macOS titlebar are visible",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "visible",
+            "description": "Show the window buttons"
+          },
+          {
+            "name": "hidden",
+            "description": "Hide the window buttons"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-titlebar-style",
+      "description": "The style of the macOS titlebar",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-titlebar-proxy-icon",
+      "description": "Whether the proxy icon in the macOS titlebar is visible",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "visible",
+            "description": "Show the proxy icon"
+          },
+          {
+            "name": "hidden",
+            "description": "Hide the proxy icon"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-dock-drop-behavior",
+      "description": "Controls the windowing behavior when dropping a file or folder onto the Ghostty icon in the macOS dock",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "new-tab",
+            "description": "Create a new tab in the current window, or open a new window if none exist"
+          },
+          {
+            "name": "new-window",
+            "description": "Create a new window unconditionally"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-option-as-alt",
+      "description": "macOS doesn't have a distinct \"alt\" key and instead has the \"option\" key which behaves slightly differently",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-window-shadow",
+      "description": "Whether to enable the macOS window shadow",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-hidden",
+      "description": "If true, the macOS icon in the dock and app switcher will be hidden",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "never",
+            "description": "The macOS app is never hidden"
+          },
+          {
+            "name": "always",
+            "description": "The macOS app is always hidden"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-auto-secure-input",
+      "description": "If true, Ghostty on macOS will automatically enable the \"Secure Input\" feature when it detects that a password prompt is being displayed",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-secure-input-indication",
+      "description": "If true, Ghostty will show a graphical indication when secure input is enabled",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-applescript",
+      "description": "If true, Ghostty exposes and handles the built-in AppleScript dictionary on macOS",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-icon",
+      "description": "Customize the macOS app icon",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "official",
+            "description": "Use the official Ghostty icon"
+          },
+          {
+            "name": "blueprint",
+            "description": "paper, retro, xray - Official variants of the Ghostty icon hand-created by artists (no AI)"
+          },
+          {
+            "name": "chalkboard",
+            "description": "paper, retro, xray - Official variants of the Ghostty icon hand-created by artists (no AI)"
+          },
+          {
+            "name": "microchip",
+            "description": "paper, retro, xray - Official variants of the Ghostty icon hand-created by artists (no AI)"
+          },
+          {
+            "name": "glass",
+            "description": "paper, retro, xray - Official variants of the Ghostty icon hand-created by artists (no AI)"
+          },
+          {
+            "name": "holographic",
+            "description": "paper, retro, xray - Official variants of the Ghostty icon hand-created by artists (no AI)"
+          },
+          {
+            "name": "custom",
+            "description": "Use a completely custom icon"
+          },
+          {
+            "name": "custom-style",
+            "description": "Use the official Ghostty icon but with custom styles applied to various layers"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-custom-icon",
+      "description": "The absolute path to the custom icon file",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-icon-frame",
+      "description": "The material to use for the frame of the macOS app icon",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "aluminum",
+            "description": "A brushed aluminum frame"
+          },
+          {
+            "name": "beige",
+            "description": "A classic 90's computer beige frame"
+          },
+          {
+            "name": "plastic",
+            "description": "A glossy, dark plastic frame"
+          },
+          {
+            "name": "chrome",
+            "description": "A shiny chrome frame"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-icon-ghost-color",
+      "description": "The color of the ghost in the macOS app icon",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-icon-screen-color",
+      "description": "The color of the screen in the macOS app icon",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--macos-shortcuts",
+      "description": "Whether macOS Shortcuts are allowed to control Ghostty",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "ask",
+            "description": "Ask the user whether for permission"
+          },
+          {
+            "name": "allow",
+            "description": "Allow Shortcuts to control Ghostty without asking"
+          },
+          {
+            "name": "deny",
+            "description": "Deny Shortcuts from controlling Ghostty"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--linux-cgroup",
+      "description": "Put every surface (tab, split, window) into a transient systemd scope",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "never",
+            "description": "Never use cgroups"
+          },
+          {
+            "name": "always",
+            "description": "Always use cgroups"
+          },
+          {
+            "name": "single-instance",
+            "description": "Enable cgroups only for Ghostty instances launched as single-instance applications (see gtk-single-i"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--linux-cgroup-memory-limit",
+      "description": "Memory limit for any individual terminal process (tab, split, window, etc.) in bytes",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--linux-cgroup-processes-limit",
+      "description": "Number of processes limit for any individual terminal process (tab, split, window, etc.)",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--linux-cgroup-hard-fail",
+      "description": "If this is false, then creating a transient systemd scope (for linux-cgroup) will be allowed to fail and the failure is ignored",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--gtk-opengl-debug",
+      "description": "Enable or disable GTK's OpenGL debugging logs",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--gtk-single-instance",
+      "description": "If true, the Ghostty GTK application will run in single-instance mode: each new ghostty process launched will result in a new window if there is already a runni",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--gtk-titlebar",
+      "description": "When enabled, the full GTK titlebar is displayed instead of your window manager's simple titlebar",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--gtk-tabs-location",
+      "description": "Determines the side of the screen that the GTK tab bar will stick to",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--gtk-titlebar-hide-when-maximized",
+      "description": "If this is true, the titlebar will be hidden when the window is maximized, and shown when the titlebar is unmaximized",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--gtk-toolbar-style",
+      "description": "Determines the appearance of the top and bottom bars tab bar",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "flat",
+            "description": "Top and bottom bars are flat with the terminal window"
+          },
+          {
+            "name": "raised",
+            "description": "Top and bottom bars cast a shadow on the terminal area"
+          },
+          {
+            "name": "raised-border",
+            "description": "Similar to raised but the shadow is replaced with a more subtle border"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--gtk-titlebar-style",
+      "description": "The style of the GTK titlebar",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--gtk-wide-tabs",
+      "description": "If true (default), then the Ghostty GTK tabs will be \"wide.\" Wide tabs are the new typical Gnome style where tabs fill their available space",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--gtk-custom-css",
+      "description": "Custom CSS files to be loaded",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--desktop-notifications",
+      "description": "If true (default), applications running in the terminal can show desktop notifications using certain escape sequences such as OSC 9 or OSC 777",
+      "args": {
+        "name": "bool",
+        "isOptional": true,
+        "suggestions": [
+          "true",
+          "false"
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--bold-color",
+      "description": "Modifies the color used for bold text in the terminal",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--faint-opacity",
+      "description": "The opacity level (opposite of transparency) of the faint text",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--term",
+      "description": "This will be used to set the TERM environment variable",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--enquiry-response",
+      "description": "String to send when we receive ENQ (0x05) from the command that we are running",
+      "args": {
+        "name": "value"
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--async-backend",
+      "description": "Configures the low-level API to use for async IO, eventing, etc",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "auto",
+            "description": "Automatically choose the best backend for the platform based on available options"
+          },
+          {
+            "name": "epoll",
+            "description": "Use the epoll API"
+          },
+          {
+            "name": "io_uring",
+            "description": "Use the io_uring API"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--auto-update",
+      "description": "Control the auto-update functionality of Ghostty",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "off",
+            "description": "Disable auto-updates"
+          },
+          {
+            "name": "check",
+            "description": "Check for updates and notify the user if an update is available, but do not automatically download o"
+          },
+          {
+            "name": "download",
+            "description": "Check for updates, automatically download the update, notify the user, but do not automatically inst"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "--auto-update-channel",
+      "description": "The release channel to use for auto-updates",
+      "args": {
+        "name": "value",
+        "suggestions": [
+          {
+            "name": "stable",
+            "description": "Stable, tagged releases such as \"1.0.0\""
+          },
+          {
+            "name": "tip",
+            "description": "Pre-release versions generated from each commit to the main branch"
+          }
+        ]
+      },
+      "requiresSeparator": true
+    },
+    {
+      "name": "-e",
+      "description": "Run this command inside the terminal (the rest of the line)",
+      "args": {
+        "name": "command",
+        "isVariadic": true
+      }
+    },
+    {
+      "name": [
+        "-h",
+        "--help"
+      ],
+      "description": "Show help"
+    },
+    {
+      "name": "--version",
+      "description": "Show the version"
+    }
+  ]
+}

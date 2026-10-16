@@ -1,0 +1,1089 @@
+{
+  "name": "opencode",
+  "description": "OpenCode command line interface",
+  "options": [
+    {
+      "name": "--standalone",
+      "description": "Run with a private server instead of the background service"
+    },
+    {
+      "name": "--server",
+      "description": "Connect to a server URL instead of the background service",
+      "args": {
+        "name": "server"
+      }
+    },
+    {
+      "name": "--auto",
+      "description": "Auto-approve permissions that are not explicitly denied"
+    },
+    {
+      "name": [
+        "--continue",
+        "-c"
+      ],
+      "description": "Continue the last session"
+    },
+    {
+      "name": [
+        "--session",
+        "-s"
+      ],
+      "description": "Session ID to continue, or to create if it does not exist",
+      "args": {
+        "name": "session",
+        "generators": [
+          {
+            "builtin": "opencode:sessions"
+          }
+        ]
+      }
+    },
+    {
+      "name": "--prompt",
+      "description": "Prompt to use",
+      "args": {
+        "name": "prompt"
+      }
+    },
+    {
+      "name": [
+        "--help",
+        "-h"
+      ],
+      "description": "Show help information",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "--version",
+        "-v"
+      ],
+      "description": "Show version information",
+      "isPersistent": true
+    },
+    {
+      "name": "--wizard",
+      "description": "Start wizard mode for a command",
+      "isPersistent": true
+    },
+    {
+      "name": "--completions",
+      "description": "Print shell completion script",
+      "args": {
+        "name": "completions",
+        "suggestions": [
+          "bash",
+          "zsh",
+          "fish",
+          "sh"
+        ]
+      },
+      "isPersistent": true
+    },
+    {
+      "name": "--log-level",
+      "description": "Sets the minimum log level",
+      "args": {
+        "name": "log-level",
+        "suggestions": [
+          "all",
+          "trace",
+          "debug",
+          "info",
+          "warn",
+          "warning",
+          "error",
+          "fatal",
+          "none"
+        ]
+      },
+      "isPersistent": true
+    },
+    {
+      "name": "--print-logs",
+      "description": "Print logs to stderr (server logs require --standalone)",
+      "isPersistent": true
+    }
+  ],
+  "subcommands": [
+    {
+      "name": [
+        "upgrade",
+        "update"
+      ],
+      "description": "Upgrade OpenCode to the latest or a specific version",
+      "options": [
+        {
+          "name": [
+            "--method",
+            "-m"
+          ],
+          "description": "Installation method to use",
+          "args": {
+            "name": "method",
+            "suggestions": [
+              "curl",
+              "npm",
+              "pnpm",
+              "bun",
+              "yarn",
+              "vp",
+              "brew",
+              "winget"
+            ]
+          }
+        }
+      ],
+      "args": {
+        "name": "target",
+        "isOptional": true
+      }
+    },
+    {
+      "name": "uninstall",
+      "description": "Uninstall OpenCode, keeping session data, configuration, and state",
+      "options": [
+        {
+          "name": "--dry-run",
+          "description": "Show what would be removed without removing"
+        },
+        {
+          "name": [
+            "--force",
+            "-f"
+          ],
+          "description": "Skip confirmation prompts"
+        }
+      ]
+    },
+    {
+      "name": "acp",
+      "description": "Start an Agent Client Protocol server",
+      "options": [
+        {
+          "name": "--login",
+          "description": "Run auth login instead of starting the server"
+        }
+      ]
+    },
+    {
+      "name": "api",
+      "description": "Make a request to the running server",
+      "options": [
+        {
+          "name": "--standalone",
+          "description": "Run with a private server instead of the background service"
+        },
+        {
+          "name": "--server",
+          "description": "Connect to a server URL instead of the background service",
+          "args": {
+            "name": "server"
+          }
+        },
+        {
+          "name": [
+            "--data",
+            "-d"
+          ],
+          "description": "Request body",
+          "args": {
+            "name": "data"
+          }
+        },
+        {
+          "name": [
+            "--header",
+            "-H"
+          ],
+          "description": "Request header in name:value form",
+          "args": {
+            "name": "header"
+          }
+        },
+        {
+          "name": "--param",
+          "description": "OpenAPI path or query parameter",
+          "args": {
+            "name": "key=value"
+          }
+        }
+      ],
+      "args": {
+        "name": "operation | method path",
+        "isVariadic": true
+      }
+    },
+    {
+      "name": "debug",
+      "description": "Debugging and troubleshooting tools",
+      "subcommands": [
+        {
+          "name": "agents",
+          "description": "List all agents"
+        },
+        {
+          "name": "config",
+          "description": "List configuration sources"
+        },
+        {
+          "name": "paths",
+          "description": "Show global paths (data, config, cache, state)",
+          "args": {
+            "name": "name",
+            "isOptional": true,
+            "suggestions": [
+              "db",
+              "home",
+              "data",
+              "config",
+              "cache",
+              "state",
+              "tmp",
+              "bin",
+              "log",
+              "repos"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "auth",
+      "description": "Manage integrations and credentials",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List integrations and credentials",
+          "options": [
+            {
+              "name": "--standalone",
+              "description": "Run with a private server instead of the background service"
+            },
+            {
+              "name": "--server",
+              "description": "Connect to a server URL instead of the background service",
+              "args": {
+                "name": "server"
+              }
+            },
+            {
+              "name": "--format",
+              "description": "Output format",
+              "args": {
+                "name": "format",
+                "suggestions": [
+                  "default",
+                  "json"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "login",
+          "description": "Connect an integration",
+          "options": [
+            {
+              "name": "--standalone",
+              "description": "Run with a private server instead of the background service"
+            },
+            {
+              "name": "--server",
+              "description": "Connect to a server URL instead of the background service",
+              "args": {
+                "name": "server"
+              }
+            },
+            {
+              "name": "--method",
+              "description": "Authentication method ID",
+              "args": {
+                "name": "method"
+              }
+            },
+            {
+              "name": "--answer",
+              "description": "Provider form answer (key=value; repeat for multiple fields)",
+              "args": {
+                "name": "answer"
+              },
+              "isRepeatable": true
+            }
+          ],
+          "args": {
+            "name": "target",
+            "isOptional": true
+          }
+        },
+        {
+          "name": "logout",
+          "description": "Log out of a saved account",
+          "options": [
+            {
+              "name": "--standalone",
+              "description": "Run with a private server instead of the background service"
+            },
+            {
+              "name": "--server",
+              "description": "Connect to a server URL instead of the background service",
+              "args": {
+                "name": "server"
+              }
+            }
+          ],
+          "args": [
+            {
+              "name": "target",
+              "isOptional": true
+            },
+            {
+              "name": "credential",
+              "isOptional": true
+            }
+          ]
+        },
+        {
+          "name": "export",
+          "description": "Print stored credentials, including secrets, as JSON",
+          "options": [
+            {
+              "name": "--standalone",
+              "description": "Run with a private server instead of the background service"
+            },
+            {
+              "name": "--server",
+              "description": "Connect to a server URL instead of the background service",
+              "args": {
+                "name": "server"
+              }
+            }
+          ],
+          "args": {
+            "name": "target",
+            "isOptional": true
+          }
+        },
+        {
+          "name": "import",
+          "description": "Import credentials exported by auth export",
+          "options": [
+            {
+              "name": "--standalone",
+              "description": "Run with a private server instead of the background service"
+            },
+            {
+              "name": "--server",
+              "description": "Connect to a server URL instead of the background service",
+              "args": {
+                "name": "server"
+              }
+            }
+          ],
+          "args": {
+            "name": "file",
+            "isOptional": true,
+            "template": "filepaths"
+          }
+        },
+        {
+          "name": "switch",
+          "description": "Switch the active account for an integration",
+          "options": [
+            {
+              "name": "--standalone",
+              "description": "Run with a private server instead of the background service"
+            },
+            {
+              "name": "--server",
+              "description": "Connect to a server URL instead of the background service",
+              "args": {
+                "name": "server"
+              }
+            }
+          ],
+          "args": [
+            {
+              "name": "target",
+              "isOptional": true
+            },
+            {
+              "name": "credential",
+              "isOptional": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "mcp",
+      "description": "Manage MCP (Model Context Protocol) servers",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List configured MCP servers and their status"
+        },
+        {
+          "name": "add",
+          "description": "Add an MCP server to your configuration",
+          "options": [
+            {
+              "name": "--url",
+              "description": "URL for a remote MCP server",
+              "args": {
+                "name": "url"
+              }
+            },
+            {
+              "name": "--header",
+              "description": "HTTP header for a remote server, as name=value",
+              "args": {
+                "name": "key=value"
+              }
+            },
+            {
+              "name": "--env",
+              "description": "Environment variable for a local server, as name=value",
+              "args": {
+                "name": "key=value"
+              }
+            },
+            {
+              "name": "--global",
+              "description": "Write to the global config instead of the project config"
+            }
+          ],
+          "args": [
+            {
+              "name": "name"
+            },
+            {
+              "name": "command",
+              "isOptional": true,
+              "isVariadic": true
+            }
+          ]
+        },
+        {
+          "name": "auth",
+          "description": "Authenticate with an OAuth-capable remote MCP server",
+          "args": {
+            "name": "name",
+            "isOptional": true
+          }
+        },
+        {
+          "name": "logout",
+          "description": "Remove stored OAuth credentials for an MCP server",
+          "args": {
+            "name": "name"
+          }
+        }
+      ]
+    },
+    {
+      "name": "plugin",
+      "description": "Manage plugins",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List plugins",
+          "options": [
+            {
+              "name": "--builtin",
+              "description": "Include built-in server plugins"
+            }
+          ]
+        },
+        {
+          "name": "add",
+          "description": "Install a plugin and add it to the global configuration",
+          "args": {
+            "name": "package"
+          }
+        },
+        {
+          "name": "check",
+          "description": "Check package plugins for updates",
+          "args": {
+            "name": "target",
+            "isOptional": true
+          }
+        },
+        {
+          "name": "update",
+          "description": "Update package plugins",
+          "args": {
+            "name": "target",
+            "isOptional": true
+          }
+        },
+        {
+          "name": "remove",
+          "description": "Remove a plugin from global configuration",
+          "args": {
+            "name": "package"
+          }
+        }
+      ]
+    },
+    {
+      "name": "models",
+      "description": "List all available models",
+      "options": [
+        {
+          "name": "--standalone",
+          "description": "Run with a private server instead of the background service"
+        },
+        {
+          "name": "--server",
+          "description": "Connect to a server URL instead of the background service",
+          "args": {
+            "name": "server"
+          }
+        }
+      ]
+    },
+    {
+      "name": "stats",
+      "description": "Show shareable usage statistics",
+      "options": [
+        {
+          "name": "--standalone",
+          "description": "Run with a private server instead of the background service"
+        },
+        {
+          "name": "--server",
+          "description": "Connect to a server URL instead of the background service",
+          "args": {
+            "name": "server"
+          }
+        },
+        {
+          "name": "--days",
+          "description": "Show the last N days; 0 means today",
+          "args": {
+            "name": "days"
+          }
+        },
+        {
+          "name": "--year",
+          "description": "Show a calendar year",
+          "args": {
+            "name": "year"
+          }
+        },
+        {
+          "name": "--all",
+          "description": "Show lifetime statistics"
+        },
+        {
+          "name": "--project",
+          "description": "Filter by project ID, or use \".\" for the current project",
+          "args": {
+            "name": "project"
+          }
+        },
+        {
+          "name": "--models",
+          "description": "Show model usage"
+        },
+        {
+          "name": "--tools",
+          "description": "Show tool reliability"
+        },
+        {
+          "name": "--cost",
+          "description": "Show cost and token details"
+        },
+        {
+          "name": "--full",
+          "description": "Show every detailed section"
+        },
+        {
+          "name": "--limit",
+          "description": "Number of rows in detailed sections",
+          "args": {
+            "name": "limit"
+          }
+        },
+        {
+          "name": "--json",
+          "description": "Output statistics as JSON"
+        }
+      ]
+    },
+    {
+      "name": "mini",
+      "description": "Start the minimal interactive interface",
+      "options": [
+        {
+          "name": "--standalone",
+          "description": "Run with a private server instead of the background service"
+        },
+        {
+          "name": "--server",
+          "description": "Connect to a server URL instead of the background service",
+          "args": {
+            "name": "server"
+          }
+        },
+        {
+          "name": [
+            "--continue",
+            "-c"
+          ],
+          "description": "Continue the last session"
+        },
+        {
+          "name": [
+            "--session",
+            "-s"
+          ],
+          "description": "Session ID to continue, or to create if it does not exist",
+          "args": {
+            "name": "session",
+            "generators": [
+              {
+                "builtin": "opencode:sessions"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--fork",
+          "description": "Fork the session when continuing"
+        },
+        {
+          "name": "--replay",
+          "description": "Restore session history on resume and resize (disable with --no-replay)"
+        },
+        {
+          "name": "--replay-limit",
+          "description": "Limit replay to the newest N messages (default: 200)",
+          "args": {
+            "name": "replay-limit"
+          }
+        },
+        {
+          "name": [
+            "--model",
+            "-m"
+          ],
+          "description": "Model to use in the format provider/model",
+          "args": {
+            "name": "model",
+            "generators": [
+              {
+                "builtin": "opencode:models"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--agent",
+          "description": "Agent to use",
+          "args": {
+            "name": "agent",
+            "generators": [
+              {
+                "builtin": "opencode:agents"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--prompt",
+          "description": "Prompt to use",
+          "args": {
+            "name": "prompt"
+          }
+        }
+      ]
+    },
+    {
+      "name": "run",
+      "description": "Run OpenCode with a message",
+      "options": [
+        {
+          "name": "--standalone",
+          "description": "Run with a private server instead of the background service"
+        },
+        {
+          "name": "--server",
+          "description": "Connect to a server URL instead of the background service",
+          "args": {
+            "name": "server"
+          }
+        },
+        {
+          "name": [
+            "--continue",
+            "-c"
+          ],
+          "description": "Continue the last session"
+        },
+        {
+          "name": [
+            "--session",
+            "-s"
+          ],
+          "description": "Session ID to continue, or to create if it does not exist",
+          "args": {
+            "name": "session",
+            "generators": [
+              {
+                "builtin": "opencode:sessions"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--fork",
+          "description": "Fork the session before continuing"
+        },
+        {
+          "name": [
+            "--model",
+            "-m"
+          ],
+          "description": "Model to use in the format provider/model#variant",
+          "args": {
+            "name": "model",
+            "generators": [
+              {
+                "builtin": "opencode:models"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--agent",
+          "description": "Agent to use",
+          "args": {
+            "name": "agent",
+            "generators": [
+              {
+                "builtin": "opencode:agents"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--format",
+          "description": "Output format",
+          "args": {
+            "name": "format",
+            "suggestions": [
+              "default",
+              "json"
+            ]
+          }
+        },
+        {
+          "name": [
+            "--file",
+            "-f"
+          ],
+          "description": "File to attach to the message",
+          "args": {
+            "name": "file",
+            "template": "filepaths"
+          }
+        },
+        {
+          "name": "--title",
+          "description": "Session title",
+          "args": {
+            "name": "title"
+          }
+        },
+        {
+          "name": "--thinking",
+          "description": "Show thinking blocks"
+        },
+        {
+          "name": "--auto",
+          "description": "Auto-approve permissions that are not explicitly denied"
+        }
+      ],
+      "args": {
+        "name": "message",
+        "isOptional": true,
+        "isVariadic": true
+      }
+    },
+    {
+      "name": "session",
+      "description": "Manage sessions",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List top-level sessions in the current project, newest first",
+          "options": [
+            {
+              "name": "--standalone",
+              "description": "Run with a private server instead of the background service"
+            },
+            {
+              "name": "--server",
+              "description": "Connect to a server URL instead of the background service",
+              "args": {
+                "name": "server"
+              }
+            },
+            {
+              "name": [
+                "--max-count",
+                "-n"
+              ],
+              "description": "Limit to N most recent sessions (default: 100)",
+              "args": {
+                "name": "max-count"
+              }
+            },
+            {
+              "name": "--format",
+              "description": "Output format",
+              "args": {
+                "name": "format",
+                "suggestions": [
+                  "table",
+                  "json"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "delete",
+          "description": "Delete a session and its child sessions",
+          "options": [
+            {
+              "name": "--standalone",
+              "description": "Run with a private server instead of the background service"
+            },
+            {
+              "name": "--server",
+              "description": "Connect to a server URL instead of the background service",
+              "args": {
+                "name": "server"
+              }
+            }
+          ],
+          "args": {
+            "name": "sessionID",
+            "generators": [
+              {
+                "builtin": "opencode:sessions"
+              }
+            ]
+          }
+        },
+        {
+          "name": "export",
+          "description": "Export session data as JSON",
+          "options": [
+            {
+              "name": "--standalone",
+              "description": "Run with a private server instead of the background service"
+            },
+            {
+              "name": "--server",
+              "description": "Connect to a server URL instead of the background service",
+              "args": {
+                "name": "server"
+              }
+            },
+            {
+              "name": "--sanitize",
+              "description": "Redact sensitive transcript and file data"
+            }
+          ],
+          "args": {
+            "name": "session",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "opencode:sessions"
+              }
+            ]
+          }
+        },
+        {
+          "name": "import",
+          "description": "Import session data from a JSON file or URL",
+          "options": [
+            {
+              "name": "--standalone",
+              "description": "Run with a private server instead of the background service"
+            },
+            {
+              "name": "--server",
+              "description": "Connect to a server URL instead of the background service",
+              "args": {
+                "name": "server"
+              }
+            },
+            {
+              "name": "--directory",
+              "description": "Directory in which to import the session",
+              "args": {
+                "name": "directory",
+                "template": "folders"
+              }
+            }
+          ],
+          "args": {
+            "name": "file",
+            "template": "filepaths"
+          }
+        }
+      ]
+    },
+    {
+      "name": "service",
+      "description": "Manage the background server",
+      "subcommands": [
+        {
+          "name": "start",
+          "description": "Start the background server"
+        },
+        {
+          "name": "restart",
+          "description": "Restart the background server"
+        },
+        {
+          "name": "status",
+          "description": "Show background server status"
+        },
+        {
+          "name": "stop",
+          "description": "Stop the background server"
+        },
+        {
+          "name": "get",
+          "description": "Get service configuration",
+          "args": [
+            {
+              "name": "key",
+              "isOptional": true
+            },
+            {
+              "name": "name",
+              "isOptional": true
+            }
+          ]
+        },
+        {
+          "name": "set",
+          "description": "Set service configuration",
+          "args": [
+            {
+              "name": "key"
+            },
+            {
+              "name": "value"
+            },
+            {
+              "name": "env-value",
+              "isOptional": true
+            }
+          ]
+        },
+        {
+          "name": "unset",
+          "description": "Unset service configuration",
+          "args": [
+            {
+              "name": "key"
+            },
+            {
+              "name": "name",
+              "isOptional": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "reload",
+      "description": "Reload configuration",
+      "options": [
+        {
+          "name": "--standalone",
+          "description": "Run with a private server instead of the background service"
+        },
+        {
+          "name": "--server",
+          "description": "Connect to a server URL instead of the background service",
+          "args": {
+            "name": "server"
+          }
+        }
+      ]
+    },
+    {
+      "name": "pair",
+      "description": "Print one-time links to connect a browser or app",
+      "options": [
+        {
+          "name": "--url",
+          "description": "Use an external HTTP(S) server URL in pairing links",
+          "args": {
+            "name": "url"
+          }
+        },
+        {
+          "name": "--remote",
+          "description": "Pair through the OpenTunnel remote address, enabling remote access if needed (exposes the server to the internet)"
+        },
+        {
+          "name": [
+            "--yes",
+            "-y"
+          ],
+          "description": "Accept exposing the server to the internet when --remote enables remote access for the first time (required without an interactive terminal)"
+        }
+      ]
+    },
+    {
+      "name": "serve",
+      "description": "Start the v2 API and web server",
+      "options": [
+        {
+          "name": "--hostname",
+          "args": {
+            "name": "hostname"
+          }
+        },
+        {
+          "name": "--port",
+          "args": {
+            "name": "port"
+          }
+        },
+        {
+          "name": "--cors",
+          "description": "Additional allowed CORS origin (repeat for multiple origins)",
+          "args": {
+            "name": "cors"
+          },
+          "isRepeatable": true
+        },
+        {
+          "name": "--service"
+        },
+        {
+          "name": "--stdio"
+        }
+      ]
+    }
+  ],
+  "args": {
+    "name": "directory",
+    "isOptional": true,
+    "template": "folders"
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "name": "viu",
+  "description": "View images right from the terminal",
+  "options": [
+    {
+      "name": [
+        "-w",
+        "--width"
+      ],
+      "description": "Resize the image to a provided width",
+      "args": {
+        "name": "width"
+      }
+    },
+    {
+      "name": [
+        "-h",
+        "--height"
+      ],
+      "description": "Resize the image to a provided height",
+      "args": {
+        "name": "height"
+      }
+    },
+    {
+      "name": "-x",
+      "description": "X offset (default: 0)",
+      "args": {
+        "name": "x"
+      }
+    },
+    {
+      "name": "-y",
+      "description": "Y offset (default: 0)",
+      "args": {
+        "name": "y"
+      }
+    },
+    {
+      "name": [
+        "-a",
+        "--absolute-offset"
+      ],
+      "description": "Make the x and y offset relative to the top left terminal corner"
+    },
+    {
+      "name": [
+        "-r",
+        "--recursive"
+      ],
+      "description": "Recurse down directories if passed one"
+    },
+    {
+      "name": [
+        "-b",
+        "--blocks"
+      ],
+      "description": "Force block output"
+    },
+    {
+      "name": [
+        "-n",
+        "--name"
+      ],
+      "description": "Output the name of the file before displaying"
+    },
+    {
+      "name": [
+        "-c",
+        "--caption"
+      ],
+      "description": "Output the name of the file after displaying"
+    },
+    {
+      "name": [
+        "-t",
+        "--transparent"
+      ],
+      "description": "Display transparent images with transparent background"
+    },
+    {
+      "name": [
+        "-f",
+        "--frame-rate"
+      ],
+      "description": "Play the gif at a given frame rate",
+      "args": {
+        "name": "frames-per-second"
+      }
+    },
+    {
+      "name": [
+        "-1",
+        "--once"
+      ],
+      "description": "Loop only once through the gif"
+    },
+    {
+      "name": [
+        "-s",
+        "--static"
+      ],
+      "description": "Show only the first frame of the gif"
+    },
+    {
+      "name": [
+        "-H",
+        "--help"
+      ],
+      "description": "Print help information"
+    },
+    {
+      "name": [
+        "-V",
+        "--version"
+      ],
+      "description": "Print version"
+    }
+  ],
+  "args": {
+    "name": "file",
+    "isOptional": true,
+    "isVariadic": true,
+    "template": "filepaths"
+  }
+}

@@ -1,0 +1,1701 @@
+{
+  "name": "dnf",
+  "description": "Package manager for Fedora, RHEL and related distributions",
+  "options": [
+    {
+      "name": [
+        "-y",
+        "--assumeyes"
+      ],
+      "description": "Answer yes to all questions",
+      "isPersistent": true
+    },
+    {
+      "name": "--assumeno",
+      "description": "Answer no to all questions",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-q",
+        "--quiet"
+      ],
+      "description": "Show only the essential output",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-v",
+        "--verbose"
+      ],
+      "description": "Show more output",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-C",
+        "--cacheonly"
+      ],
+      "description": "Use only the metadata cache, never download it",
+      "isPersistent": true
+    },
+    {
+      "name": "--refresh",
+      "description": "Mark the metadata as expired before running",
+      "isPersistent": true
+    },
+    {
+      "name": "--repo",
+      "description": "Use only this repository (repeatable)",
+      "args": {
+        "name": "repo",
+        "generators": [
+          {
+            "builtin": "dnf:repos"
+          }
+        ]
+      },
+      "isRepeatable": true,
+      "isPersistent": true
+    },
+    {
+      "name": "--enablerepo",
+      "description": "Enable a repository for this run",
+      "args": {
+        "name": "repo",
+        "generators": [
+          {
+            "builtin": "dnf:repos-disabled"
+          }
+        ]
+      },
+      "isRepeatable": true,
+      "isPersistent": true
+    },
+    {
+      "name": "--disablerepo",
+      "description": "Disable a repository for this run",
+      "args": {
+        "name": "repo",
+        "generators": [
+          {
+            "builtin": "dnf:repos-enabled"
+          }
+        ]
+      },
+      "isRepeatable": true,
+      "isPersistent": true
+    },
+    {
+      "name": "--setopt",
+      "description": "Override a configuration option (key=value or repo.key=value)",
+      "args": {
+        "name": "option"
+      },
+      "isRepeatable": true,
+      "isPersistent": true
+    },
+    {
+      "name": "--releasever",
+      "description": "Use this release version",
+      "args": {
+        "name": "version",
+        "suggestions": [
+          "rawhide"
+        ]
+      },
+      "isPersistent": true
+    },
+    {
+      "name": "--installroot",
+      "description": "Install into this root directory",
+      "args": {
+        "name": "path",
+        "template": "folders"
+      },
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-c",
+        "--config"
+      ],
+      "description": "Use this configuration file",
+      "args": {
+        "name": "file",
+        "template": "filepaths"
+      },
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-x",
+        "--exclude"
+      ],
+      "description": "Exclude packages (globs allowed)",
+      "args": {
+        "name": "package",
+        "generators": [
+          {
+            "builtin": "dnf:installed"
+          }
+        ]
+      },
+      "isRepeatable": true,
+      "isPersistent": true
+    },
+    {
+      "name": "--best",
+      "description": "Only use the best available versions",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "--nobest",
+        "--no-best"
+      ],
+      "description": "Allow older versions when the best can't be installed",
+      "isPersistent": true
+    },
+    {
+      "name": "--allowerasing",
+      "description": "Allow removing installed packages to resolve dependencies",
+      "isPersistent": true
+    },
+    {
+      "name": "--skip-broken",
+      "description": "Skip packages with broken dependencies",
+      "isPersistent": true
+    },
+    {
+      "name": "--skip-unavailable",
+      "description": "Skip packages that can't be found (dnf5)",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "--nogpgcheck",
+        "--no-gpgchecks"
+      ],
+      "description": "Skip GPG signature checks",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "--nodocs",
+        "--no-docs"
+      ],
+      "description": "Don't install documentation",
+      "isPersistent": true
+    },
+    {
+      "name": "--downloadonly",
+      "description": "Only download the packages",
+      "isPersistent": true
+    },
+    {
+      "name": "--forcearch",
+      "description": "Use this architecture",
+      "args": {
+        "name": "arch",
+        "suggestions": [
+          "x86_64",
+          "aarch64",
+          "i686",
+          "noarch"
+        ]
+      },
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "--noplugins",
+        "--no-plugins"
+      ],
+      "description": "Disable all plugins",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "--enableplugin",
+        "--enable-plugin"
+      ],
+      "description": "Enable plugins by name",
+      "args": {
+        "name": "plugin"
+      },
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "--disableplugin",
+        "--disable-plugin"
+      ],
+      "description": "Disable plugins by name",
+      "args": {
+        "name": "plugin"
+      },
+      "isPersistent": true
+    },
+    {
+      "name": "--comment",
+      "description": "Add a comment to the transaction",
+      "args": {
+        "name": "comment"
+      },
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "--advisory",
+        "--advisories"
+      ],
+      "description": "Only packages of these advisories",
+      "args": {
+        "name": "advisory"
+      },
+      "isPersistent": true
+    },
+    {
+      "name": "--security",
+      "description": "Only security updates",
+      "isPersistent": true
+    },
+    {
+      "name": "--bugfix",
+      "description": "Only bugfix updates",
+      "isPersistent": true
+    },
+    {
+      "name": "--enhancement",
+      "description": "Only enhancement updates",
+      "isPersistent": true
+    },
+    {
+      "name": "--newpackage",
+      "description": "Only new packages from advisories",
+      "isPersistent": true
+    },
+    {
+      "name": "--show-new-leaves",
+      "description": "Show packages that became leaves after the transaction (dnf5)",
+      "isPersistent": true
+    },
+    {
+      "name": [
+        "-h",
+        "--help"
+      ],
+      "description": "Show help",
+      "isPersistent": true
+    },
+    {
+      "name": "--version",
+      "description": "Show the version"
+    }
+  ],
+  "subcommands": [
+    {
+      "name": "install",
+      "description": "Install packages (names, groups as @group, or local .rpm files)",
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "template": "filepaths",
+        "generators": [
+          {
+            "builtin": "dnf:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "reinstall",
+      "description": "Reinstall packages",
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": [
+        "remove",
+        "erase"
+      ],
+      "description": "Remove packages",
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": [
+        "upgrade",
+        "update"
+      ],
+      "description": "Upgrade packages (all of them when none are given)",
+      "options": [
+        {
+          "name": "--minimal",
+          "description": "Only the minimal upgrades needed (dnf5)"
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "upgrade-minimal",
+      "description": "Only the minimal upgrades that fix bugs or security issues (dnf4)",
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "downgrade",
+      "description": "Downgrade packages",
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": [
+        "distro-sync",
+        "distrosync",
+        "dsync"
+      ],
+      "description": "Synchronize packages to the versions in the repositories",
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "autoremove",
+      "description": "Remove packages installed as dependencies that are no longer needed",
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "swap",
+      "description": "Remove a package and install another in one transaction",
+      "args": [
+        {
+          "name": "remove",
+          "generators": [
+            {
+              "builtin": "dnf:installed"
+            }
+          ]
+        },
+        {
+          "name": "install",
+          "generators": [
+            {
+              "builtin": "dnf:available"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "mark",
+      "description": "Change why a package is installed",
+      "subcommands": [
+        {
+          "name": "user",
+          "description": "Mark as installed by the user (dnf5)",
+          "args": {
+            "name": "package",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "dnf:installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "dependency",
+          "description": "Mark as installed as a dependency (dnf5)",
+          "args": {
+            "name": "package",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "dnf:installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "weak",
+          "description": "Mark as installed as a weak dependency (dnf5)",
+          "args": {
+            "name": "package",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "dnf:installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "install",
+          "description": "Mark as installed by the user (dnf4)",
+          "args": {
+            "name": "package",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "dnf:installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "remove",
+          "description": "Mark as installed as a dependency (dnf4)",
+          "args": {
+            "name": "package",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "dnf:installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "group",
+          "description": "Mark as installed by a group",
+          "args": {
+            "name": "package",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "dnf:installed"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "search",
+      "description": "Search package names and summaries",
+      "options": [
+        {
+          "name": "--all",
+          "description": "Also search descriptions and URLs"
+        }
+      ],
+      "args": {
+        "name": "pattern",
+        "isVariadic": true
+      }
+    },
+    {
+      "name": "info",
+      "description": "Show information about packages",
+      "options": [
+        {
+          "name": "--installed",
+          "description": "Only installed packages"
+        },
+        {
+          "name": "--available",
+          "description": "Only available packages"
+        },
+        {
+          "name": "--upgrades",
+          "description": "Only packages with an upgrade"
+        },
+        {
+          "name": "--extras",
+          "description": "Installed packages not in any repository"
+        },
+        {
+          "name": "--obsoletes",
+          "description": "Packages obsoleted by others"
+        },
+        {
+          "name": "--recent",
+          "description": "Packages added to the repositories recently"
+        },
+        {
+          "name": "--showduplicates",
+          "description": "Show every version, not only the latest"
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:installed"
+          },
+          {
+            "builtin": "dnf:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "list",
+      "description": "List packages",
+      "options": [
+        {
+          "name": "--installed",
+          "description": "Only installed packages"
+        },
+        {
+          "name": "--available",
+          "description": "Only available packages"
+        },
+        {
+          "name": "--upgrades",
+          "description": "Only packages with an upgrade"
+        },
+        {
+          "name": "--extras",
+          "description": "Installed packages not in any repository"
+        },
+        {
+          "name": "--obsoletes",
+          "description": "Packages obsoleted by others"
+        },
+        {
+          "name": "--recent",
+          "description": "Packages added to the repositories recently"
+        },
+        {
+          "name": "--showduplicates",
+          "description": "Show every version, not only the latest"
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:installed"
+          },
+          {
+            "builtin": "dnf:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "provides",
+      "description": "Find the packages that provide a file or capability",
+      "args": {
+        "name": "provide",
+        "isVariadic": true,
+        "template": "filepaths"
+      }
+    },
+    {
+      "name": [
+        "repoquery",
+        "rq"
+      ],
+      "description": "Search packages and their metadata",
+      "options": [
+        {
+          "name": "--installed",
+          "description": "Only installed packages"
+        },
+        {
+          "name": "--available",
+          "description": "Only available packages"
+        },
+        {
+          "name": "--upgrades",
+          "description": "Only available upgrades"
+        },
+        {
+          "name": "--userinstalled",
+          "description": "Only packages installed by the user"
+        },
+        {
+          "name": "--leaves",
+          "description": "Only installed packages nothing depends on"
+        },
+        {
+          "name": "--duplicates",
+          "description": "Only installed packages with several versions"
+        },
+        {
+          "name": [
+            "-i",
+            "--info"
+          ],
+          "description": "Show detailed information"
+        },
+        {
+          "name": [
+            "-l",
+            "--list"
+          ],
+          "description": "List the files of the packages"
+        },
+        {
+          "name": "--requires",
+          "description": "List what the packages require"
+        },
+        {
+          "name": "--provides",
+          "description": "List what the packages provide"
+        },
+        {
+          "name": "--recommends",
+          "description": "List what the packages recommend"
+        },
+        {
+          "name": "--whatprovides",
+          "description": "Packages that provide this",
+          "args": {
+            "name": "capability"
+          }
+        },
+        {
+          "name": "--whatrequires",
+          "description": "Packages that require this",
+          "args": {
+            "name": "capability",
+            "generators": [
+              {
+                "builtin": "dnf:installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--whatdepends",
+          "description": "Packages that depend on this",
+          "args": {
+            "name": "capability",
+            "generators": [
+              {
+                "builtin": "dnf:installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--location",
+          "description": "Show where the packages can be downloaded"
+        },
+        {
+          "name": [
+            "--queryformat",
+            "--qf"
+          ],
+          "description": "Output format, e.g. '%{name} %{version}\\n'",
+          "args": {
+            "name": "format"
+          }
+        },
+        {
+          "name": "--latest-limit",
+          "description": "Only the latest N versions of each package",
+          "args": {
+            "name": "N"
+          }
+        },
+        {
+          "name": "--arch",
+          "description": "Only this architecture",
+          "args": {
+            "name": "arch",
+            "suggestions": [
+              "x86_64",
+              "aarch64",
+              "i686",
+              "noarch",
+              "src"
+            ]
+          }
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:installed"
+          },
+          {
+            "builtin": "dnf:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": [
+        "check-upgrade",
+        "check-update"
+      ],
+      "description": "Check for available upgrades",
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "history",
+      "description": "Show and manage the transaction history",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List transactions",
+          "args": {
+            "name": "transaction",
+            "isOptional": true,
+            "generators": [
+              {
+                "builtin": "dnf:history"
+              }
+            ]
+          }
+        },
+        {
+          "name": "info",
+          "description": "Show a transaction",
+          "args": {
+            "name": "transaction",
+            "isOptional": true,
+            "suggestions": [
+              "last"
+            ],
+            "generators": [
+              {
+                "builtin": "dnf:history"
+              }
+            ]
+          }
+        },
+        {
+          "name": "undo",
+          "description": "Undo a transaction",
+          "args": {
+            "name": "transaction",
+            "suggestions": [
+              "last"
+            ],
+            "generators": [
+              {
+                "builtin": "dnf:history"
+              }
+            ]
+          }
+        },
+        {
+          "name": "redo",
+          "description": "Repeat a transaction",
+          "args": {
+            "name": "transaction",
+            "suggestions": [
+              "last"
+            ],
+            "generators": [
+              {
+                "builtin": "dnf:history"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rollback",
+          "description": "Undo every transaction after this one",
+          "args": {
+            "name": "transaction",
+            "suggestions": [
+              "last"
+            ],
+            "generators": [
+              {
+                "builtin": "dnf:history"
+              }
+            ]
+          }
+        },
+        {
+          "name": "store",
+          "description": "Store a transaction to replay later",
+          "args": {
+            "name": "transaction",
+            "suggestions": [
+              "last"
+            ],
+            "generators": [
+              {
+                "builtin": "dnf:history"
+              }
+            ]
+          }
+        },
+        {
+          "name": "userinstalled",
+          "description": "List packages installed by the user (dnf4)"
+        }
+      ]
+    },
+    {
+      "name": [
+        "group",
+        "groups"
+      ],
+      "description": "Manage package groups",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List groups",
+          "options": [
+            {
+              "name": "--installed",
+              "description": "Only installed groups"
+            },
+            {
+              "name": "--available",
+              "description": "Only available groups"
+            },
+            {
+              "name": "--hidden",
+              "description": "Also show hidden groups"
+            }
+          ]
+        },
+        {
+          "name": "info",
+          "description": "Show information about groups",
+          "args": {
+            "name": "group",
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "install",
+          "description": "Install groups",
+          "options": [
+            {
+              "name": "--with-optional",
+              "description": "Also install optional packages"
+            }
+          ],
+          "args": {
+            "name": "group",
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "remove",
+          "description": "Remove groups",
+          "args": {
+            "name": "group",
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "upgrade",
+          "description": "Upgrade groups",
+          "args": {
+            "name": "group",
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "mark",
+          "description": "Mark groups as installed or removed (dnf4)",
+          "args": {
+            "name": "group",
+            "isVariadic": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "environment",
+      "description": "Manage environment groups (dnf5)",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List environments"
+        },
+        {
+          "name": "info",
+          "description": "Show information about environments",
+          "args": {
+            "name": "environment",
+            "isVariadic": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "module",
+      "description": "Manage modules",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List modules",
+          "options": [
+            {
+              "name": "--enabled",
+              "description": "Only enabled modules"
+            },
+            {
+              "name": "--disabled",
+              "description": "Only disabled modules"
+            }
+          ],
+          "args": {
+            "name": "module",
+            "isOptional": true,
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "info",
+          "description": "Show information about modules",
+          "args": {
+            "name": "module",
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "enable",
+          "description": "Enable module streams",
+          "args": {
+            "name": "module:stream",
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "disable",
+          "description": "Disable modules",
+          "args": {
+            "name": "module",
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "reset",
+          "description": "Reset modules to their initial state",
+          "args": {
+            "name": "module",
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "provides",
+          "description": "Show the modules that provide packages",
+          "args": {
+            "name": "package",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "dnf:available"
+              }
+            ]
+          }
+        },
+        {
+          "name": "install",
+          "description": "Install module profiles (dnf4)",
+          "args": {
+            "name": "module:stream/profile",
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "remove",
+          "description": "Remove module profiles (dnf4)",
+          "args": {
+            "name": "module",
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "switch-to",
+          "description": "Switch to another module stream (dnf4)",
+          "args": {
+            "name": "module:stream",
+            "isVariadic": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "repo",
+      "description": "List and inspect repositories (dnf5)",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List repositories",
+          "options": [
+            {
+              "name": "--all",
+              "description": "Enabled and disabled"
+            },
+            {
+              "name": "--enabled",
+              "description": "Only enabled"
+            },
+            {
+              "name": "--disabled",
+              "description": "Only disabled"
+            }
+          ],
+          "args": {
+            "name": "repo",
+            "isOptional": true,
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "dnf:repos"
+              }
+            ]
+          }
+        },
+        {
+          "name": "info",
+          "description": "Show information about repositories",
+          "options": [
+            {
+              "name": "--all",
+              "description": "Enabled and disabled"
+            },
+            {
+              "name": "--enabled",
+              "description": "Only enabled"
+            },
+            {
+              "name": "--disabled",
+              "description": "Only disabled"
+            }
+          ],
+          "args": {
+            "name": "repo",
+            "isOptional": true,
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "dnf:repos"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "repolist",
+      "description": "List repositories",
+      "options": [
+        {
+          "name": "--all",
+          "description": "Enabled and disabled"
+        },
+        {
+          "name": "--enabled",
+          "description": "Only enabled"
+        },
+        {
+          "name": "--disabled",
+          "description": "Only disabled"
+        }
+      ],
+      "args": {
+        "name": "repo",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:repos"
+          }
+        ]
+      }
+    },
+    {
+      "name": "repoinfo",
+      "description": "Show information about repositories (dnf4)",
+      "args": {
+        "name": "repo",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:repos"
+          }
+        ]
+      }
+    },
+    {
+      "name": "makecache",
+      "description": "Download the repository metadata"
+    },
+    {
+      "name": "clean",
+      "description": "Remove cached data",
+      "args": {
+        "name": "what",
+        "isVariadic": true,
+        "suggestions": [
+          {
+            "name": "all",
+            "description": "Everything"
+          },
+          {
+            "name": "metadata",
+            "description": "Repository metadata"
+          },
+          {
+            "name": "packages",
+            "description": "Downloaded packages"
+          },
+          {
+            "name": "dbcache",
+            "description": "Cache files generated from the metadata"
+          },
+          {
+            "name": "expire-cache",
+            "description": "Mark the metadata as expired"
+          }
+        ]
+      }
+    },
+    {
+      "name": [
+        "advisory",
+        "updateinfo"
+      ],
+      "description": "Show advisories (updateinfo in dnf4)",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List advisories",
+          "options": [
+            {
+              "name": "--all",
+              "description": "All advisories"
+            },
+            {
+              "name": "--available",
+              "description": "Advisories for installed packages with upgrades"
+            },
+            {
+              "name": "--installed",
+              "description": "Advisories already applied"
+            },
+            {
+              "name": "--updates",
+              "description": "Advisories with available upgrades"
+            }
+          ]
+        },
+        {
+          "name": "info",
+          "description": "Show advisories",
+          "args": {
+            "name": "advisory",
+            "isOptional": true,
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "summary",
+          "description": "Summarize advisories"
+        }
+      ]
+    },
+    {
+      "name": "download",
+      "description": "Download packages to the current directory",
+      "options": [
+        {
+          "name": "--destdir",
+          "description": "Download into this directory",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "--resolve",
+          "description": "Also download missing dependencies"
+        },
+        {
+          "name": "--alldeps",
+          "description": "Also download installed dependencies (with --resolve)"
+        },
+        {
+          "name": "--source",
+          "description": "Download the source packages"
+        },
+        {
+          "name": "--url",
+          "description": "Print the download URLs instead"
+        },
+        {
+          "name": "--arch",
+          "description": "Only this architecture",
+          "args": {
+            "name": "arch",
+            "suggestions": [
+              "x86_64",
+              "aarch64",
+              "i686",
+              "noarch",
+              "src"
+            ]
+          }
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "builddep",
+      "description": "Install the build dependencies of packages, .spec or .src.rpm files",
+      "options": [
+        {
+          "name": [
+            "-D",
+            "--define"
+          ],
+          "description": "Define a macro for .spec parsing",
+          "args": {
+            "name": "'macro expr'"
+          }
+        }
+      ],
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "template": "filepaths",
+        "generators": [
+          {
+            "builtin": "dnf:available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "changelog",
+      "description": "Show package changelogs",
+      "args": {
+        "name": "package",
+        "isOptional": true,
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "config-manager",
+      "description": "Manage the configuration and repositories",
+      "options": [
+        {
+          "name": "--add-repo",
+          "description": "Add a repository from a .repo file or URL (dnf4)",
+          "args": {
+            "name": "url",
+            "template": "filepaths"
+          }
+        },
+        {
+          "name": "--set-enabled",
+          "description": "Enable repositories (dnf4)",
+          "args": {
+            "name": "repo",
+            "generators": [
+              {
+                "builtin": "dnf:repos-disabled"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--set-disabled",
+          "description": "Disable repositories (dnf4)",
+          "args": {
+            "name": "repo",
+            "generators": [
+              {
+                "builtin": "dnf:repos-enabled"
+              }
+            ]
+          }
+        },
+        {
+          "name": "--save",
+          "description": "Save the --setopt options (dnf4)"
+        },
+        {
+          "name": "--dump",
+          "description": "Print the configuration (dnf4)"
+        }
+      ],
+      "subcommands": [
+        {
+          "name": "addrepo",
+          "description": "Add a repository (dnf5)",
+          "options": [
+            {
+              "name": "--from-repofile",
+              "description": "From a .repo file or URL",
+              "args": {
+                "name": "file",
+                "template": "filepaths"
+              },
+              "requiresSeparator": true
+            },
+            {
+              "name": "--set",
+              "description": "Set a repository option",
+              "args": {
+                "name": "key=value"
+              },
+              "isRepeatable": true
+            },
+            {
+              "name": "--id",
+              "description": "The repository id",
+              "args": {
+                "name": "id"
+              },
+              "requiresSeparator": true
+            }
+          ]
+        },
+        {
+          "name": "setopt",
+          "description": "Set configuration options (dnf5)",
+          "args": {
+            "name": "key=value",
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "unsetopt",
+          "description": "Unset configuration options (dnf5)",
+          "args": {
+            "name": "key",
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "setvar",
+          "description": "Set variables (dnf5)",
+          "args": {
+            "name": "name=value",
+            "isVariadic": true
+          }
+        },
+        {
+          "name": "unsetvar",
+          "description": "Unset variables (dnf5)",
+          "args": {
+            "name": "name",
+            "isVariadic": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "copr",
+      "description": "Manage Copr repositories",
+      "subcommands": [
+        {
+          "name": "enable",
+          "description": "Enable a Copr repository",
+          "args": [
+            {
+              "name": "owner/project"
+            },
+            {
+              "name": "chroot",
+              "isOptional": true
+            }
+          ]
+        },
+        {
+          "name": "disable",
+          "description": "Disable a Copr repository",
+          "args": {
+            "name": "owner/project"
+          }
+        },
+        {
+          "name": "remove",
+          "description": "Remove a Copr repository",
+          "args": {
+            "name": "owner/project"
+          }
+        },
+        {
+          "name": "list",
+          "description": "List Copr repositories",
+          "options": [
+            {
+              "name": "--enabled",
+              "description": "Only enabled"
+            },
+            {
+              "name": "--disabled",
+              "description": "Only disabled"
+            }
+          ]
+        },
+        {
+          "name": "search",
+          "description": "Search Copr projects (dnf4)",
+          "args": {
+            "name": "project"
+          }
+        },
+        {
+          "name": "debug",
+          "description": "Print information for debugging"
+        }
+      ]
+    },
+    {
+      "name": "versionlock",
+      "description": "Lock packages to their current version",
+      "subcommands": [
+        {
+          "name": "add",
+          "description": "Lock packages",
+          "args": {
+            "name": "package",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "dnf:installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "delete",
+          "description": "Unlock packages",
+          "args": {
+            "name": "package",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "dnf:installed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "clear",
+          "description": "Remove every lock"
+        },
+        {
+          "name": "list",
+          "description": "List the locks"
+        },
+        {
+          "name": "exclude",
+          "description": "Exclude versions of packages",
+          "args": {
+            "name": "package",
+            "isVariadic": true,
+            "generators": [
+              {
+                "builtin": "dnf:installed"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "needs-restarting",
+      "description": "Find processes and services that need a restart after updates",
+      "options": [
+        {
+          "name": [
+            "-r",
+            "--reboothint"
+          ],
+          "description": "Only say whether a reboot is needed"
+        },
+        {
+          "name": [
+            "-s",
+            "--services"
+          ],
+          "description": "List the services that need a restart"
+        }
+      ]
+    },
+    {
+      "name": "system-upgrade",
+      "description": "Upgrade to a new release",
+      "subcommands": [
+        {
+          "name": "download",
+          "description": "Download the packages of the new release",
+          "options": [
+            {
+              "name": "--releasever",
+              "description": "The release to upgrade to",
+              "args": {
+                "name": "version",
+                "suggestions": [
+                  "rawhide"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "reboot",
+          "description": "Reboot and install the upgrade"
+        },
+        {
+          "name": "clean",
+          "description": "Remove the downloaded upgrade"
+        },
+        {
+          "name": "log",
+          "description": "Show the logs of past upgrades"
+        },
+        {
+          "name": "status",
+          "description": "Show the status of the upgrade (dnf5)"
+        }
+      ]
+    },
+    {
+      "name": "offline",
+      "description": "Manage offline transactions (dnf5)",
+      "subcommands": [
+        {
+          "name": "reboot",
+          "description": "Reboot and apply the stored transaction"
+        },
+        {
+          "name": "clean",
+          "description": "Remove the stored transaction"
+        },
+        {
+          "name": "log",
+          "description": "Show the logs of past offline transactions"
+        },
+        {
+          "name": "status",
+          "description": "Show the stored transaction"
+        }
+      ]
+    },
+    {
+      "name": "check",
+      "description": "Check the local package database for problems"
+    },
+    {
+      "name": "leaves",
+      "description": "List installed packages nothing depends on"
+    },
+    {
+      "name": "replay",
+      "description": "Replay a stored transaction (dnf5)",
+      "args": {
+        "name": "path",
+        "template": "filepaths"
+      }
+    },
+    {
+      "name": "debuginfo-install",
+      "description": "Install the debuginfo packages of packages",
+      "args": {
+        "name": "package",
+        "isVariadic": true,
+        "generators": [
+          {
+            "builtin": "dnf:installed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "shell",
+      "description": "Interactive shell for running several commands (dnf4)",
+      "args": {
+        "name": "script",
+        "isOptional": true,
+        "template": "filepaths"
+      }
+    }
+  ]
+}
