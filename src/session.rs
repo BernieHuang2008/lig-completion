@@ -710,7 +710,7 @@ impl Session {
                 fwd.extend_from_slice(raw);
                 continue;
             }
-            if key == Key::Enter && self.enter_should_wait() {
+            if key == Key::ENTER && self.enter_should_wait() {
                 self.pending_enter = Some(Instant::now());
                 let rest: usize = keys[n..].iter().map(|(r, _)| r.len()).sum();
                 self.deferred = data[data.len() - rest..].to_vec();
@@ -722,11 +722,12 @@ impl Session {
                 continue;
             }
             if !self.popup_open() {
-                if key != Key::Enter {
+                if key != Key::ENTER {
                     self.just_accepted = false;
                 }
+                // Keys the shell uses for history and its own completion.
                 self.shell_nav =
-                    matches!(key, Key::Up | Key::Down | Key::Ctrl('p') | Key::Ctrl('n') | Key::Tab | Key::ShiftTab);
+                    [Key::UP, Key::DOWN, Key::ctrl('p'), Key::ctrl('n'), Key::TAB, Key::SHIFT_TAB].contains(&key);
                 fwd.extend_from_slice(raw);
                 passthrough = true;
                 continue;
@@ -738,7 +739,7 @@ impl Session {
             }
             // Enter completes (`go bui` → build) or picks after a space, but
             // runs a word that's already complete; the Enter after a pick runs.
-            if action == Some(Action::Accept) && key == Key::Enter && !self.enter_picks() {
+            if action == Some(Action::Accept) && key == Key::ENTER && !self.enter_picks() {
                 action = None;
             }
             match action {
@@ -770,7 +771,7 @@ impl Session {
                 }
                 None => {
                     // Not for the popup: the key goes to the shell.
-                    if key == Key::Enter {
+                    if key == Key::ENTER {
                         self.dismissed = Some(self.line.clone());
                         redraw = true;
                     } else {
@@ -796,7 +797,7 @@ impl Session {
     /// (briefly), so it acts on the final list, not a partial one.
     fn enter_should_wait(&self) -> bool {
         self.pending_enter.is_none()
-            && self.bindings.action(&Key::Enter) == Some(Action::Accept)
+            && self.bindings.action(&Key::ENTER) == Some(Action::Accept)
             && self.cfg.behavior.enter_accepts != "never"
             && !self.just_accepted
             && self.editing

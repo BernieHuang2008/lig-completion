@@ -87,6 +87,8 @@ enum Cmd {
     Doctor,
     /// List every icon (in the mode you use, next to its Unicode fallback)
     Icons,
+    /// Show the name of each key you press, for the [keys] config
+    Keys,
     /// Show a sample popup with your settings (or try others)
     Preview(PreviewArgs),
     /// Print the default configuration (save it to `lig config path`)
@@ -451,6 +453,7 @@ fn main() -> Result<()> {
         Cmd::Complete { cwd, aliases, line } => complete(&line, cwd, aliases)?,
         Cmd::Doctor => doctor()?,
         Cmd::Icons => list_icons(),
+        Cmd::Keys => keys::show(&keys::Bindings::new(&config::Config::load().keys))?,
         Cmd::Preview(args) => preview(args),
         Cmd::Config { what: ConfigCmd::Path } => println!("{}", config::config_path().display()),
         Cmd::Config { what: ConfigCmd::Default } => {

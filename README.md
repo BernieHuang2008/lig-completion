@@ -122,7 +122,7 @@ description_position = "right"   # or "bottom": a frame under the list
 [ui.colors]                # override single theme colors: "#rrggbb", 0-255, or "default"
 # bg = "#1e1e2e"
 
-[keys]
+[keys]                     # any key: run `lig keys` to see a key's name
 accept = ["enter"]
 next = ["tab", "down", "ctrl-n"]
 prev = ["shift-tab", "up", "ctrl-p"]
@@ -136,6 +136,11 @@ complete_commands = false  # pop up for command names too
 online = true              # search package registries as you type
 disabled_commands = []     # never show the popup for these
 ```
+
+Keys are a key name with optional modifiers: `ctrl-n`, `alt-j`, `shift-up`, `ctrl-alt-x`,
+`f5`, `pagedown`, `ctrl-space`. For anything else your terminal sends, use its escape
+sequence (`"\\x1b[1;5C"`). Run `lig keys` and press a key to see its name; keys your terminal
+keeps for itself (often Ctrl+Tab) never reach the shell.
 
 Try styles without editing the file:
 
@@ -219,6 +224,7 @@ blocks typing.
 | --- | --- |
 | No popup at all | `lig doctor`. "running inside lig" must be ok; open a new tab after installing or updating. |
 | Wrong or missing suggestions | `lig complete "<the line>"` shows what lig would suggest. |
+| A key binding does nothing | `lig keys` shows whether the key reaches lig, and its name. |
 | A command's suggestions look outdated | `lig specs clear-cache` (re-reads `--help` output). |
 | Something else | Start a shell with `LIG_LOG=1 zsh` (or `bash`) and check `~/.local/state/lig/lig.log`. |
 
