@@ -73,8 +73,9 @@ eval "$(lig init bash pre)"              eval "$(lig init bash post)"
 
 - Remove it: `lig uninstall` (or `lig uninstall bash`).
 - Skip it for one shell: `LIG_DISABLE=1 zsh`.
-- After updating lig (`cargo install --path .` again), open a new terminal tab. A tab
-  keeps the version it started with.
+- Update it: `lig update` pulls the latest changes into the folder you cloned and
+  reinstalls it (`--source <dir>` for another checkout). Then open a new terminal tab:
+  a tab keeps the version it started with.
 
 ## Usage
 

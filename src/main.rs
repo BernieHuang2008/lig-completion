@@ -85,6 +85,12 @@ enum Cmd {
     },
     /// Check the installation
     Doctor,
+    /// Update lig: pull its source and reinstall it with cargo
+    Update {
+        /// The source checkout to build (default: where this lig was built from)
+        #[arg(long)]
+        source: Option<PathBuf>,
+    },
     /// List every icon (in the mode you use, next to its Unicode fallback)
     Icons,
     /// Show the name of each key you press, for the [keys] config
@@ -278,6 +284,60 @@ fn uninstall(shell: ShellKind) -> Result<()> {
     Ok(())
 }
 
+/// Where this binary was built from; `lig update` rebuilds it from there.
+const SOURCE_DIR: &str = env!("CARGO_MANIFEST_DIR");
+
+/// Run a command, showing its output; fail if it fails.
+fn run(cmd: &mut std::process::Command) -> Result<()> {
+    let status = cmd.status().with_context(|| format!("running {:?}", cmd.get_program()))?;
+    anyhow::ensure!(status.success(), "{:?} failed ({status})", cmd.get_program());
+    Ok(())
+}
+
+/// `lig update`: pull the source checkout (when it tracks a remote branch) and
+/// `cargo install` it. Without a checkout, install from the repository.
+fn update(source: Option<PathBuf>) -> Result<()> {
+    use std::process::Command;
+    let old = env!("CARGO_PKG_VERSION");
+    let dir = source.unwrap_or_else(|| PathBuf::from(SOURCE_DIR));
+    let mut install = Command::new("cargo");
+    install.args(["install", "--locked"]);
+    if dir.join("Cargo.toml").exists() {
+        let git = |args: &[&str]| Command::new("git").arg("-C").arg(&dir).args(args).output();
+        let upstream = git(&["rev-parse", "--abbrev-ref", "@{upstream}"]).ok().filter(|o| o.status.success());
+        match upstream {
+            Some(o) => {
+                let branch = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                println!("lig: pulling {branch} into {}", dir.display());
+                run(Command::new("git").arg("-C").arg(&dir).args(["pull", "--ff-only"]))?;
+            }
+            None => println!("lig: {} doesn't track a remote branch; building it as it is", dir.display()),
+        }
+        println!("lig: building and installing from {}", dir.display());
+        install.arg("--path").arg(&dir);
+    } else {
+        let repo = env!("CARGO_PKG_REPOSITORY");
+        println!("lig: {} isn't there anymore; installing from {repo}", dir.display());
+        install.args(["--git", repo]);
+    }
+    run(&mut install)?;
+    // The freshly installed binary, where cargo put it.
+    let bin = std::env::var_os("CARGO_INSTALL_ROOT")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("CARGO_HOME").map(PathBuf::from))
+        .or_else(|| dirs::home_dir().map(|h| h.join(".cargo")))
+        .unwrap_or_default()
+        .join("bin/lig");
+    let new = std::process::Command::new(&bin)
+        .arg("--version")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().trim_start_matches("lig ").to_string())
+        .unwrap_or_else(|_| "?".into());
+    let what = if new == old { format!("reinstalled {new}") } else { format!("updated {old} → {new}") };
+    println!("lig: {what}. Open a new terminal tab to use it (open tabs keep the old version).");
+    Ok(())
+}
+
 fn doctor() -> Result<()> {
     let ok = |b: bool| if b { "ok  " } else { "FAIL" };
     for shell in [ShellKind::Zsh, ShellKind::Bash] {
@@ -452,6 +512,7 @@ fn main() -> Result<()> {
         }
         Cmd::Complete { cwd, aliases, line } => complete(&line, cwd, aliases)?,
         Cmd::Doctor => doctor()?,
+        Cmd::Update { source } => update(source)?,
         Cmd::Icons => list_icons(),
         Cmd::Keys => keys::show(&keys::Bindings::new(&config::Config::load().keys))?,
         Cmd::Preview(args) => preview(args),
