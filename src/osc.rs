@@ -1,8 +1,11 @@
 //! Extracts lig's private OSC 6973 messages from the shell's output stream.
 //!
 //! The shell integration writes `ESC ] 6973 ; <kind> [; payload] BEL`:
-//!   `B;<cursor>;<buffer>`  edit buffer changed (zsh)
+//!   `R`                    fish signal handler ready, reader active
+//!   `Q;<id>;<B;…|H>`       reply to a fish snapshot request
+//!   `B;<cursor>;<buffer>`  edit buffer changed (zsh/fish)
 //!   `S`                    the prompt ends here; input starts (bash)
+//!   `J`                    fish rejected an insertion for an old buffer
 //!   `H`                    hide (isearch, vi command mode, …)
 //!   `F`                    line finished (command about to run)
 //!   `P;<PATH>`             the shell's PATH
@@ -17,7 +20,17 @@ const MAX_PENDING: usize = 1 << 20;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Msg {
-    Buffer { cursor: usize, text: String },
+    /// Fish has installed its signal handler and entered the reader.
+    Ready,
+    InsertRejected,
+    Snapshot {
+        id: u64,
+        buffer: Option<(usize, String)>,
+    },
+    Buffer {
+        cursor: usize,
+        text: String,
+    },
     PromptEnd,
     Hide,
     Finish,
@@ -88,6 +101,18 @@ fn parse(payload: &[u8]) -> Option<Msg> {
     let s = String::from_utf8_lossy(payload);
     let (kind, rest) = s.split_once(';').unwrap_or((&s, ""));
     match kind {
+        "R" => Some(Msg::Ready),
+        "J" => Some(Msg::InsertRejected),
+        "Q" => {
+            let (id, state) = rest.split_once(';')?;
+            let buffer = if state == "H" {
+                None
+            } else {
+                let (cursor, text) = state.strip_prefix("B;")?.split_once(';')?;
+                Some((cursor.parse().ok()?, text.to_string()))
+            };
+            Some(Msg::Snapshot { id: id.parse().ok()?, buffer })
+        }
         "B" => {
             let (cursor, text) = rest.split_once(';')?;
             Some(Msg::Buffer { cursor: cursor.parse().ok()?, text: text.to_string() })
@@ -109,6 +134,32 @@ fn parse(payload: &[u8]) -> Option<Msg> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn snapshot_replies_have_ids_and_only_buffer_or_hide_state() {
+        assert_eq!(
+            parse("Q;7;B;6;café;🙂\n".as_bytes()),
+            Some(Msg::Snapshot { id: 7, buffer: Some((6, "café;🙂\n".into())) })
+        );
+        assert_eq!(parse(b"Q;8;H"), Some(Msg::Snapshot { id: 8, buffer: None }));
+        for invalid in [b"Q;bad;H".as_slice(), b"Q;9;Q;10;H", b"Q;9;R", b"Q;9;B;bad;text"] {
+            assert_eq!(parse(invalid), None);
+        }
+    }
+
+    #[test]
+    fn fish_ready_unicode_and_hide() {
+        let mut f = OscFilter::default();
+        let (mut out, mut msgs) = (vec![], vec![]);
+        for byte in "\x1b]6973;R\x07\x1b]6973;B;6;café;🙂\n\x07\x1b]6973;H\x07".as_bytes() {
+            f.feed(&[*byte], &mut out, &mut msgs);
+        }
+        assert!(out.is_empty());
+        assert_eq!(
+            msgs.into_iter().map(|(_, m)| m).collect::<Vec<_>>(),
+            vec![Msg::Ready, Msg::Buffer { cursor: 6, text: "café;🙂\n".into() }, Msg::Hide]
+        );
+    }
 
     #[test]
     fn extracts_and_passes_through() {

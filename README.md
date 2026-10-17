@@ -7,7 +7,7 @@
 <p align="center">
   <b>IDE-style autocomplete for your Linux terminal.</b><br>
   Subcommands, options, branches, packages and paths in a popup as you type.<br>
-  For zsh and bash, in any terminal. Written in Rust.
+  For zsh, bash, and fish, in any terminal. Written in Rust.
 </p>
 
 ```
@@ -43,14 +43,14 @@ binary that works in any terminal: it draws the popup inside the terminal itself
 
 ## Install
 
-Requirements: Linux, [Rust](https://rustup.rs) 1.85+, zsh ≥ 5.3 or bash ≥ 4.4.
+Requirements: Linux, [Rust](https://rustup.rs) 1.85+, zsh ≥ 5.3, bash ≥ 4.4, or fish ≥ 4.2.1.
 Optional: `curl` (online package search), a [Nerd Font](https://www.nerdfonts.com) (icons).
 
 ```bash
 git clone https://github.com/KevenGoncalves/lig lig
 cd lig
 cargo install --path .
-lig install            # sets up your $SHELL; or: lig install zsh / lig install bash
+lig install            # sets up your $SHELL; or: lig install zsh / lig install bash / lig install fish
 ```
 
 Open a new terminal, then check the setup:
@@ -59,9 +59,11 @@ Open a new terminal, then check the setup:
 lig doctor
 ```
 
-`lig install` adds two small blocks to `~/.zshrc` or `~/.bashrc`, at the very top and
-at the very bottom, and keeps a backup of the original (`~/.zshrc.lig-backup`). To set
-it up by hand instead:
+`lig install` adds a pre block at the top of your shell config and a post block at
+the bottom. It keeps the original in `<config>.lig-backup`. Fish uses
+`${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish`.
+
+Manual setup:
 
 ```bash
 # first line of ~/.zshrc                 # last line of ~/.zshrc
@@ -71,7 +73,14 @@ eval "$(lig init zsh pre)"               eval "$(lig init zsh post)"
 eval "$(lig init bash pre)"              eval "$(lig init bash post)"
 ```
 
-- Remove it: `lig uninstall` (or `lig uninstall bash`).
+```fish
+# First line of config.fish
+eval (lig init fish pre | string collect)
+# Last line of config.fish
+eval (lig init fish post | string collect)
+```
+
+- Remove it: `lig uninstall` (or `lig uninstall fish` / `lig uninstall bash`).
 - Skip it for one shell: `LIG_DISABLE=1 zsh`.
 - Update it: `lig update` pulls the latest changes into the folder you cloned and
   reinstalls it (`--source <dir>` for another checkout). Then open a new terminal tab:
@@ -92,7 +101,8 @@ Type as usual and the popup appears with suggestions for what you're typing.
 What to expect:
 
 - **Command names don't pop up by themselves** (`ls`, `sudo ls`…), so simple commands
-  run with a single `Enter`. Press `Ctrl+Space` to see command names.
+  run with a single `Enter`. Press `Ctrl+Space` to see command names, or set
+  `complete_commands = true` under `[behavior]` for automatic suggestions.
 - **`Enter`** completes the word you're typing (`go bui` → `go build`), or picks the
   first suggestion after a space (`git checkout ` → `git checkout main`). If the word is
   already complete (`git status`), it runs the command. `Enter` `Enter` means "pick,
@@ -214,7 +224,8 @@ cursor, and restores what was underneath when the popup closes. This is why it w
 in any terminal and on Wayland, where apps can't place floating windows.
 
 Small shell hooks tell lig what you're typing. zsh reports the line on every redraw.
-For bash, lig reads the line from the screen after an invisible prompt marker. To
+For bash, lig reads the line from the screen after an invisible prompt marker.
+Fish reports its edit buffer after input or redraws; there is no idle polling. To
 accept a suggestion, lig sends a private key that a shell function binds to edit the
 line. Slow sources (commands, network) run in the background, so the popup never
 blocks typing.
@@ -227,11 +238,14 @@ blocks typing.
 | Wrong or missing suggestions | `lig complete "<the line>"` shows what lig would suggest. |
 | A key binding does nothing | `lig keys` shows whether the key reaches lig, and its name. |
 | A command's suggestions look outdated | `lig specs clear-cache` (re-reads `--help` output). |
-| Something else | Start a shell with `LIG_LOG=1 zsh` (or `bash`) and check `~/.local/state/lig/lig.log`. |
+| Something else | Start a shell with `LIG_LOG=1 zsh` (or `bash` / `fish`) and check `~/.local/state/lig/lig.log`. |
 
 ## Limitations
 
-- zsh and bash only for now (fish would need its own hook script).
+- Fish reserves `SIGUSR1` for buffer reports and Ctrl+Alt+Shift+F12 for insertion.
+- Fish `complete` definitions and alias bodies are not imported into lig.
+- Nested fish sessions need `lig shell --shell (status fish-path)`.
+- Starship has not been tested with the fish integration.
 - In bash the line is read from the screen. A cursor inside a long wrapped line at the
   bottom of a full screen can occasionally confuse it, until the next key.
 - Specs parsed from `--help` contain options and subcommands, but no dynamic values.
@@ -243,13 +257,21 @@ blocks typing.
 ```bash
 cargo test                      # unit tests, including every spec in specs/lig/
 cargo build --release
+python3 tests/fish_pty.py
+python3 tests/shell_smoke.py
+python3 tests/tmux_placement.py
+python3 tests/trial_launcher.py
 tools/update-fig-specs.sh       # regenerate specs/fig/ from withfig/autocomplete
 ```
+
+The PTY tests require Python 3 and the relevant shells. The tmux tests use a
+private server. All scripts test `target/release/lig`; set `LIG_TEST_BIN` to use
+another binary.
 
 ```
 src/            the lig binary (session.rs: PTY + popup, engine.rs: completion,
                 popup.rs: drawing, help.rs: --help parser, specs/gens.rs: native generators)
-shell/          zsh and bash hooks
+shell/          zsh, bash, and fish hooks
 specs/lig/      hand-written specs (JSON)
 specs/fig/      converted withfig/autocomplete specs (generated)
 build.rs        embeds both spec folders, compressed, into the binary
