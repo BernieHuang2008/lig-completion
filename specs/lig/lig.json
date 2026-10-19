@@ -1,0 +1,507 @@
+{
+  "name": "lig",
+  "description": "IDE-style autocomplete for your Linux terminal",
+  "options": [
+    {
+      "name": [
+        "-h",
+        "--help"
+      ],
+      "description": "Print help"
+    },
+    {
+      "name": [
+        "-V",
+        "--version"
+      ],
+      "description": "Print version"
+    }
+  ],
+  "subcommands": [
+    {
+      "name": "shell",
+      "description": "Run a shell inside lig (the shell integration does this for you)",
+      "options": [
+        {
+          "name": "--shell",
+          "description": "Shell to run (default: $SHELL)",
+          "args": {
+            "name": "shell",
+            "suggestions": [
+              "zsh",
+              "bash",
+              "fish"
+            ],
+            "template": "filepaths"
+          }
+        },
+        {
+          "name": "--login",
+          "description": "Start it as a login shell"
+        },
+        {
+          "name": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help"
+        }
+      ]
+    },
+    {
+      "name": "init",
+      "description": "Print shell integration code for fish, zsh, or bash",
+      "options": [
+        {
+          "name": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help"
+        }
+      ],
+      "args": [
+        {
+          "name": "shell",
+          "suggestions": [
+            {
+              "name": "fish",
+              "description": "~/.config/fish/config.fish"
+            },
+            {
+              "name": "zsh",
+              "description": "~/.zshrc"
+            },
+            {
+              "name": "bash",
+              "description": "~/.bashrc"
+            }
+          ]
+        },
+        {
+          "name": "part",
+          "isOptional": true,
+          "suggestions": [
+            {
+              "name": "pre",
+              "description": "Goes at the top of the shell config"
+            },
+            {
+              "name": "post",
+              "description": "Goes at the bottom of the shell config"
+            },
+            {
+              "name": "all",
+              "description": "Both (the default)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "install",
+      "description": "Add lig to your fish, zsh, or bash configuration (default: your $SHELL)",
+      "options": [
+        {
+          "name": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help"
+        }
+      ],
+      "args": {
+        "name": "shell",
+        "isOptional": true,
+        "suggestions": [
+          {
+            "name": "fish",
+            "description": "~/.config/fish/config.fish"
+          },
+          {
+            "name": "zsh",
+            "description": "~/.zshrc"
+          },
+          {
+            "name": "bash",
+            "description": "~/.bashrc"
+          }
+        ]
+      }
+    },
+    {
+      "name": "uninstall",
+      "description": "Remove lig from your fish, zsh, or bash configuration (default: your $SHELL)",
+      "options": [
+        {
+          "name": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help"
+        }
+      ],
+      "args": {
+        "name": "shell",
+        "isOptional": true,
+        "suggestions": [
+          {
+            "name": "fish",
+            "description": "~/.config/fish/config.fish"
+          },
+          {
+            "name": "zsh",
+            "description": "~/.zshrc"
+          },
+          {
+            "name": "bash",
+            "description": "~/.bashrc"
+          }
+        ]
+      }
+    },
+    {
+      "name": "specs",
+      "description": "Manage completion specs",
+      "subcommands": [
+        {
+          "name": "list",
+          "description": "List commands with a built-in or user spec",
+          "options": [
+            {
+              "name": [
+                "-h",
+                "--help"
+              ],
+              "description": "Print help"
+            }
+          ]
+        },
+        {
+          "name": "path",
+          "description": "Show where user specs and the --help cache live",
+          "options": [
+            {
+              "name": [
+                "-h",
+                "--help"
+              ],
+              "description": "Print help"
+            }
+          ]
+        },
+        {
+          "name": "clear-cache",
+          "description": "Forget cached --help parsing results",
+          "options": [
+            {
+              "name": [
+                "-h",
+                "--help"
+              ],
+              "description": "Print help"
+            }
+          ]
+        },
+        {
+          "name": "generators",
+          "description": "List the native generators spec files can use",
+          "options": [
+            {
+              "name": [
+                "-h",
+                "--help"
+              ],
+              "description": "Print help"
+            }
+          ]
+        },
+        {
+          "name": "help",
+          "description": "Print the help of a subcommand",
+          "options": [
+            {
+              "name": [
+                "-h",
+                "--help"
+              ],
+              "description": "Print help"
+            }
+          ],
+          "args": {
+            "name": "command",
+            "isOptional": true,
+            "suggestions": [
+              "list",
+              "path",
+              "clear-cache",
+              "generators"
+            ]
+          }
+        }
+      ],
+      "options": [
+        {
+          "name": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help"
+        }
+      ]
+    },
+    {
+      "name": "complete",
+      "description": "Print the suggestions for a command line (for debugging specs)",
+      "options": [
+        {
+          "name": "--cwd",
+          "description": "Working directory to complete in",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": "--alias",
+          "description": "Pretend this shell alias exists (NAME=VALUE)",
+          "args": {
+            "name": "NAME=VALUE"
+          },
+          "isRepeatable": true
+        },
+        {
+          "name": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help"
+        }
+      ],
+      "args": {
+        "name": "line"
+      }
+    },
+    {
+      "name": "doctor",
+      "description": "Check the installation",
+      "options": [
+        {
+          "name": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help"
+        }
+      ]
+    },
+    {
+      "name": "update",
+      "description": "Update lig: pull its source and reinstall it with cargo",
+      "options": [
+        {
+          "name": "--source",
+          "description": "The source checkout to build (default: where this lig was built from)",
+          "args": {
+            "name": "dir",
+            "template": "folders"
+          }
+        },
+        {
+          "name": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help"
+        }
+      ]
+    },
+    {
+      "name": "icons",
+      "description": "List every icon (in the mode you use, next to its Unicode fallback)",
+      "options": [
+        {
+          "name": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help"
+        }
+      ]
+    },
+    {
+      "name": "keys",
+      "description": "Show the name of each key you press, for the [keys] config",
+      "options": [
+        {
+          "name": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help"
+        }
+      ]
+    },
+    {
+      "name": "preview",
+      "description": "Show a sample popup with your settings (or try others)",
+      "options": [
+        {
+          "name": "--theme",
+          "description": "Theme",
+          "args": {
+            "name": "theme",
+            "suggestions": [
+              "default",
+              "catppuccin",
+              "nord",
+              "dracula",
+              "gruvbox",
+              "tokyonight",
+              "light",
+              "terminal"
+            ]
+          }
+        },
+        {
+          "name": "--border",
+          "description": "Border style",
+          "args": {
+            "name": "border",
+            "suggestions": [
+              "rounded",
+              "square",
+              "none"
+            ]
+          }
+        },
+        {
+          "name": "--density",
+          "description": "Spacing",
+          "args": {
+            "name": "density",
+            "suggestions": [
+              "compact",
+              "normal",
+              "relaxed"
+            ]
+          }
+        },
+        {
+          "name": "--icons",
+          "description": "Icon style",
+          "args": {
+            "name": "icons",
+            "suggestions": [
+              "auto",
+              "nerd",
+              "unicode",
+              "none"
+            ]
+          }
+        },
+        {
+          "name": "--width",
+          "description": "auto, columns (60) or percent (\"50%\")",
+          "args": {
+            "name": "width",
+            "suggestions": [
+              "auto"
+            ]
+          }
+        },
+        {
+          "name": "--height",
+          "description": "rows (8) or percent (\"30%\")",
+          "args": {
+            "name": "height"
+          }
+        },
+        {
+          "name": "--description",
+          "description": "Where descriptions go",
+          "args": {
+            "name": "position",
+            "suggestions": [
+              "right",
+              "bottom"
+            ]
+          }
+        },
+        {
+          "name": "--all",
+          "description": "Show every theme"
+        },
+        {
+          "name": "--densities",
+          "description": "Show every density"
+        },
+        {
+          "name": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help"
+        }
+      ]
+    },
+    {
+      "name": "config",
+      "description": "Print the default configuration (save it to `lig config path`)",
+      "options": [
+        {
+          "name": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help"
+        }
+      ],
+      "args": {
+        "name": "what",
+        "isOptional": true,
+        "suggestions": [
+          {
+            "name": "default",
+            "description": "Print the default configuration"
+          },
+          {
+            "name": "path",
+            "description": "Print where the config file goes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "help",
+      "description": "Print this message or the help of the given subcommand(s)",
+      "options": [
+        {
+          "name": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help"
+        }
+      ],
+      "args": {
+        "name": "command",
+        "isOptional": true,
+        "suggestions": [
+          "shell",
+          "init",
+          "install",
+          "uninstall",
+          "specs",
+          "complete",
+          "doctor",
+          "update",
+          "icons",
+          "keys",
+          "preview",
+          "config"
+        ]
+      }
+    }
+  ]
+}

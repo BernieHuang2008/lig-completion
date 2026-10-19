@@ -594,6 +594,36 @@ mod shell_tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
 
+    /// `specs/lig/lig.json` completes lig itself: every command and flag of
+    /// the CLI must be in it.
+    #[test]
+    fn lig_spec_matches_the_cli() {
+        use clap::CommandFactory;
+        fn check(cli: &clap::Command, spec: &spec::Subcommand, path: &str) {
+            for a in cli.get_arguments() {
+                if let Some(long) = a.get_long() {
+                    let flag = format!("--{long}");
+                    assert!(
+                        spec.options.iter().any(|o| o.meta.names.contains(&flag)),
+                        "specs/lig/lig.json lacks `{path} {flag}`"
+                    );
+                }
+            }
+            for sub in cli.get_subcommands() {
+                let name = sub.get_name();
+                let s =
+                    spec.find_subcommand(name).unwrap_or_else(|| panic!("specs/lig/lig.json lacks `{path} {name}`"));
+                // clap's `help` repeats every command under it; nothing to complete there.
+                if name != "help" {
+                    check(sub, s, &format!("{path} {name}"));
+                }
+            }
+        }
+        let mut cli = Cli::command();
+        cli.build();
+        check(&cli, &specs::builtin("lig").expect("specs/lig/lig.json"), "lig");
+    }
+
     #[test]
     fn detection_paths_and_quoting() {
         assert!(matches!(ShellKind::detect("/usr/bin/fish").unwrap(), ShellKind::Fish));
