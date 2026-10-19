@@ -1045,7 +1045,8 @@ mod tests {
     }
 
     fn engine() -> (Engine, ShellEnv) {
-        let dir = std::env::temp_dir().join(format!("lig-test-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("lig-test-{}-{:?}", std::process::id(), std::thread::current().id()));
         std::fs::create_dir_all(dir.join("specs")).unwrap();
         std::fs::create_dir_all(dir.join("work/sub dir")).unwrap();
         std::fs::write(dir.join("work/file.txt"), "").unwrap();

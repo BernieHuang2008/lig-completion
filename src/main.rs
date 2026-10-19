@@ -1,4 +1,4 @@
-//! lig: Fig-style autocomplete for zsh and bash, in any terminal.
+//! lig: Fig-style autocomplete for zsh, bash, and fish, in any terminal.
 //!
 //! `lig shell` ([`session`]) runs the shell in a PTY and draws the popup;
 //! [`engine`] turns a command line into suggestions using the specs
@@ -28,6 +28,8 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 
 const PRE_ZSH: &str = include_str!("../shell/pre.zsh");
 const POST_ZSH: &str = include_str!("../shell/post.zsh");
+const PRE_FISH: &str = include_str!("../shell/pre.fish");
+const POST_FISH: &str = include_str!("../shell/post.fish");
 const PRE_BASH: &str = include_str!("../shell/pre.bash");
 const POST_BASH: &str = include_str!("../shell/post.bash");
 
@@ -49,7 +51,7 @@ enum Cmd {
         #[arg(long)]
         login: bool,
     },
-    /// Print shell integration code: eval "$(lig init zsh)" / eval "$(lig init bash)"
+    /// Print shell integration code for fish, zsh, or bash
     Init {
         #[arg(value_enum)]
         shell: ShellKind,
@@ -57,12 +59,12 @@ enum Cmd {
         #[arg(value_enum, default_value_t = Part::All)]
         part: Part,
     },
-    /// Add lig to ~/.zshrc or ~/.bashrc (default: your $SHELL)
+    /// Add lig to your fish, zsh, or bash configuration (default: your $SHELL)
     Install {
         #[arg(value_enum)]
         shell: Option<ShellKind>,
     },
-    /// Remove lig from ~/.zshrc or ~/.bashrc (default: your $SHELL)
+    /// Remove lig from your fish, zsh, or bash configuration (default: your $SHELL)
     Uninstall {
         #[arg(value_enum)]
         shell: Option<ShellKind>,
@@ -137,19 +139,28 @@ struct PreviewArgs {
 
 #[derive(Clone, Copy, ValueEnum)]
 enum ShellKind {
+    Fish,
     Zsh,
     Bash,
 }
 
 impl ShellKind {
-    /// From `$SHELL`, zsh unless it's bash.
-    fn current() -> ShellKind {
-        let shell = std::env::var("SHELL").unwrap_or_default();
-        if shell.ends_with("/bash") || shell == "bash" { ShellKind::Bash } else { ShellKind::Zsh }
+    fn detect(shell: &str) -> Result<Self> {
+        match Path::new(shell).file_name().and_then(|s| s.to_str()) {
+            Some("fish") => Ok(Self::Fish),
+            Some("bash") => Ok(Self::Bash),
+            Some("zsh") => Ok(Self::Zsh),
+            _ => anyhow::bail!("unsupported shell {shell:?}; specify fish, bash, or zsh"),
+        }
+    }
+
+    fn current() -> Result<Self> {
+        Self::detect(&std::env::var("SHELL").unwrap_or_default())
     }
 
     fn name(self) -> &'static str {
         match self {
+            ShellKind::Fish => "fish",
             ShellKind::Zsh => "zsh",
             ShellKind::Bash => "bash",
         }
@@ -158,6 +169,9 @@ impl ShellKind {
     /// The rc file lig is installed into.
     fn rc(self) -> PathBuf {
         match self {
+            ShellKind::Fish => {
+                fish_rc(std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from), dirs::home_dir().unwrap_or_default())
+            }
             ShellKind::Zsh => {
                 let dir = std::env::var_os("ZDOTDIR").map(PathBuf::from).or_else(dirs::home_dir).unwrap_or_default();
                 dir.join(".zshrc")
@@ -216,6 +230,7 @@ fn exe() -> String {
 /// `lig init`: the integration script for `shell`.
 fn init_script(shell: ShellKind, part: Part) -> String {
     let (pre, post) = match shell {
+        ShellKind::Fish => (PRE_FISH, POST_FISH),
         ShellKind::Zsh => (PRE_ZSH, POST_ZSH),
         ShellKind::Bash => (PRE_BASH, POST_BASH),
     };
@@ -226,7 +241,7 @@ fn init_script(shell: ShellKind, part: Part) -> String {
     if part != Part::Pre {
         s.push_str(post);
     }
-    s.replace("@LIG_BIN@", &exe())
+    s.replace("@LIG_BIN@", &if matches!(shell, ShellKind::Fish) { fish_quote(&exe()) } else { exe() })
 }
 
 // Markers around the blocks `lig install` adds to the rc file.
@@ -252,34 +267,84 @@ fn strip_block(text: &str, begin: &str, end: &str) -> String {
     out
 }
 
-/// Add the pre block at the top of the rc file and the post block at the
-/// bottom (replacing earlier ones), keeping a backup of the original.
+/// Resolve fish's XDG configuration directory.
+fn fish_rc(xdg: Option<PathBuf>, home: PathBuf) -> PathBuf {
+    xdg.filter(|p| p.is_absolute()).unwrap_or_else(|| home.join(".config")).join("fish/config.fish")
+}
+
+fn fish_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\\', "\\\\").replace('\'', "\\'"))
+}
+
+fn managed_body(old: &str) -> Result<String> {
+    let mut expected_end = None;
+    for line in old.lines().map(str::trim_end) {
+        if let Some(end) = match line {
+            PRE_BEGIN => Some(PRE_END),
+            POST_BEGIN => Some(POST_END),
+            _ => None,
+        } {
+            anyhow::ensure!(expected_end.is_none(), "nested lig configuration block");
+            expected_end = Some(end);
+        } else if line == PRE_END || line == POST_END {
+            anyhow::ensure!(expected_end == Some(line), "unmatched lig configuration marker");
+            expected_end = None;
+        }
+    }
+    anyhow::ensure!(expected_end.is_none(), "unterminated lig configuration block");
+    Ok(strip_block(&strip_block(old, PRE_BEGIN, PRE_END), POST_BEGIN, POST_END))
+}
+
+fn installed_text(shell: ShellKind, old: &str, bin: &str) -> Result<String> {
+    let body = managed_body(old)?;
+    let sh = shell.name();
+    let command = |part| {
+        if matches!(shell, ShellKind::Fish) {
+            format!("eval ({} init fish {part} | string collect)", fish_quote(bin))
+        } else {
+            format!("eval \"$(\"{bin}\" init {sh} {part})\"")
+        }
+    };
+    Ok(format!(
+        "{PRE_BEGIN}\n{}\n{PRE_END}\n{body}{}{POST_BEGIN}\n{}\n{POST_END}\n",
+        command("pre"),
+        if body.is_empty() || body.ends_with('\n') { "" } else { "\n" },
+        command("post")
+    ))
+}
+
+/// Add managed blocks and retain a backup of the existing file.
+fn install_at(shell: ShellKind, rc: &Path, bin: &str) -> Result<()> {
+    let old = match std::fs::read_to_string(rc) {
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(e.into()),
+    };
+    let new = installed_text(shell, &old, bin)?;
+    std::fs::create_dir_all(rc.parent().context("configuration has no parent")?)?;
+    let backup = rc.with_file_name(format!("{}.lig-backup", rc.file_name().unwrap().to_string_lossy()));
+    if rc.exists() && !backup.exists() {
+        std::fs::copy(rc, &backup)?;
+    }
+    std::fs::write(rc, new).with_context(|| format!("writing {}", rc.display()))
+}
+
 fn install(shell: ShellKind) -> Result<()> {
     let rc = shell.rc();
-    let sh = shell.name();
-    let old = std::fs::read_to_string(&rc).unwrap_or_default();
-    let backup = rc.with_file_name(format!(".{sh}rc.lig-backup"));
-    if !old.is_empty() && !backup.exists() {
-        std::fs::write(&backup, &old)?;
-    }
-    let body = strip_block(&strip_block(&old, PRE_BEGIN, PRE_END), POST_BEGIN, POST_END);
-    let body = body.trim_end();
-    let bin = exe();
-    let new = format!(
-        "{PRE_BEGIN}\neval \"$(\"{bin}\" init {sh} pre)\"\n{PRE_END}\n{body}{}{POST_BEGIN}\neval \"$(\"{bin}\" init {sh} post)\"\n{POST_END}\n",
-        if body.is_empty() { "" } else { "\n\n" },
-    );
-    std::fs::write(&rc, new).with_context(|| format!("writing {}", rc.display()))?;
+    install_at(shell, &rc, &exe())?;
     println!("lig: updated {}", rc.display());
-    println!("lig: done. Open a new terminal (or run `exec {sh}`) to start using it.");
+    println!("lig: open a new terminal (or run `exec {}`) to start using it.", shell.name());
     Ok(())
 }
 
 fn uninstall(shell: ShellKind) -> Result<()> {
     let rc = shell.rc();
-    let old = std::fs::read_to_string(&rc)?;
-    let new = strip_block(&strip_block(&old, PRE_BEGIN, PRE_END), POST_BEGIN, POST_END);
-    std::fs::write(&rc, format!("{}\n", new.trim_end()))?;
+    let old = match std::fs::read_to_string(&rc) {
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(e.into()),
+    };
+    std::fs::write(&rc, managed_body(&old)?)?;
     println!("lig: removed from {}", rc.display());
     Ok(())
 }
@@ -340,11 +405,11 @@ fn update(source: Option<PathBuf>) -> Result<()> {
 
 fn doctor() -> Result<()> {
     let ok = |b: bool| if b { "ok  " } else { "FAIL" };
-    for shell in [ShellKind::Zsh, ShellKind::Bash] {
+    for shell in [ShellKind::Zsh, ShellKind::Bash, ShellKind::Fish] {
         let path = shell.rc();
         let rc = std::fs::read_to_string(&path).unwrap_or_default();
         let has = rc.contains(PRE_BEGIN) && rc.contains(POST_BEGIN);
-        if has || shell.name() == ShellKind::current().name() {
+        if has || ShellKind::current().is_ok_and(|current| shell.name() == current.name()) {
             println!("[{}] {} integration", ok(has), path.display());
         }
     }
@@ -489,8 +554,8 @@ fn main() -> Result<()> {
             std::process::exit(code);
         }
         Cmd::Init { shell, part } => print!("{}", init_script(shell, part)),
-        Cmd::Install { shell } => install(shell.unwrap_or_else(ShellKind::current))?,
-        Cmd::Uninstall { shell } => uninstall(shell.unwrap_or_else(ShellKind::current))?,
+        Cmd::Install { shell } => install(shell.map(Ok).unwrap_or_else(ShellKind::current)?)?,
+        Cmd::Uninstall { shell } => uninstall(shell.map(Ok).unwrap_or_else(ShellKind::current)?)?,
         Cmd::Specs { cmd: SpecsCmd::List } => list_specs(),
         Cmd::Specs { cmd: SpecsCmd::Path } => {
             println!("user specs: {}", store::user_dir().display());
@@ -522,4 +587,68 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod shell_tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn detection_paths_and_quoting() {
+        assert!(matches!(ShellKind::detect("/usr/bin/fish").unwrap(), ShellKind::Fish));
+        assert!(matches!(ShellKind::detect("bash").unwrap(), ShellKind::Bash));
+        assert!(matches!(ShellKind::detect("/bin/zsh").unwrap(), ShellKind::Zsh));
+        assert!(ShellKind::detect("/bin/notfish").is_err());
+        assert_eq!(fish_rc(Some("/custom".into()), "/home/test".into()), PathBuf::from("/custom/fish/config.fish"));
+        assert_eq!(
+            fish_rc(Some("relative".into()), "/home/test".into()),
+            PathBuf::from("/home/test/.config/fish/config.fish")
+        );
+        assert_eq!(fish_quote("a'b\\c"), "'a\\'b\\\\c'");
+        for part in [Part::Pre, Part::Post, Part::All] {
+            let script = init_script(ShellKind::Fish, part);
+            assert!(!script.contains("@LIG_BIN@"));
+            assert!(!script.contains("$("));
+        }
+    }
+
+    #[test]
+    fn install_preserves_content_backup_and_permissions() {
+        let dir = std::env::temp_dir().join(format!(
+            "lig-install-test-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let rc = dir.join("fish/config.fish");
+        install_at(ShellKind::Fish, &rc, "/tmp/a 'quoted' lig").unwrap();
+        let first = std::fs::read_to_string(&rc).unwrap();
+        install_at(ShellKind::Fish, &rc, "/tmp/a 'quoted' lig").unwrap();
+        assert_eq!(first, std::fs::read_to_string(&rc).unwrap());
+        let body = "# user config\nset -g thing 'hello'\n\n";
+        std::fs::write(&rc, body).unwrap();
+        let backup = rc.with_file_name("config.fish.lig-backup");
+        // A backup from the first existing-file install must not be overwritten.
+        let existing_backup = std::fs::read(&backup).unwrap();
+        std::fs::set_permissions(&rc, std::fs::Permissions::from_mode(0o600)).unwrap();
+        install_at(ShellKind::Fish, &rc, "/tmp/lig").unwrap();
+        assert_eq!(std::fs::read(&backup).unwrap(), existing_backup);
+        assert_eq!(managed_body(&std::fs::read_to_string(&rc).unwrap()).unwrap(), body);
+        assert_eq!(std::fs::metadata(&rc).unwrap().permissions().mode() & 0o777, 0o600);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn malformed_blocks_are_rejected() {
+        for body in [
+            format!("{PRE_BEGIN}\nkeep this\n"),
+            format!("{POST_END}\n"),
+            format!("{PRE_BEGIN}  \nkeep this\n"),
+            format!("{PRE_BEGIN}\n{POST_BEGIN}\n{PRE_END}\n{POST_END}\n"),
+            format!("{PRE_BEGIN}\n{PRE_BEGIN}\n{PRE_END}\n"),
+        ] {
+            assert!(installed_text(ShellKind::Fish, &body, "lig").is_err());
+        }
+        assert_eq!(managed_body("ordinary content").unwrap(), "ordinary content");
+    }
 }

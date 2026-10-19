@@ -31,7 +31,9 @@ const MAX_DELAY: Duration = Duration::from_millis(40);
 const ENTER_WAIT: Duration = Duration::from_millis(1500);
 /// Show "Searching…" only when results take longer than this.
 const LOADING_DELAY: Duration = Duration::from_millis(150);
-/// Key sequence bound to the insert function (`_lig_insert` in zsh, `__lig_insert` in bash).
+const SNAPSHOT_TIMEOUT: Duration = Duration::from_millis(100);
+const SNAPSHOT_ATTEMPTS: u8 = 3;
+/// Key sequence bound to the insert function in bash and zsh.
 const INSERT_KEY: &str = "\x1b[9147~";
 
 enum Event {
@@ -63,6 +65,57 @@ fn winsize(fd: i32) -> Option<(u16, u16)> {
     (ok && ws.ws_row > 0 && ws.ws_col > 0).then_some((ws.ws_row, ws.ws_col))
 }
 
+/// Remove one complete ANSI cursor report, preserving typeahead and other replies.
+fn take_cursor_report(input: &mut Vec<u8>) -> Option<(u16, u16)> {
+    for start in 0..input.len().saturating_sub(1) {
+        let Some(rest) = input[start..].strip_prefix(b"\x1b[") else { continue };
+        let Some(end) = rest.iter().position(|b| !b.is_ascii_digit() && *b != b';') else { continue };
+        if rest[end] != b'R' {
+            continue;
+        }
+        let Some((row, col)) = std::str::from_utf8(&rest[..end]).ok().and_then(|s| s.split_once(';')) else { continue };
+        let (Ok(row), Ok(col)) = (row.parse::<u16>(), col.parse::<u16>()) else { continue };
+        if row == 0 || col == 0 {
+            continue;
+        }
+        input.drain(start..start + 2 + end + 1);
+        return Some((row, col));
+    }
+    None
+}
+
+/// The outer terminal can already contain output when lig starts. Establish its
+/// real origin before forwarding child output; a new vt100 screen assumes (1,1).
+fn terminal_origin() -> (Option<(u16, u16)>, Vec<u8>) {
+    let mut input = Vec::new();
+    let mut out = std::io::stdout().lock();
+    if out.write_all(b"\x1b[6n").and_then(|_| out.flush()).is_err() {
+        return (None, input);
+    }
+    let deadline = Instant::now() + Duration::from_millis(200);
+    while Instant::now() < deadline {
+        let wait = deadline.saturating_duration_since(Instant::now()).as_millis().max(1) as i32;
+        let mut fd = libc::pollfd { fd: 0, events: libc::POLLIN, revents: 0 };
+        let ready = unsafe { libc::poll(&mut fd, 1, wait) };
+        if ready < 0 && std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted {
+            continue;
+        }
+        if ready <= 0 || fd.revents & libc::POLLIN == 0 {
+            break;
+        }
+        let mut bytes = [0; 4096];
+        let n = unsafe { libc::read(0, bytes.as_mut_ptr().cast(), bytes.len()) };
+        if n <= 0 {
+            break;
+        }
+        input.extend_from_slice(&bytes[..n as usize]);
+        if let Some(position) = take_cursor_report(&mut input) {
+            return (Some(position), input);
+        }
+    }
+    (None, input)
+}
+
 /// Replace this process with the plain shell (used when lig can't run).
 fn exec_shell(shell: &Path, login: bool) -> ! {
     let mut c = std::process::Command::new(shell);
@@ -89,6 +142,32 @@ impl RawMode {
 impl Drop for RawMode {
     fn drop(&mut self) {
         let _ = tcsetattr(std::io::stdin(), SetArg::TCSANOW, &self.0);
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum InsertionTransport {
+    Inline,
+    File,
+}
+
+impl InsertionTransport {
+    fn for_shell(shell: &Path) -> Self {
+        match shell.file_name().and_then(|s| s.to_str()) {
+            Some("bash" | "fish") => Self::File,
+            _ => Self::Inline,
+        }
+    }
+}
+
+/// Build the insertion only after its file payload has been written successfully.
+fn insertion_bytes(transport: InsertionTransport, fish: bool, file: &Path, payload: &str) -> std::io::Result<Vec<u8>> {
+    match transport {
+        InsertionTransport::File => {
+            std::fs::write(file, payload)?;
+            Ok(if fish { b"\x1b[24;8~".to_vec() } else { INSERT_KEY.as_bytes().to_vec() })
+        }
+        InsertionTransport::Inline => Ok(format!("{INSERT_KEY}{payload}\x07").into_bytes()),
     }
 }
 
@@ -119,7 +198,9 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
     // bash reads accepted completions from this file (see shell/post.bash).
     let insert_file =
         dirs::runtime_dir().unwrap_or_else(std::env::temp_dir).join(format!("lig-{}.insert", std::process::id()));
+    let query_file = insert_file.with_extension("query");
     cmd.env("LIG_INSERT_FILE", &insert_file);
+    cmd.env("LIG_QUERY_FILE", &query_file);
     let mut child = match pair.slave.spawn_command(cmd) {
         Ok(c) => c,
         Err(e) => {
@@ -133,9 +214,22 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
     let reader = pair.master.try_clone_reader()?;
     let writer = pair.master.take_writer()?;
     let raw = RawMode::enable()?;
+    let (origin, typeahead) = terminal_origin();
+    crate::log(&format!(
+        "startup shell={} size={rows}x{cols} origin={origin:?} typeahead={}",
+        shell.display(),
+        typeahead.len()
+    ));
+    let mut parser = vt100::Parser::new(rows, cols, usize::from(rows));
+    if let Some((row, col)) = origin {
+        parser.process(format!("\x1b[{};{}H", row.min(rows), col.min(cols)).as_bytes());
+    }
     let cfg = Config::load();
 
     let (tx, rx) = unbounded::<Event>();
+    if !typeahead.is_empty() {
+        let _ = tx.send(Event::Input(typeahead));
+    }
     spawn_stdin_reader(tx.clone());
     spawn_pty_reader(reader, tx.clone());
     spawn_resize_watcher(tx.clone())?;
@@ -145,6 +239,12 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
 
     let mut s = Session {
         insert_file,
+        query_file,
+        fish_sequence: 0,
+        unknown_rows: origin.map_or(0, |(row, _)| row.saturating_sub(1).min(rows)),
+        insertion_transport: InsertionTransport::for_shell(&shell),
+        fish_shell: shell.file_name().is_some_and(|name| name == "fish"),
+        fish_refresh: None,
         prompt_end: None,
         shell_nav: false,
         cwd_fallback: std::env::current_dir().unwrap_or_else(|_| "/".into()),
@@ -153,7 +253,7 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
         out: std::io::stdout(),
         pty: writer,
         master: pair.master,
-        parser: vt100::Parser::new(rows, cols, 0),
+        parser,
         osc: OscFilter::default(),
         editing: false,
         hidden: false,
@@ -184,6 +284,7 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
 
     s.clear_popup();
     let _ = std::fs::remove_file(&s.insert_file);
+    let _ = std::fs::remove_file(&s.query_file);
     drop(raw);
     let code = child.wait().map(|st| st.exit_code() as i32).unwrap_or(0);
     Ok(code)
@@ -284,7 +385,72 @@ struct PromptEnd {
     prefix: String,
 }
 
+struct PendingSnapshot {
+    id: u64,
+    deadline: Instant,
+    changed: bool,
+}
+
+#[derive(Default)]
+struct FishRefresh {
+    due: Option<Instant>,
+    in_flight: Option<PendingSnapshot>,
+    attempts: u8,
+    stale: bool,
+}
+
+impl FishRefresh {
+    fn changed(&mut self) {
+        self.stale = true;
+        self.attempts = 0;
+        if let Some(request) = &mut self.in_flight {
+            request.changed = true;
+        }
+        self.due = Some(Instant::now() + DEBOUNCE);
+    }
+
+    fn wake(&self) -> Option<Instant> {
+        self.in_flight.as_ref().map(|request| request.deadline).or(self.due)
+    }
+
+    fn take_due(&mut self, id: u64) -> bool {
+        if !self.wake().is_some_and(|due| due <= Instant::now()) {
+            return false;
+        }
+        self.due = None;
+        self.in_flight = None;
+        if self.attempts == SNAPSHOT_ATTEMPTS {
+            return false;
+        }
+        self.attempts += 1;
+        self.in_flight = Some(PendingSnapshot { id, deadline: Instant::now() + SNAPSHOT_TIMEOUT, changed: false });
+        true
+    }
+
+    fn reported(&mut self, id: u64) -> bool {
+        if !self.in_flight.as_ref().is_some_and(|request| request.id == id) {
+            return false;
+        }
+        let request = self.in_flight.take().unwrap();
+        self.attempts = 0;
+        if request.changed {
+            self.due = Some(Instant::now() + DEBOUNCE);
+        } else {
+            self.stale = false;
+            self.due = None;
+        }
+        true
+    }
+}
+
 struct Session {
+    query_file: PathBuf,
+    fish_sequence: u64,
+    /// Rows above the startup cursor are absent from the screen model.
+    unknown_rows: u16,
+    insertion_transport: InsertionTransport,
+    fish_shell: bool,
+    fish_refresh: Option<FishRefresh>,
     cfg: Config,
     insert_file: PathBuf,
     /// Set by bash's prompt marker: the line is read off the screen.
@@ -350,7 +516,24 @@ struct Session {
 impl Session {
     fn event_loop(&mut self, rx: &Receiver<Event>) {
         loop {
+            if self.fish_refresh.as_ref().and_then(FishRefresh::wake).is_some_and(|due| due <= Instant::now()) {
+                self.fish_sequence += 1;
+                if self.fish_refresh.as_mut().unwrap().take_due(self.fish_sequence) {
+                    let sent = std::fs::write(&self.query_file, self.fish_sequence.to_string()).is_ok()
+                        && self
+                            .shell_pid
+                            .is_some_and(|pid| unsafe { libc::kill(pid as libc::pid_t, libc::SIGUSR1) } == 0);
+                    if !sent {
+                        crate::log("fish snapshot request failed");
+                        self.fish_refresh = None;
+                        self.hidden = true;
+                    }
+                }
+            }
             let mut deadline = self.dirty.then(|| (self.last_output + DEBOUNCE).min(self.dirty_since + MAX_DELAY));
+            if let Some(w) = self.fish_refresh.as_ref().and_then(FishRefresh::wake) {
+                deadline = Some(deadline.map_or(w, |d| d.min(w)));
+            }
             if let Some(w) = self.loading_wake() {
                 deadline = Some(deadline.map_or(w, |d| d.min(w)));
             }
@@ -362,6 +545,15 @@ impl Session {
                 match rx.recv_deadline(due) {
                     Ok(ev) => ev,
                     Err(RecvTimeoutError::Timeout) => {
+                        // A snapshot request alone must not repaint the popup.
+                        if self
+                            .fish_refresh
+                            .as_ref()
+                            .and_then(FishRefresh::wake)
+                            .is_some_and(|due| due <= Instant::now())
+                        {
+                            continue;
+                        }
                         if self.pending_enter.is_some_and(|t| t.elapsed() >= ENTER_WAIT) {
                             self.resolve_pending_enter();
                         }
@@ -445,8 +637,13 @@ impl Session {
         self.visible() && self.shown
     }
 
+    fn fish_stale(&self) -> bool {
+        self.fish_refresh.as_ref().is_some_and(|refresh| refresh.stale)
+    }
+
     fn visible(&self) -> bool {
-        self.editing
+        !self.fish_stale()
+            && self.editing
             && !self.hidden
             && !self.items.is_empty()
             && self.items_line == self.line
@@ -462,6 +659,9 @@ impl Session {
         self.osc.feed(data, &mut fwd, &mut msgs);
         let mut w = vec![];
         if !fwd.is_empty() {
+            if let Some(refresh) = &mut self.fish_refresh {
+                refresh.changed();
+            }
             // Take the popup off the screen before the shell draws, so the
             // screen is exactly what the shell (and our vt100 model) expects.
             self.erase(&mut w);
@@ -482,6 +682,13 @@ impl Session {
         }
         self.last_output = Instant::now();
         self.mark_dirty();
+        if self.pending_enter.is_some()
+            && !self.fish_stale()
+            && (self.hidden || (self.loading.is_none() && self.items_line == self.line))
+        {
+            self.render();
+            self.resolve_pending_enter();
+        }
     }
 
     /// The text left of the cursor changed (reported by zsh, or read off the
@@ -536,7 +743,32 @@ impl Session {
 
     fn on_msg(&mut self, m: Msg) {
         match m {
+            Msg::InsertRejected => {
+                self.just_accepted = false;
+                self.close_after_insert = false;
+                self.dismissed = None;
+                self.items_line.clear();
+                self.request();
+            }
+            Msg::Ready => {
+                crate::log(&format!("reader ready fish={} pid={:?}", self.fish_shell, self.shell_pid));
+                if self.fish_shell {
+                    self.editing = true;
+                    let mut refresh = FishRefresh::default();
+                    refresh.changed();
+                    self.fish_refresh = Some(refresh);
+                }
+            }
+            Msg::Snapshot { id, buffer } => {
+                if self.fish_refresh.as_mut().is_some_and(|refresh| refresh.reported(id)) {
+                    self.on_msg(match buffer {
+                        Some((cursor, text)) => Msg::Buffer { cursor, text },
+                        None => Msg::Hide,
+                    });
+                }
+            }
             Msg::Buffer { cursor, text } => {
+                crate::log(&format!("buffer cursor={cursor} characters={}", text.chars().count()));
                 self.editing = true;
                 self.hidden = false;
                 self.set_line(text.chars().take(cursor).collect());
@@ -549,8 +781,13 @@ impl Session {
                 self.editing = true;
                 self.hidden = false;
             }
-            Msg::Hide => self.hidden = true,
+            Msg::Hide => {
+                crate::log("reader hidden");
+                self.hidden = true;
+            }
             Msg::Finish => {
+                crate::log("reader finished");
+                self.fish_refresh = None;
                 self.editing = false;
                 self.just_accepted = false;
                 self.manual = false;
@@ -649,7 +886,13 @@ impl Session {
         }
         self.loading = None;
         let data = std::mem::take(&mut self.deferred);
-        self.on_input(&data);
+        if self.fish_stale() {
+            // The reader did not acknowledge in time. Preserve native Enter
+            // behavior rather than accepting a suggestion for an old buffer.
+            self.write_pty(&data);
+        } else {
+            self.on_input(&data);
+        }
     }
 
     fn on_done(&mut self, line: String, items: Vec<Suggestion>, loading: Option<String>) {
@@ -658,7 +901,7 @@ impl Session {
         }
         let fin = loading.is_none();
         self.apply_done(line, items, loading);
-        if fin && self.pending_enter.is_some() {
+        if fin && self.pending_enter.is_some() && !self.fish_stale() {
             self.render();
             self.resolve_pending_enter();
         }
@@ -782,6 +1025,12 @@ impl Session {
                 }
             }
         }
+        if !fwd.is_empty()
+            && let Some(refresh) = &mut self.fish_refresh
+        {
+            refresh.changed();
+            redraw = true;
+        }
         if redraw {
             self.render();
         }
@@ -802,8 +1051,9 @@ impl Session {
             && !self.just_accepted
             && self.editing
             && !self.hidden
-            && self.dismissed.as_deref() != Some(self.line.as_str())
-            && self.loading.as_ref().is_some_and(|(l, _, _)| *l == self.line)
+            && (self.fish_stale()
+                || (self.dismissed.as_deref() != Some(self.line.as_str())
+                    && self.loading.as_ref().is_some_and(|(l, _, _)| *l == self.line)))
     }
 
     /// The toggle key (Ctrl+Space): close the popup, or ask for suggestions
@@ -843,14 +1093,15 @@ impl Session {
             };
             let result = format!("{kept}{}", s.insert);
             self.close_after_insert = !(result.is_empty() || result.ends_with(|c: char| c.is_whitespace() || c == '/'));
-            // The payload is `<delete>;<back>;<text>`. zsh's widget reads it
-            // after the key, up to BEL; bash's bound function reads a file.
-            let payload = format!("{};{};{}", s.delete, s.back, s.insert);
-            if self.prompt_end.is_some() {
-                let _ = std::fs::write(&self.insert_file, payload);
-                fwd.extend_from_slice(INSERT_KEY.as_bytes());
+            // Fish checks the expected prefix before changing the buffer.
+            let payload = if self.fish_shell {
+                format!("{};{};{};{}{}", s.delete, s.back, self.line.chars().count(), self.line, s.insert)
             } else {
-                fwd.extend_from_slice(format!("{INSERT_KEY}{payload}\x07").as_bytes());
+                format!("{};{};{}", s.delete, s.back, s.insert)
+            };
+            match insertion_bytes(self.insertion_transport, self.fish_shell, &self.insert_file, &payload) {
+                Ok(bytes) => fwd.extend_from_slice(&bytes),
+                Err(error) => crate::log(&format!("completion insertion failed: {error}")),
             }
         }
         self.items.clear();
@@ -866,6 +1117,41 @@ impl Session {
     }
 
     // ------------------------------------------------------------ drawing
+
+    fn known_from(&mut self) -> u16 {
+        let screen = self.parser.screen_mut();
+        if screen.alternate_screen() {
+            return 0;
+        }
+        screen.set_scrollback(usize::MAX);
+        let scrolled = screen.scrollback().min(usize::from(u16::MAX)) as u16;
+        screen.set_scrollback(0);
+        let row = screen.cursor_position().0;
+        // A clear or resize can move the prompt above the startup row.
+        self.unknown_rows = self.unknown_rows.min(scrolled.saturating_add(row));
+        self.unknown_rows.saturating_sub(scrolled)
+    }
+
+    fn popup_layout(&self, shown: &[Suggestion]) -> Option<popup::Layout> {
+        if shown.is_empty() {
+            None
+        } else {
+            let screen = self.parser.screen();
+            let delete = shown[0].delete;
+            let tail: String = {
+                let n = self.line.chars().count();
+                self.line.chars().skip(n.saturating_sub(delete)).collect()
+            };
+            // Where the command starts: wrapped rows above the cursor row
+            // belong to it too.
+            let (crow, _) = screen.cursor_position();
+            let mut top = crow;
+            while top > 0 && screen.row_wrapped(top - 1) {
+                top -= 1;
+            }
+            popup::layout_at(&self.cfg.ui, shown, screen.size(), screen.cursor_position(), top, tail.width() as u16)
+        }
+    }
 
     fn render(&mut self) {
         self.dirty = false;
@@ -893,24 +1179,44 @@ impl Session {
         });
         let is_message = message.is_some();
         let shown: Vec<Suggestion> = if self.visible() { self.items.clone() } else { message.into_iter().collect() };
-        let layout = if shown.is_empty() {
-            None
-        } else {
-            let screen = self.parser.screen();
-            let delete = shown[0].delete;
-            let tail: String = {
-                let n = self.line.chars().count();
-                self.line.chars().skip(n.saturating_sub(delete)).collect()
-            };
-            // Where the command starts: wrapped rows above the cursor row
-            // belong to it too.
-            let (crow, _) = screen.cursor_position();
-            let mut top = crow;
-            while top > 0 && screen.row_wrapped(top - 1) {
-                top -= 1;
+        let mut layout = self.popup_layout(&shown);
+        let known_from = self.known_from();
+        if let Some(l) = &layout
+            && l.rect.row < known_from
+        {
+            let (rows, _) = self.parser.screen().size();
+            let (row, col) = self.parser.screen().cursor_position();
+            let scroll = l.rect.height.saturating_sub(rows - row - 1).min(row);
+            if scroll > 0 {
+                self.erase(&mut w);
+                self.begin_sync(&mut w);
+                // Make blank space below the prompt without overwriting older output.
+                let bytes =
+                    format!("\x1b[{rows};1H{}\x1b[{};{}H", "\n".repeat(usize::from(scroll)), row + 1 - scroll, col + 1);
+                w.extend_from_slice(bytes.as_bytes());
+                self.parser.process(bytes.as_bytes());
+                if let Some(prompt) = &mut self.prompt_end {
+                    prompt.row = prompt.row.saturating_sub(scroll);
+                }
+                layout = self.popup_layout(&shown);
             }
-            popup::layout_at(&self.cfg.ui, &shown, screen.size(), screen.cursor_position(), top, tail.width() as u16)
-        };
+            if layout.as_ref().is_some_and(|l| l.rect.row < self.known_from()) {
+                layout = None;
+            }
+        }
+        if std::env::var_os("LIG_LOG").is_some() {
+            crate::log(&format!(
+                "render editing={} hidden={} items={} current={} alternate={} cursor={:?} size={:?} rect={:?}",
+                self.editing,
+                self.hidden,
+                self.items.len(),
+                self.items_line == self.line,
+                self.parser.screen().alternate_screen(),
+                self.parser.screen().cursor_position(),
+                self.parser.screen().size(),
+                layout.as_ref().map(|l| l.rect)
+            ));
+        }
         // What the user sees; it stays set across the brief erase/redraw
         // around shell output.
         self.shown = layout.is_some() && !is_message;
@@ -940,6 +1246,80 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fish_refresh_rejects_stale_replies_and_stays_idle_after_ack() {
+        let mut refresh = FishRefresh::default();
+        assert!(refresh.wake().is_none());
+        refresh.changed();
+        refresh.due = Some(Instant::now());
+        assert!(refresh.take_due(1));
+        refresh.changed();
+        assert!(!refresh.reported(0));
+        assert!(refresh.reported(1));
+        assert!(refresh.stale);
+        refresh.due = Some(Instant::now());
+        assert!(refresh.take_due(2));
+        assert!(!refresh.reported(1));
+        assert!(refresh.stale);
+        assert!(refresh.reported(2));
+        assert!(!refresh.stale);
+        assert!(refresh.wake().is_none());
+    }
+
+    #[test]
+    fn fish_refresh_bounds_retries_and_recovers_on_input() {
+        let mut refresh = FishRefresh::default();
+        refresh.changed();
+        refresh.due = Some(Instant::now());
+        for id in 1..=u64::from(SNAPSHOT_ATTEMPTS) {
+            assert!(refresh.take_due(id));
+            refresh.in_flight.as_mut().unwrap().deadline = Instant::now();
+        }
+        assert!(!refresh.take_due(4));
+        assert!(refresh.wake().is_none());
+        assert!(!refresh.reported(3));
+        refresh.changed();
+        refresh.due = Some(Instant::now());
+        assert!(refresh.take_due(5));
+        assert!(!refresh.reported(3));
+        assert!(refresh.reported(5));
+        assert!(!refresh.stale);
+    }
+
+    #[test]
+    fn startup_cursor_report_preserves_typeahead_and_other_replies() {
+        let mut input = b"git \x1b[?1;2c\x1b[12;24".to_vec();
+        assert_eq!(take_cursor_report(&mut input), None);
+        input.extend_from_slice(b"Rch");
+        assert_eq!(take_cursor_report(&mut input), Some((12, 24)));
+        assert_eq!(input, b"git \x1b[?1;2cch");
+        for invalid in [b"\x1b[0;1R".as_slice(), b"\x1b[1;2;3R", b"\x1b[999999;2R", b"\x1b[2;3H"] {
+            let mut input = invalid.to_vec();
+            assert_eq!(take_cursor_report(&mut input), None);
+            assert_eq!(input, invalid);
+        }
+        let mut parser = vt100::Parser::new(30, 100, 0);
+        parser.process(b"\x1b[12;24Htest> git ch");
+        assert_eq!(parser.screen().cursor_position(), (11, 35));
+    }
+
+    #[test]
+    fn failed_file_insertion_never_produces_a_key() {
+        let missing = std::env::temp_dir().join(format!("lig-missing-{}", std::process::id())).join("payload");
+        assert!(insertion_bytes(InsertionTransport::File, true, &missing, "2;1;café;").is_err());
+        assert_eq!(
+            insertion_bytes(InsertionTransport::Inline, false, &missing, "2;1;café;").unwrap(),
+            format!("{INSERT_KEY}2;1;café;\x07").into_bytes()
+        );
+    }
+
+    #[test]
+    fn insertion_transport_is_independent_of_prompt_markers() {
+        assert_eq!(InsertionTransport::for_shell(Path::new("/bin/fish")), InsertionTransport::File);
+        assert_eq!(InsertionTransport::for_shell(Path::new("/bin/bash")), InsertionTransport::File);
+        assert_eq!(InsertionTransport::for_shell(Path::new("/bin/zsh")), InsertionTransport::Inline);
+    }
 
     #[test]
     fn enter_rule() {
