@@ -191,7 +191,8 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
     if let Ok(cwd) = std::env::current_dir() {
         cmd.cwd(cwd);
     }
-    if let Some(tty) = pair.master.tty_name() {
+    let tty = pair.master.tty_name();
+    if let Some(tty) = &tty {
         cmd.env("LIG_TTY", tty);
     }
     cmd.env("LIG_PID", std::process::id().to_string());
@@ -260,6 +261,8 @@ pub fn run(shell: PathBuf, login: bool) -> Result<i32> {
         line: String::new(),
         env: ShellEnv::default(),
         shell_pid,
+        tty,
+        foreign: false,
         req_tx,
         items: vec![],
         items_line: String::new(),
@@ -341,6 +344,53 @@ fn spawn_resize_watcher(tx: Sender<Event>) -> Result<()> {
         }
     });
     Ok(())
+}
+
+/// Whether a program other than the shell uses the terminal while a line is
+/// being edited: a widget running fzf (Ctrl+T), a pager… These run in the
+/// shell's own process group (command substitution), so the terminal's
+/// foreground group can't tell. Look for a descendant of the shell that isn't
+/// a shell itself, is in its process group (background jobs have their own),
+/// and has the terminal open for more than stderr (prompt helpers like
+/// `$(git …)` only inherit that).
+fn foreign_program(shell: u32, tty: &Path) -> bool {
+    let stat = |pid: u32| -> Option<(String, i64)> {
+        let s = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+        let (head, rest) = s.rsplit_once(')')?;
+        let comm = head.split_once('(')?.1.to_string();
+        let pgrp = rest.split_whitespace().nth(2)?.parse().ok()?;
+        Some((comm, pgrp))
+    };
+    let mut todo = children(shell);
+    if todo.is_empty() {
+        return false;
+    }
+    let Some((_, group)) = stat(shell) else { return false };
+    while let Some(pid) = todo.pop() {
+        todo.extend(children(pid));
+        let Some((comm, pgrp)) = stat(pid) else { continue };
+        if pgrp != group || matches!(comm.as_str(), "zsh" | "bash" | "sh" | "dash") {
+            continue;
+        }
+        let on_tty = std::fs::read_dir(format!("/proc/{pid}/fd")).into_iter().flatten().flatten().any(|e| {
+            e.file_name() != "2" && std::fs::read_link(e.path()).is_ok_and(|t| t == tty || t == Path::new("/dev/tty"))
+        });
+        if on_tty {
+            return true;
+        }
+    }
+    false
+}
+
+/// A process's children (`/proc/<pid>/task/*/children`).
+fn children(pid: u32) -> Vec<u32> {
+    std::fs::read_dir(format!("/proc/{pid}/task"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|t| std::fs::read_to_string(t.path().join("children")).ok())
+        .flat_map(|s| s.split_whitespace().filter_map(|p| p.parse().ok()).collect::<Vec<u32>>())
+        .collect()
 }
 
 /// Whether Enter picks the selected suggestion (instead of running the line).
@@ -475,6 +525,11 @@ struct Session {
     line: String,
     env: ShellEnv,
     shell_pid: Option<u32>,
+    /// The PTY the shell runs on (`/dev/pts/N`).
+    tty: Option<PathBuf>,
+    /// Another program uses the terminal while the line is edited (fzf's
+    /// Ctrl+T): no popup until it's gone. See [`foreign_program`].
+    foreign: bool,
     cwd_fallback: PathBuf,
     req_tx: Sender<Request>,
 
@@ -649,6 +704,7 @@ impl Session {
             && self.items_line == self.line
             && self.dismissed.as_deref() != Some(self.line.as_str())
             && !self.parser.screen().alternate_screen()
+            && !self.foreign
     }
 
     // ------------------------------------------------------------ events
@@ -680,6 +736,8 @@ impl Session {
         if self.editing && self.prompt_end.is_some() {
             self.read_line_from_screen();
         }
+        self.foreign =
+            self.editing && self.shell_pid.zip(self.tty.as_deref()).is_some_and(|(pid, tty)| foreign_program(pid, tty));
         self.last_output = Instant::now();
         self.mark_dirty();
         if self.pending_enter.is_some()
@@ -819,7 +877,8 @@ impl Session {
             && !self.hidden
             && !self.visible()
             && self.dismissed.as_deref() != Some(self.line.as_str())
-            && !self.parser.screen().alternate_screen();
+            && !self.parser.screen().alternate_screen()
+            && !self.foreign;
         show.then_some(label.as_str())
     }
 
@@ -1039,7 +1098,7 @@ impl Session {
 
     /// The popup may be shown now (the shell is editing a line, nothing hides it).
     fn can_show(&self) -> bool {
-        self.editing && !self.hidden && !self.parser.screen().alternate_screen()
+        self.editing && !self.hidden && !self.parser.screen().alternate_screen() && !self.foreign
     }
 
     /// Enter while this line's suggestions are still loading waits for them
