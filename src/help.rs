@@ -325,6 +325,10 @@ pub fn parse(text: &str, argv: &[String]) -> Option<Subcommand> {
 
     let mut options: Vec<Opt> = vec![];
     let mut subs: Vec<(Vec<String>, String)> = vec![];
+    // Positional arguments (`Arguments:`, `positional arguments:`).
+    let mut args: Vec<crate::spec::Arg> = vec![];
+    let mut in_args = false;
+    let mut arg_indent: Option<usize> = None;
     let mut in_commands = false;
     // Indentation of the items in the current commands section (set by the
     // first one); prose and wrapped descriptions are indented differently.
@@ -337,8 +341,11 @@ pub fn parse(text: &str, argv: &[String]) -> Option<Subcommand> {
         let ind = indent(line);
         // Section headers: `Commands:`, `COMMANDS`, `Available Commands:` …
         if ind == 0 && (t.ends_with(':') || t.chars().all(|c| !c.is_ascii_lowercase())) && !t.starts_with('-') {
-            in_commands = t.to_lowercase().contains("command");
+            let header = t.to_lowercase();
+            in_commands = header.contains("command");
+            in_args = !in_commands && header.contains("argument");
             item_indent = None;
+            arg_indent = None;
             continue;
         }
         if t.starts_with('-') {
@@ -349,6 +356,19 @@ pub fn parse(text: &str, argv: &[String]) -> Option<Subcommand> {
                 && !options.iter().any(|x| x.meta.names == o.meta.names)
             {
                 options.push(o);
+            }
+            continue;
+        }
+        if in_args {
+            // One item per line at the same indent; deeper lines continue a description.
+            if ind == 0 || arg_indent.is_some_and(|w| w != ind) {
+                continue;
+            }
+            let (left, desc) = split_gap(t);
+            let desc = if desc.is_empty() { next_desc(i, ind) } else { desc.to_string() };
+            if let Some(a) = parse_positional(left, &desc) {
+                arg_indent.get_or_insert(ind);
+                args.push(a);
             }
             continue;
         }
@@ -386,7 +406,7 @@ pub fn parse(text: &str, argv: &[String]) -> Option<Subcommand> {
         let desc = if desc.is_empty() { next_desc(i, ind) } else { desc.to_string() };
         subs.push((names, desc.split_whitespace().collect::<Vec<_>>().join(" ")));
     }
-    if options.is_empty() && subs.is_empty() {
+    if options.is_empty() && subs.is_empty() && args.is_empty() {
         return None;
     }
     let mut spec = cmd(argv.last().map_or("", String::as_str), "").opts(options);
@@ -399,7 +419,11 @@ pub fn parse(text: &str, argv: &[String]) -> Option<Subcommand> {
         }
         spec = spec.sub(sub);
     }
-    if spec.subcommands.is_empty() {
+    if !args.is_empty() {
+        for a in args {
+            spec = spec.arg(a);
+        }
+    } else if spec.subcommands.is_empty() {
         let mut a = arg("file").optional().variadic();
         a.template.push(Template::Filepaths);
         spec = spec.arg(a);
@@ -407,9 +431,50 @@ pub fn parse(text: &str, argv: &[String]) -> Option<Subcommand> {
     Some(spec)
 }
 
+/// A positional argument from an `Arguments:` item: `[SHELL]`, `<FILE>...`,
+/// `{start,stop}`, `name`; values from `[possible values: a, b]` in its
+/// description (clap).
+fn parse_positional(left: &str, desc: &str) -> Option<crate::spec::Arg> {
+    if left.contains(char::is_whitespace) || left.starts_with('-') || left.is_empty() {
+        return None;
+    }
+    let variadic = left.ends_with("...");
+    let token = left.trim_end_matches("...");
+    let mut a = placeholder_arg(token, token.starts_with('['));
+    if a.name.is_empty() {
+        return None;
+    }
+    if variadic {
+        a = a.variadic();
+    }
+    let values = possible_values(desc);
+    if !values.is_empty() {
+        a.template.clear();
+        a = a.suggest(&values.iter().map(String::as_str).collect::<Vec<_>>());
+    }
+    Some(a)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn positional_arguments() {
+        // clap
+        let text = "Add lig to your shell\n\nUsage: lig install [SHELL]\n\nArguments:\n  [SHELL]  [possible values: fish, zsh, bash]\n\nOptions:\n  -h, --help  Print help\n";
+        let s = parse(text, &["install".into()]).unwrap();
+        assert_eq!(s.args.len(), 1);
+        assert!(s.args[0].is_optional && s.args[0].template.is_empty());
+        let vals: Vec<&str> = s.args[0].suggestions.iter().map(|x| x.meta.names[0].as_str()).collect();
+        assert_eq!(vals, ["fish", "zsh", "bash"]);
+        // argparse, with a wrapped description and a repeatable path.
+        let text = "usage: tool [-h] {start,stop} paths [paths ...]\n\npositional arguments:\n  {start,stop}  What to do\n  <DIR>...      Folders to watch, one\n                or more\n\noptions:\n  -h, --help    show help\n";
+        let s = parse(text, &["tool".into()]).unwrap();
+        assert_eq!(s.args.len(), 2, "{:?}", s.args.iter().map(|a| &a.name).collect::<Vec<_>>());
+        assert_eq!(s.args[0].suggestions.len(), 2);
+        assert!(s.args[1].is_variadic && s.args[1].template == [Template::Folders]);
+    }
 
     fn names(s: &Subcommand) -> Vec<String> {
         s.options.iter().map(|o| o.meta.names.join(",")).collect()
