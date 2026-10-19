@@ -7,7 +7,12 @@
 <p align="center">
   <b>IDE-style autocomplete for your Linux terminal.</b><br>
   Subcommands, options, branches, packages and paths in a popup as you type.<br>
-  For zsh, bash, and fish, in any terminal. Written in Rust.
+  For zsh, bash and fish, in any terminal. Written in Rust.
+</p>
+
+<p align="center">
+  <a href="https://github.com/KevenGoncalves/lig/releases/latest"><img src="https://img.shields.io/github/v/release/KevenGoncalves/lig" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/KevenGoncalves/lig" alt="MIT license"></a>
 </p>
 
 ```
@@ -20,59 +25,77 @@
 
 ## What is Lig?
 
-Your shell already completes commands when you press `Tab`, but it shows a flat list
-of words and only knows what each command's completion script tells it. Lig shows
-a popup under the cursor while you type, like the autocomplete in a code editor: what
-each subcommand and option does, values that come from your system (branches,
-containers, packages), and the next thing that fits on the line.
+Your shell already completes commands when you press `Tab`, but it shows a flat list of
+words and only knows what each command's completion script tells it. Lig shows a popup
+under the cursor while you type, like the autocomplete in a code editor: what each
+subcommand and option does, values that come from your system (branches, containers,
+packages), and the next thing that fits on the line.
 
 It brings the experience of [Fig](https://fig.io) (now Kiro CLI autocomplete) and
-[easy-complete](https://github.com/chen86860/easy-complete) to Linux, as a single
-binary that works in any terminal: it draws the popup inside the terminal itself.
+[easy-complete](https://github.com/chen86860/easy-complete) to Linux, as a single binary
+that works in any terminal: it draws the popup inside the terminal itself.
 
-- **~730 commands** out of the box: git, docker, kubectl, cargo, npm, aws, gh, terraform,
-  systemctl, apt… (the [withfig/autocomplete](https://github.com/withfig/autocomplete)
-  specs, converted to JSON and embedded in the binary).
-- **Live values**: git branches, docker containers, systemd units, ssh hosts, make
-  targets, npm scripts, zoxide directories, PIDs…
-- **Package search as you type**: npm, crates.io, Docker Hub, PyPI, Snap Store, apt.
-- **Any other command** gets options and subcommands parsed from its `--help` or man page.
+- **~740 commands** out of the box: git, docker, kubectl, cargo, npm, aws, gh, terraform,
+  systemctl, apt, dnf, asdf, ghostty… (the [withfig/autocomplete](https://github.com/withfig/autocomplete)
+  specs converted to JSON, plus hand-written ones, all embedded in the binary).
+- **Live values**: git branches, docker containers, systemd units, ssh hosts, make targets,
+  npm scripts, zoxide directories, PIDs…
+- **Package search as you type**: npm, crates.io, Docker Hub, PyPI and the Snap Store.
+- **Any other command** gets its options, subcommands and argument values from its
+  `--help` or man page.
 - Knows your **aliases, functions and builtins** (`gco ` completes like `git checkout `).
-- Nerd Font icons, themes, configurable size and keys.
+- **zsh, bash and fish**, including fish started inside another shell.
+- Nerd Font icons, themes, configurable size, and any keys you like.
 - Runs locally: no daemon, no account, no telemetry.
 
 ## Install
 
-Requirements: Linux, [Rust](https://rustup.rs) 1.85+, zsh ≥ 5.3, bash ≥ 4.4, or fish ≥ 4.2.1.
-Optional: `curl` (online package search), a [Nerd Font](https://www.nerdfonts.com) (icons).
+Lig runs on Linux with zsh ≥ 5.3, bash ≥ 4.4 or fish ≥ 4.2.1. Optional: `curl` for online
+package search, a [Nerd Font](https://www.nerdfonts.com) for icons.
+
+### Prebuilt binary
+
+Download the archive for your machine from the
+[latest release](https://github.com/KevenGoncalves/lig/releases/latest):
+
+| Archive | Runs on |
+| --- | --- |
+| `lig-<version>-x86_64-unknown-linux-musl.tar.gz` | any x86_64 Linux (static binary) |
+| `lig-<version>-aarch64-unknown-linux-musl.tar.gz` | any ARM64 Linux (static binary) |
+| `lig-<version>-x86_64-unknown-linux-gnu.tar.gz` | x86_64 with glibc 2.35+ (Ubuntu 22.04, Debian 12 and newer) |
+| `lig-<version>-aarch64-unknown-linux-gnu.tar.gz` | ARM64 with glibc 2.35+ |
+
+For example, 1.0.4 on x86_64:
 
 ```bash
-git clone https://github.com/KevenGoncalves/lig lig
+curl -LO https://github.com/KevenGoncalves/lig/releases/download/v1.0.4/lig-1.0.4-x86_64-unknown-linux-musl.tar.gz
+tar xzf lig-1.0.4-x86_64-unknown-linux-musl.tar.gz
+install -Dm755 lig-1.0.4-x86_64-unknown-linux-musl/lig ~/.local/bin/lig
+```
+
+Each archive has a `.sha256` file next to it to check the download with `sha256sum -c`.
+
+### From source
+
+With [Rust](https://rustup.rs) 1.85 or newer:
+
+```bash
+git clone https://github.com/KevenGoncalves/lig
 cd lig
 cargo install --path .
-lig install            # sets up your $SHELL; or: lig install zsh / lig install bash / lig install fish
 ```
 
-No Rust? Download a prebuilt binary from [Releases](https://github.com/KevenGoncalves/lig/releases)
-instead. The `x86_64-unknown-linux-musl` (or `aarch64-…-musl`) archive runs on any Linux:
+### Set up your shell
 
 ```bash
-tar xzf lig-*-x86_64-unknown-linux-musl.tar.gz
-install -Dm755 lig-*/lig ~/.local/bin/lig
-lig install
+lig install            # your $SHELL; or: lig install zsh / bash / fish
 ```
 
-Open a new terminal, then check the setup:
+Open a new terminal, then check the setup with `lig doctor`.
 
-```bash
-lig doctor
-```
-
-`lig install` adds a pre block at the top of your shell config and a post block at
-the bottom. It keeps the original in `<config>.lig-backup`. Fish uses
-`${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish`.
-
-Manual setup:
+`lig install` adds a small block at the top and one at the bottom of your shell config
+(`~/.zshrc`, `~/.bashrc` or `~/.config/fish/config.fish`) and keeps the original as
+`<config>.lig-backup`. To set it up by hand instead:
 
 ```bash
 # first line of ~/.zshrc                 # last line of ~/.zshrc
@@ -83,17 +106,20 @@ eval "$(lig init bash pre)"              eval "$(lig init bash post)"
 ```
 
 ```fish
-# First line of config.fish
+# first line of config.fish
 eval (lig init fish pre | string collect)
-# Last line of config.fish
+# last line of config.fish
 eval (lig init fish post | string collect)
 ```
 
-- Remove it: `lig uninstall` (or `lig uninstall fish` / `lig uninstall bash`).
-- Skip it for one shell: `LIG_DISABLE=1 zsh`.
-- Update it: `lig update` pulls the latest changes into the folder you cloned and
-  reinstalls it (`--source <dir>` for another checkout). Then open a new terminal tab:
-  a tab keeps the version it started with.
+### Update and remove
+
+- **Update**: `lig update` pulls the latest changes into the folder you built from and
+  reinstalls it (`--source <dir>` for another checkout). With a prebuilt binary, download
+  the new release instead. Then open a new terminal tab: a tab keeps the version it
+  started with.
+- **Skip it for one shell**: `LIG_DISABLE=1 zsh`.
+- **Remove it**: `lig uninstall` (or `lig uninstall fish` / `bash` / `zsh`).
 
 ## Usage
 
@@ -109,20 +135,20 @@ Type as usual and the popup appears with suggestions for what you're typing.
 
 What to expect:
 
-- **Command names don't pop up by themselves** (`ls`, `sudo ls`…), so simple commands
-  run with a single `Enter`. Press `Ctrl+Space` to see command names, or set
-  `complete_commands = true` under `[behavior]` for automatic suggestions.
-- **`Enter`** completes the word you're typing (`go bui` → `go build`), or picks the
-  first suggestion after a space (`git checkout ` → `git checkout main`). If the word is
-  already complete (`git status`), it runs the command. `Enter` `Enter` means "pick,
-  then run".
+- **Command names don't pop up by themselves** (`ls`, `sudo ls`…), so simple commands run
+  with a single `Enter`. Press `Ctrl+Space` to see command names, or set
+  `complete_commands = true` to always get them.
+- **`Enter`** completes the word you're typing (`go bui` → `go build`), or picks the first
+  suggestion after a space (`git checkout ` → `git checkout main`). If the word is already
+  complete (`git status`), it runs the command. `Enter` `Enter` means "pick, then run".
 - **No space is added** after a pick, except after options (`--force `). Type the space
   yourself to see what comes next.
 - **Folders** (`cd`, `mkdir`, …): picking one keeps the popup open with its subfolders.
-  The first entries are **↵ Enter** (run the command) and **Back** (one folder up).
-- **History and the shell's own completion stay yours**: while you browse history with
-  the arrows or use `Tab` after closing the popup, lig stays out of the way. Typing
-  brings it back.
+  The first entries are **↵ Enter** (run the command) and **Back** (one folder up). Path
+  options like `cargo install --path` also offer `.`, the current folder.
+- **History and the shell's own completion stay yours**: while you browse history with the
+  arrows, use `Tab` after closing the popup, or run a tool like fzf's `Ctrl+T`, Lig stays
+  out of the way. Typing brings it back.
 
 ## Configuration
 
@@ -157,18 +183,18 @@ online = true              # search package registries as you type
 disabled_commands = []     # never show the popup for these
 ```
 
-Keys are a key name with optional modifiers: `ctrl-n`, `alt-j`, `shift-up`, `ctrl-alt-x`,
-`f5`, `pagedown`, `ctrl-space`. For anything else your terminal sends, use its escape
-sequence (`"\\x1b[1;5C"`). Run `lig keys` and press a key to see its name; keys your terminal
-keeps for itself (often Ctrl+Tab) never reach the shell.
+**Keys** are a key name with optional modifiers: `ctrl-n`, `alt-j`, `shift-up`,
+`ctrl-alt-x`, `f5`, `pagedown`, `ctrl-space`. For anything else your terminal sends, use its
+escape sequence (`"\\x1b[1;5C"`). Run `lig keys` and press a key to see its name. Keys your
+terminal keeps for itself (often Ctrl+Tab) never reach the shell.
 
-Try styles without editing the file:
+**Try styles** without editing the file:
 
 ```bash
 lig preview --all                                   # every theme
 lig preview --theme nord --density compact --border square
 lig preview --description bottom --width 60
-lig icons                                           # every icon lig uses
+lig icons                                           # every icon Lig uses
 ```
 
 Changes apply to new terminal tabs.
@@ -179,19 +205,20 @@ Looked up in this order:
 
 1. **Your specs** in `~/.config/lig/specs/<command>.json` or `.toml`.
 2. **Hand-written specs** in [`specs/lig/`](specs/lig) (git, docker, cargo, npm, systemctl,
-   apt, ssh, kubectl, cd, z, …), merged with the converted one for the same command when
+   apt, dnf, asdf, kubectl, cd, …), merged with the converted one for the same command when
    there is one.
 3. **Converted Fig specs** in [`specs/fig/`](specs/fig).
-4. **The command's `--help` or man page**, parsed and cached per executable version.
-   `--help` is only run for real binaries and Python/Node/Ruby scripts, with no input,
-   no display and a 2 s timeout. Other files only get their man page read. Turn it off
-   with `help_parsing = false`.
+4. **The command's `--help` or man page**, parsed and cached per executable version:
+   options, subcommands, and argument values like `[possible values: a, b]`. `--help` only
+   runs for real binaries and Python/Node/Ruby scripts, with no input, no display and a
+   2 s timeout; other files only get their man page read. Turn it off with
+   `help_parsing = false`.
 
 `lig specs list` shows which source each command uses.
 
 **Online search** (`npm i`, `pnpm add`, `cargo add`, `docker pull`, `pip install`,
-`snap install`) sends the package name you're typing to that registry, through `curl`,
-with results cached for 30 minutes. Turn it off with `online = false`.
+`snap install`) sends the package name you're typing to that registry through `curl`, with
+results cached for 30 minutes. Turn it off with `online = false`.
 
 ### Writing a spec
 
@@ -214,85 +241,93 @@ description = "Tail the logs of a service"
 args = { name = "service", generators = { script = ["deploy", "list-services"] } }
 ```
 
-Arguments can list fixed `suggestions`, use `template = "filepaths"` or `"folders"`, or
-run a command whose output lines become suggestions (`generators = { script = [...] }`).
-lig also has native generators (git branches, docker containers, …) usable with
-`generators = [{ builtin = "git:branches" }]`. `lig specs generators` lists them.
+Arguments can list fixed `suggestions`, use `template = "filepaths"` or `"folders"`, or run a
+command whose output lines become suggestions (`generators = { script = [...] }`). Lig also
+has native generators (git branches, docker containers, …) usable with
+`generators = [{ builtin = "git:branches" }]`; `lig specs generators` lists them.
 
-To check a spec:
-
-```bash
-lig complete "deploy -e "
-```
+Check a spec with `lig complete "deploy -e "`.
 
 ## How it works
 
-lig runs your shell inside a pseudo-terminal (`lig shell`) and passes everything
-through. It keeps a model of the screen, draws the popup into the terminal under the
-cursor, and restores what was underneath when the popup closes. This is why it works
-in any terminal and on Wayland, where apps can't place floating windows.
+Lig runs your shell inside a pseudo-terminal (`lig shell`) and passes everything through.
+It keeps a model of the screen, draws the popup into the terminal under the cursor, and
+restores what was underneath when the popup closes. This is why it works in any terminal,
+and on Wayland, where apps can't place floating windows.
 
-Small shell hooks tell lig what you're typing. zsh reports the line on every redraw.
-For bash, lig reads the line from the screen after an invisible prompt marker.
-Fish reports its edit buffer after input or redraws; there is no idle polling. To
-accept a suggestion, lig sends a private key that a shell function binds to edit the
-line. Slow sources (commands, network) run in the background, so the popup never
-blocks typing.
+Small shell hooks tell Lig what you're typing: zsh reports the line on every redraw, bash's
+line is read from the screen after an invisible prompt marker, and fish reports its line
+when Lig asks after each key. To accept a suggestion, Lig sends a private key that a shell
+function binds to edit the line. Slow sources (commands, network) run in the background, so
+the popup never blocks typing.
 
 ## Troubleshooting
 
 | Problem | Try |
 | --- | --- |
-| No popup at all | `lig doctor`. "running inside lig" must be ok; open a new tab after installing or updating. |
-| Wrong or missing suggestions | `lig complete "<the line>"` shows what lig would suggest. |
-| A key binding does nothing | `lig keys` shows whether the key reaches lig, and its name. |
-| A command's suggestions look outdated | `lig specs clear-cache` (re-reads `--help` output). |
+| No popup at all | `lig doctor`: "running inside lig" must be ok. Open a new tab after installing or updating. |
+| Wrong or missing suggestions | `lig complete "<the line>"` shows what Lig would suggest. |
+| A key binding does nothing | `lig keys` shows whether the key reaches Lig, and its name. |
+| A command's suggestions look outdated | `lig specs clear-cache` re-reads `--help` output. |
 | Something else | Start a shell with `LIG_LOG=1 zsh` (or `bash` / `fish`) and check `~/.local/state/lig/lig.log`. |
 
 ## Limitations
 
-- Fish reserves `SIGUSR1` for buffer reports and Ctrl+Alt+Shift+F12 for insertion.
-- Fish `complete` definitions and alias bodies are not imported into lig.
-- Starship has not been tested with the fish integration.
 - In bash the line is read from the screen. A cursor inside a long wrapped line at the
   bottom of a full screen can occasionally confuse it, until the next key.
-- Specs parsed from `--help` contain options and subcommands, but no dynamic values.
-- About a quarter of the Fig specs' dynamic generators couldn't be converted (they
-  relied on JavaScript logic); the options and subcommands around them are kept.
+- Fish reserves `SIGUSR1` for line reports and Ctrl+Alt+Shift+F12 for insertion. Fish's own
+  `complete` definitions and alias bodies aren't imported, and Starship hasn't been tested
+  with fish.
+- Specs parsed from `--help` have no live values (like branches).
+- About a quarter of the Fig specs' dynamic generators couldn't be converted (they relied on
+  JavaScript logic); the options and subcommands around them are kept.
 
 ## Development
 
 ```bash
 cargo test                      # unit tests, including every spec in specs/lig/
 cargo build --release
-python3 tests/fish_pty.py
+python3 tests/fish_pty.py       # PTY tests: fish, then bash/zsh, tmux, the trial launcher
 python3 tests/shell_smoke.py
 python3 tests/tmux_placement.py
 python3 tests/trial_launcher.py
 tools/update-fig-specs.sh       # regenerate specs/fig/ from withfig/autocomplete
 ```
 
-The PTY tests require Python 3 and the relevant shells. The tmux tests use a
-private server. All scripts test `target/release/lig`; set `LIG_TEST_BIN` to use
-another binary.
+The PTY tests need Python 3 and the shells they test; the tmux tests use a private server.
+They test `target/release/lig`; set `LIG_TEST_BIN` to use another binary.
 
 ```
-src/            the lig binary (session.rs: PTY + popup, engine.rs: completion,
-                popup.rs: drawing, help.rs: --help parser, specs/gens.rs: native generators)
-shell/          zsh, bash, and fish hooks
-specs/lig/      hand-written specs (JSON)
-specs/fig/      converted withfig/autocomplete specs (generated)
-build.rs        embeds both spec folders, compressed, into the binary
-tools/figconv/  the Fig → JSON converter (development only, not part of lig)
-assets/         the logo
+src/                  the lig binary (session.rs: PTY + popup, engine.rs: completion,
+                      popup.rs: drawing, help.rs: --help parser, specs/gens.rs: native generators)
+shell/                zsh, bash and fish hooks
+specs/lig/            hand-written specs (JSON)
+specs/fig/            converted withfig/autocomplete specs (generated)
+build.rs              embeds both spec folders, compressed, into the binary
+tests/                PTY tests (Python)
+tools/figconv/        the Fig → JSON converter (development only)
+.github/workflows/    release builds
+assets/               the logo
 ```
 
 To add a built-in spec, add `specs/lig/<command>.json` and rebuild. To add a new kind of
 live value, write a generator in `src/specs/gens.rs` and register its id in `builtin()`.
 
+**Releasing**: bump `version` in `Cargo.toml`, commit, then push a matching tag:
+
+```bash
+git tag -a v1.0.5 -m "1.0.5" && git push origin v1.0.5
+```
+
+The release workflow runs the tests, builds the four archives and publishes the release
+with generated notes.
+
 ## Credits and license
+
+Fish support was contributed by [@techwizrd](https://github.com/techwizrd) in
+[#6](https://github.com/KevenGoncalves/lig/pull/6).
 
 The specs in `specs/fig/` come from [withfig/autocomplete](https://github.com/withfig/autocomplete),
 © Hercules Labs Inc. and contributors, MIT licensed (see [`specs/fig/LICENSE`](specs/fig/LICENSE)).
 
-lig is MIT licensed, see [`LICENSE`](LICENSE).
+Lig is MIT licensed, see [`LICENSE`](LICENSE).
