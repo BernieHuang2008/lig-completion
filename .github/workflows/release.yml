@@ -1,0 +1,103 @@
+# Build Lig for Linux and publish a GitHub release when a version tag is pushed:
+#
+#   git tag -a v1.0.4 -m "Lig 1.0.4" && git push origin v1.0.4
+#
+# glibc builds run on older Ubuntu, so they work on glibc 2.35+ (Ubuntu 22.04,
+# Debian 12, …); musl builds are static and run on any Linux.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build and release, e.g. v1.0.3"
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check the tag matches Cargo.toml
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::Tag $TAG doesn't match version $version in Cargo.toml"
+            exit 1
+          fi
+      - run: cargo test --locked
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04-arm
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-22.04-arm
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Check the binary runs
+        run: target/${{ matrix.target }}/release/lig --version
+      - name: Package
+        run: |
+          name="lig-${TAG#v}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          cp target/${{ matrix.target }}/release/lig README.md LICENSE "dist/$name/"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+          (cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+
+  release:
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -l dist
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Re-run: replace the files of the existing release.
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --verify-tag --title "Lig ${TAG#v}" --generate-notes
+          fi

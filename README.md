@@ -53,6 +53,15 @@ cargo install --path .
 lig install            # sets up your $SHELL; or: lig install zsh / lig install bash / lig install fish
 ```
 
+No Rust? Download a prebuilt binary from [Releases](https://github.com/KevenGoncalves/lig/releases)
+instead. The `x86_64-unknown-linux-musl` (or `aarch64-…-musl`) archive runs on any Linux:
+
+```bash
+tar xzf lig-*-x86_64-unknown-linux-musl.tar.gz
+install -Dm755 lig-*/lig ~/.local/bin/lig
+lig install
+```
+
 Open a new terminal, then check the setup:
 
 ```bash
