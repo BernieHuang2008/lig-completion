@@ -1,7 +1,7 @@
 //! Extracts lig's private OSC 6973 messages from the shell's output stream.
 //!
 //! The shell integration writes `ESC ] 6973 ; <kind> [; payload] BEL`:
-//!   `R`                    fish signal handler ready, reader active
+//!   `R[;<pid>]`            fish signal handler ready, reader active
 //!   `Q;<id>;<B;…|H>`       reply to a fish snapshot request
 //!   `B;<cursor>;<buffer>`  edit buffer changed (zsh/fish)
 //!   `S`                    the prompt ends here; input starts (bash)
@@ -20,8 +20,11 @@ const MAX_PENDING: usize = 1 << 20;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Msg {
-    /// Fish has installed its signal handler and entered the reader.
-    Ready,
+    /// Fish has installed its signal handler and entered the reader; `pid`
+    /// is the fish process to signal.
+    Ready {
+        pid: Option<u32>,
+    },
     InsertRejected,
     Snapshot {
         id: u64,
@@ -101,7 +104,7 @@ fn parse(payload: &[u8]) -> Option<Msg> {
     let s = String::from_utf8_lossy(payload);
     let (kind, rest) = s.split_once(';').unwrap_or((&s, ""));
     match kind {
-        "R" => Some(Msg::Ready),
+        "R" => Some(Msg::Ready { pid: rest.parse().ok() }),
         "J" => Some(Msg::InsertRejected),
         "Q" => {
             let (id, state) = rest.split_once(';')?;
@@ -157,8 +160,9 @@ mod tests {
         assert!(out.is_empty());
         assert_eq!(
             msgs.into_iter().map(|(_, m)| m).collect::<Vec<_>>(),
-            vec![Msg::Ready, Msg::Buffer { cursor: 6, text: "café;🙂\n".into() }, Msg::Hide]
+            vec![Msg::Ready { pid: None }, Msg::Buffer { cursor: 6, text: "café;🙂\n".into() }, Msg::Hide]
         );
+        assert_eq!(parse(b"R;4242"), Some(Msg::Ready { pid: Some(4242) }));
     }
 
     #[test]

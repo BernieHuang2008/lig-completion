@@ -240,7 +240,7 @@ class FishTests(unittest.TestCase):
         out = self.fish.send('cd /tmp\r')
         self.assertIn(b'\x1b]6973;F\x07', out)
         self.assertIn(b'\x1b]6973;C;/tmp\x07', out)
-        self.assertIn(b'\x1b]6973;R\x07', out)
+        self.assertRegex(out, rb'\x1b\]6973;R;[0-9]+\x07')
 
 class WrappedTests(unittest.TestCase):
     def test_missing_snapshot_reply_recovers_without_a_new_prompt(self):
@@ -263,6 +263,32 @@ end
             self.assertGreater(int((fish.home / 'request-id').read_text()), 1)
         finally:
             fish.close()
+
+    def test_fish_started_inside_another_shell(self):
+        # `fish` typed in a zsh tab gets its own lig and completes as usual.
+        zsh = os.environ.get('LIG_TEST_ZSH') or shutil.which('zsh')
+        if not zsh:
+            self.skipTest('zsh is unavailable')
+        term = Fish(wrapped=True, shell=zsh)
+        try:
+            config = term.home / 'config/fish/config.fish'
+            config.parent.mkdir(parents=True, exist_ok=True)
+            config.write_text("set -g fish_greeting\nfunction fish_prompt; printf 'nested> '; end\n"
+                              "bind ctrl-o 'commandline --current-buffer > \"$HOME/buffer\"'\n")
+            subprocess.run([BIN, 'install', 'fish'], env=term.env, check=True, capture_output=True)
+            start = len(term.output)
+            term.send('fish\r')
+            term.wait_for(lambda: b'nested> ' in term.output[start:])
+            start = len(term.output)
+            term.send('git ch')
+            term.wait_text('checkout', start)
+            term.send(b'\t')
+            term.send(b'\r')
+            self.assertEqual(term.buffer(), 'git cherry-pick')
+            term.send(b'\x03')
+            term.send('exit\r')
+        finally:
+            term.close()
 
     def test_fast_enter_uses_the_updated_buffer(self):
         fish = Fish(wrapped=True)

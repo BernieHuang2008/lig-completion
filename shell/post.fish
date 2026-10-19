@@ -45,7 +45,7 @@ if status is-interactive; and test -z "$LIG_DISABLE"; and test -n "$LIG_TTY"; an
         printf '\e]6973;C;%s\a\e]6973;P;%s\a' (__lig_clean "$PWD") (__lig_clean (string join : -- $PATH)) >/dev/tty
         printf '\e]6973;N;%s\a\e]6973;K;%s\a' (string join \x1e -- (functions --names | string match -rv '^_')) (string join \x1e -- (builtin --names)) >/dev/tty
         # Handler registration is complete before Rust is allowed to signal this process.
-        printf '\e]6973;R\a' >/dev/tty
+        printf '\e]6973;R;%s\a' $fish_pid >/dev/tty
     end
 
     function __lig_finish --on-event fish_preexec

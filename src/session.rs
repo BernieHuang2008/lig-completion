@@ -145,6 +145,14 @@ impl Drop for RawMode {
     }
 }
 
+/// The shell that is talking to lig right now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ShellKind {
+    Zsh,
+    Bash,
+    Fish,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum InsertionTransport {
     Inline,
@@ -749,6 +757,34 @@ impl Session {
         }
     }
 
+    /// The edit buffer reported by zsh or fish.
+    fn on_buffer(&mut self, cursor: usize, text: &str) {
+        crate::log(&format!("buffer cursor={cursor} characters={}", text.chars().count()));
+        self.editing = true;
+        self.hidden = false;
+        self.set_line(text.chars().take(cursor).collect());
+    }
+
+    /// Talk to `kind` from now on: the shell lig started may have been
+    /// replaced (`exec bash`, `exec fish`), and each one reports its line and
+    /// takes completions its own way.
+    fn switch_shell(&mut self, kind: ShellKind) {
+        let fish = kind == ShellKind::Fish;
+        if fish != self.fish_shell || (kind == ShellKind::Zsh && self.prompt_end.is_some()) {
+            crate::log(&format!("shell is now {kind:?}"));
+        }
+        self.fish_shell = fish;
+        if !fish {
+            self.fish_refresh = None;
+        }
+        if kind != ShellKind::Bash {
+            // Only bash's line is read off the screen.
+            self.prompt_end = None;
+        }
+        self.insertion_transport =
+            if kind == ShellKind::Zsh { InsertionTransport::Inline } else { InsertionTransport::File };
+    }
+
     /// The text left of the cursor changed (reported by zsh, or read off the
     /// screen for bash).
     fn set_line(&mut self, line: String) {
@@ -808,8 +844,12 @@ impl Session {
                 self.items_line.clear();
                 self.request();
             }
-            Msg::Ready => {
-                crate::log(&format!("reader ready fish={} pid={:?}", self.fish_shell, self.shell_pid));
+            Msg::Ready { pid } => {
+                crate::log(&format!("reader ready fish={} pid={:?} from={pid:?}", self.fish_shell, self.shell_pid));
+                // Fish that replaced the shell lig started (`exec fish`): same process.
+                if !self.fish_shell && pid.is_some() && pid == self.shell_pid {
+                    self.switch_shell(ShellKind::Fish);
+                }
                 if self.fish_shell {
                     self.editing = true;
                     let mut refresh = FishRefresh::default();
@@ -819,19 +859,19 @@ impl Session {
             }
             Msg::Snapshot { id, buffer } => {
                 if self.fish_refresh.as_mut().is_some_and(|refresh| refresh.reported(id)) {
-                    self.on_msg(match buffer {
-                        Some((cursor, text)) => Msg::Buffer { cursor, text },
-                        None => Msg::Hide,
-                    });
+                    match buffer {
+                        Some((cursor, text)) => self.on_buffer(cursor, &text),
+                        None => self.hidden = true,
+                    }
                 }
             }
             Msg::Buffer { cursor, text } => {
-                crate::log(&format!("buffer cursor={cursor} characters={}", text.chars().count()));
-                self.editing = true;
-                self.hidden = false;
-                self.set_line(text.chars().take(cursor).collect());
+                // Only zsh sends its buffer unasked (fish's comes as snapshots).
+                self.switch_shell(ShellKind::Zsh);
+                self.on_buffer(cursor, &text);
             }
             Msg::PromptEnd => {
+                self.switch_shell(ShellKind::Bash);
                 let screen = self.parser.screen();
                 let (row, col) = screen.cursor_position();
                 let prefix = screen.contents_between(row, 0, row, col);

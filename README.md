@@ -253,7 +253,6 @@ blocks typing.
 
 - Fish reserves `SIGUSR1` for buffer reports and Ctrl+Alt+Shift+F12 for insertion.
 - Fish `complete` definitions and alias bodies are not imported into lig.
-- Nested fish sessions need `lig shell --shell (status fish-path)`.
 - Starship has not been tested with the fish integration.
 - In bash the line is read from the screen. A cursor inside a long wrapped line at the
   bottom of a full screen can occasionally confuse it, until the next key.
