@@ -1,6 +1,6 @@
 # Build Lig for Linux and publish a GitHub release when a version tag is pushed:
 #
-#   git tag -a v1.0.4 -m "Lig 1.0.4" && git push origin v1.0.4
+#   git tag -a v1.0.4 -m "1.0.4" && git push origin v1.0.4
 #
 # glibc builds run on older Ubuntu, so they work on glibc 2.35+ (Ubuntu 22.04,
 # Debian 12, …); musl builds are static and run on any Linux.
@@ -99,5 +99,5 @@ jobs:
             # Re-run: replace the files of the existing release.
             gh release upload "$TAG" dist/* --clobber
           else
-            gh release create "$TAG" dist/* --verify-tag --title "Lig ${TAG#v}" --generate-notes
+            gh release create "$TAG" dist/* --verify-tag --title "${TAG#v}" --generate-notes
           fi
