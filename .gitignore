@@ -3,3 +3,4 @@ __pycache__/
 /dist
 /lig-*.tar.gz
 /lig-*.tar.gz.sha256
+/result
