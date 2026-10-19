@@ -313,15 +313,6 @@ assets/               the logo
 To add a built-in spec, add `specs/lig/<command>.json` and rebuild. To add a new kind of
 live value, write a generator in `src/specs/gens.rs` and register its id in `builtin()`.
 
-**Releasing**: bump `version` in `Cargo.toml`, commit, then push a matching tag:
-
-```bash
-git tag -a v1.0.5 -m "1.0.5" && git push origin v1.0.5
-```
-
-The release workflow runs the tests, builds the four archives and publishes the release
-with generated notes.
-
 ## Credits and license
 
 Fish support was contributed by [@techwizrd](https://github.com/techwizrd) in
