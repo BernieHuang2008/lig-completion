@@ -80,7 +80,7 @@ Each archive has a `.sha256` file next to it to check the download with `sha256s
 With [Rust](https://rustup.rs) 1.85 or newer:
 
 ```bash
-git clone https://github.com/KevenGoncalves/lig
+git clone https://github.com/KevenGoncalves/lig.git
 cd lig
 cargo install --path .
 ```
