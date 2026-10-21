@@ -94,6 +94,8 @@ struct Cx<'a> {
     /// subcommand arguments (`cargo install --path .`, `docker build .`), not
     /// a command's own argument (`cd .`, or `cat .` picked by Enter).
     offer_dot: bool,
+    /// The command whose arguments are being completed (`nvim` in `sudo nvim `).
+    command: String,
     /// The path argument has no generated values (branches, packages…): `.`,
     /// Enter and Back may be offered without crowding them out (`git checkout`).
     only_paths: bool,
@@ -206,6 +208,7 @@ impl Engine {
             loading: None,
             manual,
             offer_dot: false,
+            command: String::new(),
             only_paths: true,
         };
 
@@ -222,6 +225,7 @@ impl Engine {
             }
         } else if self.cfg.show_on_empty_token || manual || !cl.current.raw.is_empty() {
             let cmd = basename(&cl.tokens[0].value).to_string();
+            cx.command = cmd.clone();
             if !self.cfg.disabled_commands.contains(&cmd)
                 && let Some(root) = self.spec(&cmd, &mut cx)
             {
@@ -299,6 +303,7 @@ impl Engine {
             if arg.is_command {
                 // The rest of the line is another command.
                 let Some(s) = self.spec(basename(t), cx) else { return };
+                cx.command = basename(t).to_string();
                 node = self.resolve(&s, cx);
                 persistent.clear();
                 used.clear();
@@ -462,11 +467,10 @@ impl Engine {
         for s in &a.suggestions {
             cx.push_def(s, Kind::Arg, query, delete);
         }
-        for t in &a.template {
-            match t {
-                Template::Filepaths => self.files(cx, false),
-                Template::Folders => self.files(cx, true),
-            }
+        if a.template.contains(&Template::Filepaths) {
+            self.files(cx, false);
+        } else if a.template.contains(&Template::Folders) {
+            self.files(cx, true);
         }
         for g in &a.generators {
             self.generator(g, cx, query, delete);
@@ -727,8 +731,9 @@ impl Engine {
         if scored.iter().any(|s| s.tier < 2) {
             scored.retain(|s| s.tier < 2);
         }
-        // Subcommands and values first, then options, then files.
-        let files_first = self.cfg.files_first;
+        // Subcommands and values first, then options, then files; files first
+        // for commands that open them (`nvim `, `code `).
+        let files_first = self.cfg.files_first || self.cfg.files_first_commands.contains(&cx.command);
         let kind_tier = |idx: usize| match cx.cands[idx].kind {
             Kind::Option => 1,
             Kind::File | Kind::Folder if !files_first => 2,
@@ -768,9 +773,8 @@ impl Engine {
             }
         }
         // Nothing to offer if the only suggestion is exactly what's typed —
-        // except an option (accepting adds its space) or a folder (its `/`).
-        if out.len() == 1 && !matches!(out[0].kind, Kind::Folder | Kind::Option) && out[0].insert.trim_end() == cur.raw
-        {
+        // except a folder (accepting adds its `/`).
+        if out.len() == 1 && out[0].kind != Kind::Folder && out[0].insert.trim_end() == cur.raw {
             out.clear();
         }
         out
@@ -910,11 +914,10 @@ fn insertion(c: &Cand, name: &str, cur: &Token, space: bool) -> (String, usize) 
     }
     let is_dir = c.kind == Kind::Folder || name.ends_with('/');
     let bare = if is_dir { name.trim_end_matches('/') } else { name };
-    // A trailing space after options (`--force `), otherwise only with
-    // `insert_space`; `=` and `/` always.
+    // A trailing space only with `insert_space`; `=` and `/` always.
     let suffix = match (is_dir, c.suffix.as_str()) {
         (true, _) => "/",
-        (false, " ") if !space && c.kind != Kind::Option => "",
+        (false, " ") if !space => "",
         (false, s) => s,
     };
     match cur.open_quote {
@@ -1193,6 +1196,22 @@ mod tests {
     }
 
     #[test]
+    fn files_first_for_commands_that_open_them() {
+        let (mut e, env) = engine();
+        let mut file_arg = arg("file").variadic();
+        file_arg.template = vec![Template::Filepaths, Template::Folders];
+        e.insert_spec(cmd("nvim", "").opts([opt("-R", "Read-only")]).arg(file_arg.clone()));
+        e.insert_spec(cmd("java", "").opts([opt("-jar", "Run a jar")]).arg(file_arg));
+        // An editor: files and folders, then its options; no Back for a file argument.
+        let r = labels(&mut e, &env, "nvim ");
+        let kinds: Vec<&str> = r.iter().map(|x| x.0.as_str()).collect();
+        assert_eq!(kinds, ["sub dir/", "file.txt", "-R"]);
+        assert!(labels(&mut e, &env, "sudo nvim ").first().is_some_and(|x| x.0 == "sub dir/"));
+        // Other commands keep options first.
+        assert_eq!(labels(&mut e, &env, "java ")[0].0, "-jar");
+    }
+
+    #[test]
     fn no_space_after_completion_by_default() {
         let (_, env) = engine();
         let dir = env.cwd.parent().unwrap().join("specs");
@@ -1200,12 +1219,12 @@ mod tests {
         e.insert_spec(tool());
         let r = labels(&mut e, &env, "tool b");
         assert_eq!(r[0], ("build".into(), "build".into(), 1));
-        // Options get their space; separators that belong to the value stay.
-        assert_eq!(labels(&mut e, &env, "tool build --verb")[0].1, "--verbose ");
-        assert_eq!(labels(&mut e, &env, "tool --out")[0].1, "--output ");
+        // Options neither; separators that belong to the value stay.
+        assert_eq!(labels(&mut e, &env, "tool build --verb")[0].1, "--verbose");
+        assert_eq!(labels(&mut e, &env, "tool --out")[0].1, "--output");
         assert_eq!(labels(&mut e, &env, "tool --c")[0].1, "--color=");
-        // A fully typed option is still offered, to accept it with its space.
-        assert_eq!(labels(&mut e, &env, "tool -o")[0].1, "-o ");
+        // Nothing to offer for a word that's fully typed, option or not.
+        assert!(labels(&mut e, &env, "tool -o").is_empty());
         assert!(labels(&mut e, &env, "tool bench").is_empty());
         assert_eq!(labels(&mut e, &env, "tool -o su")[0].1, "sub\\ dir/");
         assert_eq!(labels(&mut e, &env, "tool -o \"fi")[0].1, "\"file.txt\"");

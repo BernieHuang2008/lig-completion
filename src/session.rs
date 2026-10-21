@@ -956,12 +956,11 @@ impl Session {
         self.line.is_empty() || self.line.ends_with(char::is_whitespace)
     }
 
-    /// The word being typed already equals one of the suggestions (`git status`).
-    /// Options don't count: Enter on a fully typed `-o` accepts it (adding
-    /// its space) instead of running the line.
+    /// The word being typed already equals one of the suggestions (`git
+    /// status`, `--amend`): accepting it would change nothing.
     fn word_complete(&self) -> bool {
         let chars: Vec<char> = self.line.chars().collect();
-        self.items.iter().filter(|s| s.kind != Kind::Option).any(|s| {
+        self.items.iter().any(|s| {
             let typed: String = chars[chars.len().saturating_sub(s.delete)..].iter().collect();
             !typed.is_empty() && s.insert.trim_end().trim_end_matches('/') == typed.trim_end_matches('/')
         })

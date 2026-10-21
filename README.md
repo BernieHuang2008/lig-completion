@@ -141,8 +141,11 @@ What to expect:
 - **`Enter`** completes the word you're typing (`go bui` → `go build`), or picks the first
   suggestion after a space (`git checkout ` → `git checkout main`). If the word is already
   complete (`git status`), it runs the command. `Enter` `Enter` means "pick, then run".
-- **No space is added** after a pick, except after options (`--force `). Type the space
+- **No space is added** after a pick, options included (`--force`). Type the space
   yourself to see what comes next.
+- **Files first for commands that open them** (`code`, `vim`, `nvim`, `cat`, `less`,
+  `xdg-open`…): their files and folders come before their options. Other commands list
+  options first. Add commands with `files_first_commands`.
 - **Folders** (`cd`, `mkdir`, …): picking one keeps the popup open with its subfolders.
   The first entries are **↵ Enter** (run the command) and **Back** (one folder up). Path
   options like `cargo install --path` also offer `.`, the current folder.
@@ -181,6 +184,7 @@ insert_space = false       # add a space after every pick
 complete_commands = false  # pop up for command names too
 online = true              # search package registries as you type
 disabled_commands = []     # never show the popup for these
+files_first_commands = ["code", "nvim", "…"]  # list files before options (editors, viewers…)
 ```
 
 **Keys** are a key name with optional modifiers: `ctrl-n`, `alt-j`, `shift-up`,

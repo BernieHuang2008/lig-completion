@@ -144,6 +144,9 @@ pub struct Behavior {
     pub insert_space: bool,
     /// List files before options and subcommands.
     pub files_first: bool,
+    /// Commands that open files (editors, viewers, players…): their files and
+    /// folders come before their options, as if `files_first` were on.
+    pub files_first_commands: Vec<String>,
     /// Show suggestions right after a space (empty current token).
     pub show_on_empty_token: bool,
     /// Pop up automatically for the first word (command names). Off by
@@ -201,6 +204,22 @@ impl Default for Keys {
     }
 }
 
+/// The default `files_first_commands`.
+#[rustfmt::skip]
+const FILES_FIRST_COMMANDS: &[&str] = &[
+    // Editors
+    "code", "code-insiders", "codium", "cursor", "zed", "subl", "atom", "gedit", "gnome-text-editor",
+    "kate", "kwrite", "mousepad", "xed", "pluma", "vim", "vi", "nvim", "gvim", "view", "vimdiff", "nano",
+    "pico", "micro", "emacs", "emacsclient", "hx", "helix", "kak", "joe", "ne", "mcedit",
+    // Viewers and pagers
+    "cat", "bat", "batcat", "less", "more", "most", "head", "tail", "glow", "xxd", "hexdump",
+    // Opening files and folders
+    "open", "xdg-open", "gio", "nautilus", "dolphin", "thunar", "nemo", "pcmanfm",
+    // Images, documents and media
+    "eog", "feh", "viu", "sxiv", "nsxiv", "imv", "gimp", "inkscape", "evince", "okular", "zathura",
+    "xreader", "libreoffice", "soffice", "mpv", "vlc", "totem", "celluloid",
+];
+
 impl Default for Behavior {
     fn default() -> Self {
         Behavior {
@@ -208,6 +227,7 @@ impl Default for Behavior {
             enter_accepts: "auto".into(),
             insert_space: false,
             files_first: false,
+            files_first_commands: FILES_FIRST_COMMANDS.iter().map(|c| c.to_string()).collect(),
             show_on_empty_token: true,
             complete_commands: false,
             online: true,
