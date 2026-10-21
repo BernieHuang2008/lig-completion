@@ -65,12 +65,12 @@ Download the archive for your machine from the
 | `lig-<version>-x86_64-unknown-linux-gnu.tar.gz` | x86_64 with glibc 2.35+ (Ubuntu 22.04, Debian 12 and newer) |
 | `lig-<version>-aarch64-unknown-linux-gnu.tar.gz` | ARM64 with glibc 2.35+ |
 
-For example, 1.0.4 on x86_64:
+For example, 1.0.5 on x86_64:
 
 ```bash
-curl -LO https://github.com/KevenGoncalves/lig/releases/download/v1.0.4/lig-1.0.4-x86_64-unknown-linux-musl.tar.gz
-tar xzf lig-1.0.4-x86_64-unknown-linux-musl.tar.gz
-install -Dm755 lig-1.0.4-x86_64-unknown-linux-musl/lig ~/.local/bin/lig
+curl -LO https://github.com/KevenGoncalves/lig/releases/download/v1.0.5/lig-1.0.5-x86_64-unknown-linux-musl.tar.gz
+tar xzf lig-1.0.5-x86_64-unknown-linux-musl.tar.gz
+install -Dm755 lig-1.0.5-x86_64-unknown-linux-musl/lig ~/.local/bin/lig
 ```
 
 Each archive has a `.sha256` file next to it to check the download with `sha256sum -c`.
