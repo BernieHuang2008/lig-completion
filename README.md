@@ -85,6 +85,42 @@ cd lig
 cargo install --path .
 ```
 
+### Nix + home-manager
+
+The Nix flake has a [home-manager](https://github.com/nix-community/home-manager) module that
+installs Lig, writes its config and sets up your shells. Add the flake to your inputs:
+
+```nix
+# flake.nix
+inputs.lig = {
+  url = "github:KevenGoncalves/lig";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+```
+
+Then import the module, enable it, and optionally also configure it:
+
+```nix
+# home.nix
+{ inputs, ... }:
+{
+  imports = [ inputs.lig.homeModules.default ];
+
+  programs.lig = {
+    enable = true;
+    settings = { # gets written to ~/.config/lig/config.toml
+      ui.theme = "catppuccin";
+      behavior.online = false;
+    };
+  };
+}
+```
+
+Lig is added to every home-manager managed shell. To leave one out, for example for `fish`, set
+`programs.lig.enableZshIntegration = false`.
+
+To update Lig, update your Nix flake and rebuild instead of using `lig update`.
+
 ### Set up your shell
 
 ```bash
